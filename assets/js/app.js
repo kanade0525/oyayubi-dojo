@@ -428,7 +428,6 @@ function finishRun() {
 
   // summary は summarizeRun() の返り値。平均のズレは stat.both.mean にある
   const meanOffset = summary?.stat?.both?.mean ?? null;
-  el.finishEyebrow.textContent = COURSES.find(c => c.id === run.lesson.courseId)?.name ?? '';
   el.finishTitle.textContent = run.lesson.title;
   el.finishCpm.textContent = String(Math.round(summary?.cpm ?? 0));
   el.finishBest.hidden = !(records && records.length);
@@ -814,7 +813,10 @@ function paintLearn() {
  * ホームの札の見た目とルーターで別々に判断すると、片方だけ守られる（実際そうなっていた）。
  */
 function isCourseOpen(courseId) {
-  if (!courseId || courseId === 'basic' || courseId === 'free') return true;
+  // texts は «鍛える» の題材置き場。教程ではないので解禁の対象外。
+  // 以前は題材を教程のコースから引いていたため、新規の人には一覧に18本出るのに
+  // 押すと全部ホームに弾かれていた。出ているのに押せないのは、いちばん質の悪い壊れ方
+  if (!courseId || courseId === 'basic' || courseId === 'free' || courseId === 'texts') return true;
   return (unlockedOf(loadStats()).course ?? []).includes(courseId);
 }
 
@@ -1098,20 +1100,35 @@ function materialInfo(lesson) {
   const n = chars.length || 1;
   const shifted = same + cross;
 
+  // 閾値は題材60本の実測分布から決めた。
+  // タグは «普通と違う» を指すためのものなので、自然分布の真ん中に線を引くと
+  // ほとんどの題材に付いて何も言わなくなる。上位1〜2割に入る値にしてある。
+  //   同側  中央0.331 / 90%点0.455 … 0.30 だと41本に付いていた（＝無意味）
+  //   同時  中央0.457 / 90%点0.578 … 0.45 だと35本に付いていた
+  //   交差  中央0.106 / 90%点0.244 … 0.28 は既に上位。そのまま
+  //   小書き 中央0.028 / 90%点0.095 … 0.10 は既に上位。そのまま
   const tags = [];
   if (cross / n >= 0.28) tags.push('濁音が多い');
-  if (same / n >= 0.3) tags.push('同側シフトが多い');
+  if (same / n >= 0.42) tags.push('同側シフトが多い');
   if (small / n >= 0.1) tags.push('小書き・拗音が多い');
-  if (shifted / n <= 0.12) tags.push('ほぼ単独打鍵');
-  if (n >= 70) tags.push('長め');
-  if (shifted / n >= 0.45) tags.push('同時打鍵が主');
+  if (shifted / n <= 0.3) tags.push('ほぼ単独打鍵');
+  if (n >= 100) tags.push('長め');
+  if (shifted / n >= 0.55) tags.push('同時打鍵が主');
 
   return { kana: chars.length, solo, same, cross, shifted, tags };
 }
 
-/** 稽古で選べる実文の題材。コース順に並べる */
+/**
+ * «鍛える» で選べる実文の題材。
+ *
+ * 教程（覚える）のコースからは引かない。あちらは段階的に解禁されるので、
+ * 一覧に出しても新規の人は押した瞬間に弾かれる。題材は最初から全部打てるべきもの。
+ * 専用の置き場（texts）が無ければ、打てるコースの中から拾って凌ぐ。
+ */
 function materials() {
-  return [...lessonsOf('sentence'), ...lessonsOf('speed'), ...lessonsOf('timing')];
+  const texts = lessonsOf('texts');
+  if (texts.length) return texts;
+  return LESSONS.filter(l => isCourseOpen(l.courseId));
 }
 
 function paintMaterials(stats) {

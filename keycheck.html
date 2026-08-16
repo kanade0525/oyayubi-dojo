@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>キー実測 — 親指シフトタイピング道場</title>
+<!--
+  このページは何か。
+
+  親指シフトは「文字キー」と「親指キー」を同時に押して入力する。判定には両方の
+  keydown と keyup、そして押下時刻が要る。ところが親指の位置にあるキーが
+  ブラウザまで届くかどうかは、OS と ブラウザ の組み合わせで変わる。
+
+  特に macOS の 英数/かな は入力ソース切替キーで、OS 側に食われる恐れがある。
+  ブラウザのソースコード上は Chromium M99(2022年3月)以降 keydown/keyup の両方を
+  処理する作りになっているが、実機で確かめていない。ここが確認できないまま
+  作り始めると、土台から作り直しになる。
+
+  だからアプリ本体より先にこのページを作る。やることは一つだけで、
+  押したキーの生のイベントをそのまま見せること。判定も変換も一切しない。
+
+  依存は無い。ファイルを直接開いても動く。
+-->
+<style>
+  :root {
+    --tone: #6ea8fe;
+    --bg: #0e1116;
+    --panel: #161b22;
+    --line: #2b323c;
+    --fg: #e6edf3;
+    --dim: #8b949e;
+    --ok: #3fb950;
+    --ng: #f85149;
+    --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .lead { color: var(--dim); margin: 0 0 20px; font-size: .9rem; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  .panel h2 { font-size: .95rem; margin: 0 0 12px; color: var(--tone); }
+  .steps { margin: 0; padding-left: 1.2em; font-size: .9rem; }
+  .steps li { margin-bottom: 4px; }
+  kbd {
+    background: #21262d; border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 4px; padding: 1px 6px; font-size: .85em;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 500; font-size: .8rem; }
+  td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card.seen { border-color: var(--ok); }
+  .card.partial { border-color: var(--warn); }
+  .card .name { font-weight: 600; font-size: .9rem; }
+  .card .code { font-family: ui-monospace, Menlo, monospace; color: var(--dim); font-size: .78rem; }
+  .card .marks { margin-top: 6px; font-size: .82rem; }
+  .yes { color: var(--ok); } .no { color: var(--ng); }
+  .log-wrap { max-height: 340px; overflow-y: auto; }
+  tr.down td { background: rgba(110, 168, 254, .07); }
+  button {
+    background: var(--tone); color: #08121f; border: 0; border-radius: 7px;
+    padding: 9px 16px; font-size: .88rem; font-weight: 600; cursor: pointer;
+    font-family: inherit;
+  }
+  button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .note { font-size: .82rem; color: var(--dim); margin-top: 10px; }
+  .alarm {
+    display: none; border: 1px solid var(--ng); background: rgba(248, 81, 73, .1);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: .88rem;
+  }
+  .alarm.on { display: block; }
+  textarea {
+    width: 100%; height: 160px; background: #0b0f14; color: var(--fg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    font-family: ui-monospace, Menlo, monospace; font-size: .78rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>キー実測</h1>
+  <p class="lead">
+    親指シフトの判定に使えるキーを、この環境で実際に確かめます。押したキーの生のイベントをそのまま出します。
+  </p>
+
+  <div class="alarm" id="ime-alarm">
+    <strong>日本語入力がオンになっています。</strong>
+    英数（直接入力）に切り替えてから測ってください。オンのままだとキーがブラウザに届きません。
+  </div>
+
+  <div class="panel">
+    <h2>測りかた</h2>
+    <ol class="steps">
+      <li>日本語入力を<strong>オフ</strong>（英数・ABC）にする</li>
+      <li>親指シフトのエミュレータ（Karabiner の NICOLA 設定、Lacaille、やまぶきR など）を使っていれば<strong>切る</strong></li>
+      <li>下のキーを一つずつ、<strong>しっかり押して離す</strong>。<kbd>スペース</kbd> <kbd>英数</kbd> <kbd>かな</kbd> <kbd>無変換</kbd> <kbd>変換</kbd></li>
+      <li>次に<strong>親指キーと文字キーを同時に</strong>押してみる（例: <kbd>スペース</kbd>＋<kbd>H</kbd>）</li>
+      <li>「結果をコピー」を押して、内容をそのまま貼って渡してください</li>
+    </ol>
+    <p class="note">
+      Chrome・Safari・Firefox の三つで同じことをすると、どのブラウザを勧めるべきかが決まります。
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>親指キー候補の判定</h2>
+    <div class="grid" id="candidates"></div>
+    <p class="note">
+      <span class="yes">押下</span> と <span class="yes">解放</span> の<strong>両方</strong>が取れて初めて親指キーに使えます。
+      解放が取れないキーは、押しっぱなしの検出ができないため使えません。
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>同時打鍵ためし</h2>
+    <p class="note" style="margin-top:0">
+      親指キー候補を<strong>押しながら</strong>文字キーを押すと、ここに記録されます。
+      <kbd>英数</kbd>＋<kbd>H</kbd> と <kbd>かな</kbd>＋<kbd>H</kbd> の両方を試してください。
+    </p>
+    <table>
+      <thead>
+        <tr><th>#</th><th>親指キー</th><th class="mono">文字キー</th><th class="mono">keyCode</th><th>時間差</th><th>判定</th></tr>
+      </thead>
+      <tbody id="combo"></tbody>
+    </table>
+    <p class="note">
+      <strong>keyCode が 229 になったら、その親指キーは使えません。</strong>
+      日本語入力に食われて文字キーが届いていない印です（かなキーで起きる恐れがあります）。
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>タイムスタンプの粒度</h2>
+    <div id="precision">まだ測っていません。キーを何度か押してください。</div>
+    <p class="note">
+      同時打鍵の判定は数十msの差を見ます。粒度がそれより粗いと判定が荒くなります。
+      Firefox は既定で 2ms に丸めます。
+    </p>
+  </div>
+
+  <div class="panel">
+    <h2>生ログ</h2>
+    <div class="log-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>種別</th><th class="mono">code</th><th class="mono">key</th>
+            <th class="mono">keyCode</th><th>repeat</th><th class="mono">timeStamp</th><th>前との差</th>
+          </tr>
+        </thead>
+        <tbody id="log"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button id="copy">結果をコピー</button>
+      <button class="ghost" id="clear">消す</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>貼り付け用</h2>
+    <textarea id="report" readonly placeholder="「結果をコピー」を押すとここに出ます"></textarea>
+  </div>
+
+</div>
+
+<script>
+// 親指キーになりうるキーだけを名指しで見る。
+// Lang1 と KanaMode は同じ「かな」キーで、ブラウザによって名前が違う（Safari だけ KanaMode）。
+const CANDIDATES = [
+  { code: 'Space',      name: 'スペース',   note: '左親指の既定候補' },
+  { code: 'Lang2',      name: '英数',       note: 'Mac。右親指の既定候補' },
+  { code: 'Lang1',      name: 'かな',       note: 'Mac / Chrome・Firefox' },
+  { code: 'KanaMode',   name: 'かな',       note: 'Mac / Safari は名前が違う' },
+  { code: 'NonConvert', name: '無変換',     note: 'Windows' },
+  { code: 'Convert',    name: '変換',       note: 'Windows' },
+  { code: 'F13',        name: 'F13',        note: 'Karabiner で逃がす先' },
+  { code: 'F14',        name: 'F14',        note: 'Karabiner で逃がす先' },
+];
+
+const seen = new Map();   // code -> { down: n, up: n, keys: Set, keyCodes: Set }
+const rows = [];
+let last = null;
+const gaps = [];
+
+// 親指キー候補を押している間に文字キーが来たら、それが同時打鍵として成立するか記録する。
+// ここが本番の判定そのものなので、使えるキーかどうかはこの表で決まる。
+const held = new Map();   // code -> 押した時刻
+const combos = [];
+const CAND_CODES = new Set(CANDIDATES.map(c => c.code));
+
+const elCand = document.getElementById('candidates');
+const elLog  = document.getElementById('log');
+const elPrec = document.getElementById('precision');
+const elRep  = document.getElementById('report');
+const elAlarm = document.getElementById('ime-alarm');
+
+function cardsInit() {
+  elCand.replaceChildren();
+  for (const c of CANDIDATES) {
+    const s = seen.get(c.code);
+    const div = document.createElement('div');
+    div.className = 'card' + (s ? (s.down && s.up ? ' seen' : ' partial') : '');
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = c.name;
+    div.append(name);
+
+    const code = document.createElement('div');
+    code.className = 'code';
+    code.textContent = c.code + ' — ' + c.note;
+    div.append(code);
+
+    const marks = document.createElement('div');
+    marks.className = 'marks';
+    const d = document.createElement('span');
+    d.className = s && s.down ? 'yes' : 'no';
+    d.textContent = (s && s.down ? '✓' : '×') + ' 押下' + (s && s.down ? `(${s.down})` : '');
+    const u = document.createElement('span');
+    u.className = s && s.up ? 'yes' : 'no';
+    u.textContent = (s && s.up ? '✓' : '×') + ' 解放' + (s && s.up ? `(${s.up})` : '');
+    marks.append(d, document.createTextNode('　'), u);
+    div.append(marks);
+
+    if (s && s.keys.size) {
+      const k = document.createElement('div');
+      k.className = 'code';
+      k.textContent = 'key: ' + [...s.keys].join(' / ');
+      div.append(k);
+    }
+    elCand.append(div);
+  }
+}
+
+function record(e, type) {
+  const cur = seen.get(e.code) || { down: 0, up: 0, keys: new Set(), keyCodes: new Set() };
+  if (type === 'down') cur.down++; else cur.up++;
+  cur.keys.add(e.key);
+  cur.keyCodes.add(e.keyCode);
+  seen.set(e.code, cur);
+
+  const gap = last === null ? null : +(e.timeStamp - last).toFixed(3);
+  if (gap !== null && gap > 0) gaps.push(gap);
+  last = e.timeStamp;
+
+  const row = {
+    n: rows.length + 1, type, code: e.code, key: e.key,
+    keyCode: e.keyCode, repeat: e.repeat, ts: +e.timeStamp.toFixed(3), gap,
+  };
+  rows.push(row);
+
+  const tr = document.createElement('tr');
+  if (type === 'down') tr.className = 'down';
+  for (const v of [row.n, type === 'down' ? '押下' : '解放', row.code, row.key,
+                   row.keyCode, row.repeat ? 'true' : '', row.ts, row.gap ?? '']) {
+    const td = document.createElement('td');
+    td.className = 'mono';
+    td.textContent = String(v);
+    tr.append(td);
+  }
+  elLog.prepend(tr);
+
+  cardsInit();
+  showPrecision();
+}
+
+// timeStamp の粒度を推定する。差分の最大公約数がだいたいの粒度になる。
+function showPrecision() {
+  if (gaps.length < 4) { elPrec.textContent = `まだ ${gaps.length} 件。もう少し押してください。`; return; }
+  const scaled = gaps.map(g => Math.round(g * 1000));   // µs に直して整数で見る
+  const gcd = (a, b) => b ? gcd(b, a % b) : a;
+  const g = scaled.reduce((a, b) => gcd(a, b));
+  const frac = gaps.some(x => x % 1 !== 0);
+  elPrec.textContent =
+    `差分 ${gaps.length} 件から推定した粒度: 約 ${(g / 1000).toFixed(3)} ms`
+    + `（小数部あり: ${frac ? 'はい' : 'いいえ'}／最小の差: ${Math.min(...gaps).toFixed(3)} ms）`;
+}
+
+const elCombo = document.getElementById('combo');
+
+function recordCombo(thumbCode, e) {
+  const dead = e.keyCode === 229 || e.key === 'Process';
+  const row = {
+    n: combos.length + 1,
+    thumb: thumbCode,
+    charCode: e.code,
+    keyCode: e.keyCode,
+    offset: +(e.timeStamp - held.get(thumbCode)).toFixed(1),
+    ok: !dead,
+  };
+  combos.push(row);
+
+  const tr = document.createElement('tr');
+  for (const [v, cls] of [[row.n, 'mono'], [row.thumb, 'mono'], [row.charCode, 'mono'],
+                          [row.keyCode, 'mono'], [row.offset + ' ms', 'mono'], ['', '']]) {
+    const td = document.createElement('td');
+    td.className = cls;
+    td.textContent = String(v);
+    tr.append(td);
+  }
+  const verdict = tr.lastElementChild;
+  verdict.className = row.ok ? 'yes' : 'no';
+  verdict.textContent = row.ok ? '文字キーが届いた' : '✗ 229 に化けた';
+  elCombo.prepend(tr);
+}
+
+window.addEventListener('keydown', e => {
+  // ブラウザ操作は邪魔しない。⌘/Ctrl 併用はそのまま通す
+  if (e.metaKey || e.ctrlKey) return;
+  // IME が動いていると素のキーが取れない。気づけるように出す
+  if (e.isComposing || e.keyCode === 229 || e.key === 'Process') elAlarm.classList.add('on');
+  e.preventDefault();
+
+  if (e.repeat) return;   // 押しっぱなしの自動連打は記録しない
+  if (CAND_CODES.has(e.code)) {
+    held.set(e.code, e.timeStamp);
+  } else if (held.size) {
+    // 親指キーを押している間に来た文字キー。これが同時打鍵の実体
+    for (const thumbCode of held.keys()) recordCombo(thumbCode, e);
+  }
+  record(e, 'down');
+});
+
+window.addEventListener('keyup', e => {
+  if (e.metaKey || e.ctrlKey) return;
+  e.preventDefault();
+  held.delete(e.code);
+  record(e, 'up');
+});
+
+// IME がオンになった瞬間も捕まえる
+window.addEventListener('compositionstart', () => elAlarm.classList.add('on'));
+
+document.getElementById('clear').addEventListener('click', () => {
+  rows.length = 0; gaps.length = 0; seen.clear(); last = null;
+  elLog.replaceChildren(); elRep.value = '';
+  elAlarm.classList.remove('on');
+  cardsInit(); showPrecision();
+});
+
+document.getElementById('copy').addEventListener('click', async () => {
+  const lines = [];
+  lines.push('# キー実測の結果');
+  lines.push('');
+  lines.push('userAgent: ' + navigator.userAgent);
+  lines.push('platform: ' + (navigator.userAgentData?.platform ?? navigator.platform));
+  lines.push('言語: ' + navigator.language);
+  lines.push('');
+  lines.push('## 親指キー候補');
+  for (const c of CANDIDATES) {
+    const s = seen.get(c.code);
+    lines.push(`- ${c.name} (${c.code}): `
+      + (s ? `押下 ${s.down} / 解放 ${s.up}　key=${[...s.keys].join('|')} keyCode=${[...s.keyCodes].join('|')}`
+           : '一度も来ていない'));
+  }
+  lines.push('');
+  lines.push('## 同時打鍵ためし');
+  if (!combos.length) lines.push('（記録なし）');
+  for (const c of combos) {
+    lines.push(`- ${c.thumb} + ${c.charCode}: keyCode=${c.keyCode} 差=${c.offset}ms `
+      + (c.ok ? '→ 文字キーが届いた' : '→ ✗ 229 に化けた（このキーは使えない）'));
+  }
+  lines.push('');
+  lines.push('## timeStamp の粒度');
+  lines.push(elPrec.textContent);
+  lines.push('');
+  lines.push('## 生ログ（古い順）');
+  lines.push('#\ttype\tcode\tkey\tkeyCode\trepeat\ttimeStamp\tgap');
+  for (const r of rows) {
+    lines.push([r.n, r.type, r.code, r.key, r.keyCode, r.repeat, r.ts, r.gap ?? ''].join('\t'));
+  }
+  const text = lines.join('\n');
+  elRep.value = text;
+  try {
+    await navigator.clipboard.writeText(text);
+    const b = document.getElementById('copy');
+    b.textContent = 'コピーしました';
+    setTimeout(() => { b.textContent = '結果をコピー'; }, 1600);
+  } catch {
+    elRep.select();   // クリップボードが使えない場合は選択だけしておく
+  }
+});
+
+cardsInit();
+</script>
+</body>
+</html>

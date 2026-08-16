@@ -1,0 +1,22 @@
+# npm run check を PR ごとに走らせる。
+# 手元でしか回らない検査は、いずれ回されなくなる。
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # 依存パッケージは無いので install は要らない。
+      # check.mjs は中で node --test tools/ も走らせる（テストの件数まで見る）
+      - run: npm run check

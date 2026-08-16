@@ -1,0 +1,20 @@
+# 配信時に付けるヘッダ。Cloudflare Workers がこのファイルを読む。
+# GitHub Pages はヘッダを指定できないので、置いてあっても無視される（併存に支障はない）。
+#
+# connect-src 'none' が核心。
+#   README では「外へ出ていく通信はゼロ」と書けるが、それは宣言にとどまる。
+#   connect-src 'none' を置くと、うっかり CDN の URL を書いた時点でブラウザが止める。
+#   宣言が不変条件になる。
+#
+#   配列表を JSON ではなく JS モジュール（assets/data/nicola.js）にしてあるのは、
+#   これを 'self' に緩めずに済ませるため。fetch を一つも使わない作りにしてある。
+#
+# script-src のハッシュは、index.html の <head> にあるインラインスクリプト（配色の
+# 先当て）のもの。module は遅れて走るので、これが無いと一瞬だけ既定色が見えてちらつく。
+# ハッシュは tools/check.mjs が毎回実測して照合する。中身を変えたら値も変わる。
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Yy/NY3A2yymfViJZxHj7EXGqLaMDSgZ1F4C2LM21Do4='; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), usb=(), payment=(), interest-cohort=()

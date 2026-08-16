@@ -1,0 +1,37 @@
+# Cloudflare Workers に上げないもの。.gitignore と同じ書き方。
+#
+# directory を "." にしているので、書かないと開発用のものまで配られる。
+# どれも公開リポジトリに既にあるものなので漏れる話ではないが、
+# 配信するものは実際に画面で使うものだけにしておく。
+#
+# _headers はここに書かない。あれは Worker が読んで解釈する設定で、
+# アセットとしては配信されない（除外は要らない）。
+
+# 開発と検査のためのもの
+tools/
+scripts/
+package.json
+wrangler.jsonc
+
+# 説明と手続き
+README.md
+LICENSE
+.github/
+
+# GitHub Pages 用。Workers では意味を持たない
+.nojekyll
+
+# 手元にしか無いもの
+.git/
+.gitignore
+node_modules/
+.wrangler/
+.DS_Store
+
+# node_modules を外すのは念のためではない。
+# wrangler.jsonc が無いまま `npx wrangler deploy` を走らせると、wrangler が
+# 対話セットアップを始めて自分を devDependency として入れる。すると
+# directory: "." の下に node_modules ができ、workerd の実行ファイル（122 MiB）が
+# 25 MiB の上限を超えてデプロイが落ちる。一度そうなった。
+#
+# wrangler.jsonc を置いた以上その道は通らないが、外し忘れると同じ壊れ方をする。

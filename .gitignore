@@ -1,0 +1,9 @@
+# macOS が勝手に作る
+.DS_Store
+
+# 依存パッケージは一つも使わない作りだが、うっかり npm install したときのため
+node_modules/
+
+# エディタ・ツールの作業物
+.vscode/
+*.log

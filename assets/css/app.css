@@ -1,0 +1,3471 @@
+/* 親指シフトタイピング道場 — 意匠のすべて
+   ================================================================
+   このファイルは何か
+     アプリ全体の見た目。CSS はこの 1 枚しかない。フレームワークも CDN も使わない。
+
+   なぜこの方針か
+     - 主色 --tone を 1 つ決めれば、面・境界・文字の濃さが color-mix で全部導かれる。
+       配色を増やすときに書き換えるのは :root[data-tone="…"] の数行だけで済む。
+     - 判定の色（ぴったり/良い/ずれ/不発）だけは --tone から導かない。
+       あれは信号機と同じ意味を持つ色で、配色を替えたからといって意味が変わると困る。
+     - 「同側シフトか交差シフトか」の 2 色も配色ごとに決め打ちする。
+       この 2 色は NICOLA の規則そのものを表しているので、慎重に離す。
+     - 色だけに意味を持たせない。同側/交差は面の枠線の形でも、必ず添える言葉でも分かる。
+       判定は針の位置でも分かる。色が見えない人にも同じ情報が届くようにしてある。
+
+   演出の方針
+     平時は静か、節目だけ派手。打鍵中に動くのは針と親指ランプだけ。
+     課題完了・自己ベスト更新・実績解除のときだけ、.finish で大きく出す。
+*/
+
+/* ---------------------------------------------------------------- 配色 */
+
+:root {
+  --tone: #7aa2f7;
+  --tone-ink: #05070c; /* 主色を地にしたときに乗せる文字 */
+  --bg: #0b0e14;
+
+  /* 交差シフト（＝主に濁音・半濁音）と同側シフト（＝別のかな）。規格 §5.3。
+     «濁音になる面» のほうを目立つ色に当てる。学習者はこの色で規則を覚える。
+     この 2 色は互いの明度差が小さいので、色だけで区別させない。
+     面の位置と枠線の形と凡例の言葉を必ず併せる */
+  --cross: #f4a3c0;
+  --same: var(--tone);
+
+  /* --- ここから下は配色を替えても動かさない --- */
+
+  /* 判定の色。信号機と同じで、意味が固定されていないと使いものにならない */
+  --perfect: #7ee787;
+  --good: #5cc8e8;
+  --off: #ffb454;
+  --misfire: #ff8079;
+
+  --fg: #e7ecf3;
+  --fg-mid: #b6c0cf;
+  /* #96a1b2 だと札（--panel）の上で 6.54〜6.79:1 まで落ちる。素地の上だけ見て
+     7.0:1 を満たしたつもりになっていた。札の上でも 7.36:1 以上になる値にしてある */
+  --fg-dim: #a0abbc;
+
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --ui: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  /* かなを大きく出すところ専用。等幅にすると仮名の字面が痩せる */
+  --kana: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 18px;
+}
+
+:root[data-tone="matcha"] {
+  --tone: #6fdc8c;
+  --tone-ink: #04120a;
+  --bg: #080c0a;
+  --cross: #ffc46b;
+}
+
+:root[data-tone="plum"] {
+  --tone: #c9a2f7;
+  --tone-ink: #0a0511;
+  --bg: #110b17;
+  --cross: #79d5e0;
+}
+
+/* 墨。色覚に頼らず、明度と形だけで読ませたい人向け */
+:root[data-tone="sumi"] {
+  --tone: #dbe1ea;
+  --tone-ink: #0a0b0d;
+  --bg: #0c0d0f;
+  --cross: #9db4d0;
+}
+
+/* 主色から導く面と線。ここを 1 か所にまとめてあるので、
+   配色を足すときに触るのは上の数行だけで済む */
+:root {
+  --panel: color-mix(in srgb, var(--tone) 7%, var(--bg));
+  --panel-2: color-mix(in srgb, var(--tone) 3%, var(--bg));
+  --sunken: color-mix(in srgb, #000 55%, var(--bg));
+  --line: color-mix(in srgb, var(--tone) 26%, var(--bg));
+  --line-soft: color-mix(in srgb, var(--tone) 14%, var(--bg));
+  --glow: color-mix(in srgb, var(--tone) 40%, transparent);
+}
+
+/* ---------------------------------------------------------------- 素地 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 上端のごく薄い燐光。ダーク一色だと画面が平たく見える */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 18% -14%, color-mix(in srgb, var(--tone) 10%, transparent), transparent 62%),
+    radial-gradient(700px 420px at 94% 4%, color-mix(in srgb, var(--same) 5%, transparent), transparent 64%);
+}
+
+.screen {
+  position: relative;
+  z-index: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--tone);
+  outline-offset: 2px;
+}
+
+/* 日本語を文節で折る。効かないブラウザでも普通に折れるだけ */
+.page__lead,
+.hero__lead,
+.hero__creed,
+.note,
+.warn p,
+.meter__advice {
+  word-break: auto-phrase;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 0.92em;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 10%, var(--bg));
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* ---------------------------------------------------------------- ヘッダー */
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 54px;
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.nav__brand {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--tone);
+  white-space: nowrap;
+}
+
+.nav__brand span {
+  color: var(--fg-mid);
+  font-weight: 400;
+  margin-left: 0.35em;
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav__links a {
+  padding: 6px 11px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  border-radius: var(--r-s);
+}
+
+/* 練習の入口（覚える・鍛える・記録）と、道具（配列表・設定）を分ける罫。
+   «道具» という語を足して四つ目の見出しを作るより、線一本のほうが静かで速い。
+   aria-hidden の <i> なので、読み上げには何も増えない */
+.nav__sep {
+  width: 1px;
+  height: 15px;
+  margin: 0 7px;
+  background: var(--line);
+}
+
+/* 道具は練習ではない。押せることは変えず、重さだけ落とす。
+   色は --fg-dim のままにして、字を小さくすることで «ひとつ下» を出す。
+   これ以上暗くすると読めなくなる（配色 4 種すべてで比を測っている） */
+.nav__links a.is-tool {
+  font-size: 11.5px;
+}
+
+.nav__links a:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 8%, transparent);
+}
+
+/* app.js は aria-current を立てる。.is-on だけを見ていた頃は、
+   どの画面に居るかがヘッダーに出ていなかった。両方を受ける */
+.nav__links a.is-on,
+.nav__links a[aria-current="page"] {
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 13%, transparent);
+}
+
+/* 文中のリンク。下線はブラウザ既定を切ってあるので、自前で «押せる» を出す */
+.link {
+  color: var(--tone);
+  border-bottom: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+}
+
+.link:hover {
+  border-bottom-color: var(--tone);
+}
+
+.nav__streak {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.nav__streak b {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--tone);
+}
+
+.nav__streak:hover {
+  border-color: var(--tone);
+}
+
+.tones {
+  display: flex;
+  gap: 2px;
+}
+
+.tones__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-s);
+  cursor: pointer;
+}
+
+.tones__opt i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* 見本の色は CSS 側で持つ。JS に色を書くと必ず食い違う */
+.tones__opt[data-tone-set="midnight"] i { background: #7aa2f7; }
+.tones__opt[data-tone-set="matcha"] i { background: #6fdc8c; }
+.tones__opt[data-tone-set="plum"] i { background: #c9a2f7; }
+.tones__opt[data-tone-set="sumi"] i { background: #dbe1ea; }
+
+.tones__opt:hover {
+  color: var(--fg);
+}
+
+.tones__opt[aria-pressed="true"] {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  border-color: var(--line);
+}
+
+/* ---------------------------------------------------------------- 共通の部品 */
+
+.page {
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+  display: grid;
+  gap: 18px;
+}
+
+.page--narrowish {
+  max-width: 880px;
+}
+
+.page__title {
+  margin: 0;
+  font-size: clamp(22px, 3.4vw, 30px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.page__lead {
+  margin: -6px 0 0;
+  max-width: 42rem;
+  font-size: 13.5px;
+  line-height: 2;
+  color: var(--fg-mid);
+}
+
+.page__foot {
+  margin: 10px 0 0;
+}
+
+.note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: var(--fg-dim);
+}
+
+.note b,
+.page__lead b,
+.hero__lead b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.card {
+  padding: 20px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  display: grid;
+  gap: 12px;
+}
+
+.card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--fg-mid);
+}
+
+.card__count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-dim);
+}
+
+.btn {
+  padding: 9px 17px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 11%, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s;
+}
+
+.btn:hover {
+  background: color-mix(in srgb, var(--tone) 18%, var(--bg));
+  border-color: var(--tone);
+}
+
+.btn--primary {
+  font-weight: 600;
+  color: var(--tone-ink);
+  background: var(--tone);
+  border-color: var(--tone);
+}
+
+.btn--primary:hover {
+  color: var(--tone-ink);
+  background: color-mix(in srgb, var(--tone) 80%, #fff);
+  border-color: color-mix(in srgb, var(--tone) 80%, #fff);
+}
+
+.btn--big {
+  padding: 13px 26px;
+  font-size: 14.5px;
+}
+
+.btn--quiet {
+  color: var(--fg-mid);
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn--quiet:hover {
+  background: color-mix(in srgb, var(--tone) 10%, var(--bg));
+  border-color: var(--line);
+}
+
+.btn--danger {
+  color: var(--misfire);
+  border-color: color-mix(in srgb, var(--misfire) 40%, transparent);
+  background: transparent;
+}
+
+.btn--danger:hover {
+  color: #ffd9d6;
+  background: color-mix(in srgb, var(--misfire) 18%, var(--bg));
+  border-color: var(--misfire);
+}
+
+.ghost {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-s);
+  cursor: pointer;
+  transition: 0.16s;
+}
+
+.ghost:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 10%, var(--bg));
+  border-color: var(--line);
+}
+
+/* 注意書き。設定画面の最初に置くので、読み飛ばされない程度には目立たせる */
+.warn {
+  padding: 13px 16px;
+  border: 1px solid color-mix(in srgb, var(--off) 40%, transparent);
+  border-left-width: 3px;
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--off) 7%, transparent);
+}
+
+.warn b {
+  display: block;
+  font-size: 13px;
+  color: var(--off);
+}
+
+.warn p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: var(--fg-mid);
+}
+
+.warn--stop {
+  border-color: color-mix(in srgb, var(--misfire) 45%, transparent);
+  background: color-mix(in srgb, var(--misfire) 7%, transparent);
+}
+
+.warn--stop b {
+  color: var(--misfire);
+}
+
+/* 打鍵の要る画面に置く、狭い画面のときだけの断り書き。
+   ふだんは display:none で、下の «画面が狭いとき» の節でだけ出す。
+   出し入れは @media だけでやる ── JS に触らせない。
+
+   なぜ «打てません» と書くのか。
+   親指シフトは文字キーと親指キーの押下時刻の差を測る入力方式で、
+   タッチ画面のキーボードにはその二つの時刻が無い。つまり «狭いから窮屈» ではなく
+   «この端末では原理的に打てない» が正しい。黙って壊れて見えるより、
+   打てない理由と、代わりに見られる場所（配列表・マイページ）を出すほうが誠実。
+
+   色は --off（注意）ではなく --tone（案内）にしてある。
+   利用者が何かを間違えたわけではないので、赤や橙で咎める筋合いがない */
+.kbnote {
+  display: none;
+  gap: 8px;
+  padding: 14px 16px;
+  background: color-mix(in srgb, var(--tone) 8%, var(--bg));
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-left-color: var(--tone);
+  border-radius: var(--r-s);
+}
+
+.kbnote__head {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tone);
+}
+
+.kbnote__body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+.kbnote__body b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.kbnote__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.tally dt {
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+.tally dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 17px;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.field__label {
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+.field input[type="range"] {
+  flex: 1;
+  max-width: 320px;
+  accent-color: var(--tone);
+}
+
+.field__out {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- #/setup */
+
+.assign {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 10px;
+}
+
+.assign__one {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+}
+
+.assign__label {
+  font-size: 12px;
+  color: var(--fg-mid);
+}
+
+/* 左右の親指には色を割り当てない。
+   同側/交差の色と軸が二本立つと、どちらの意味の色なのか読めなくなる。
+   覚えてほしいのは同側/交差のほうなので、左右は言葉だけで示す */
+.assign__one .assign__label { color: var(--fg-mid); }
+
+.assign__catch {
+  width: 100%;
+}
+
+/* 待ち受け中。押されるまで呼吸させる */
+.assign__catch.is-waiting {
+  color: var(--tone-ink);
+  background: var(--tone);
+  border-color: var(--tone);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.assign__code {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.assign__code.is-set {
+  color: var(--perfect);
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 1; }
+}
+
+/* ---- 打鍵音の音色
+
+   «四つのうち一つ» なので、見た目を作らず素の radio をそのまま使う。
+   配色の切替（.tones__opt）は押しボタンの群れだが、あちらは横一列に納める必要が
+   あってああなっている。こちらは説明文と解禁条件が付くので札の形が要るし、
+   札にした以上は «一つだけ選べる» が形で分かるほうがいい。
+   自前の丸を描くと、選択の状態を CSS と JS の二か所で持つことになる。
+
+   閉じている音色を «並べない» という手もあるが、それだと実績で解禁される意味が
+   消える。閉じたまま、条件を添えて見せる。コース札（.course.is-locked）と同じ流儀。 */
+.sounds {
+  display: grid;
+  /* 240px は «1280px で四つ横並び／768px で二列» になる境目。
+     半端な三列＋一つの折り返しを避けたくて、この幅にしてある */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+  /* fieldset の既定を全部落とす。min-inline-size を切らないとグリッドが縮まない */
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.sounds__legend {
+  padding: 0 0 8px;
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+.sound {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 3px 10px;
+  padding: 12px 14px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.sound:hover {
+  border-color: var(--line);
+}
+
+/* 丸は一段目の左に置くだけ。行をまたがせようとすると（grid-row: 1 / -1）
+   暗黙の行しかない格子では -1 が効かず、説明文が左の列へ落ちる。
+   列だけ決めて、あとは自動配置に任せるのがいちばん壊れない */
+.sound__radio {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  margin: 3px 0 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--tone);
+  cursor: inherit;
+}
+
+.sound__name,
+.sound__note,
+.sound__lock {
+  grid-column: 2;
+}
+
+.sound__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.sound__note {
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+/* 選ばれている札。:has が効かない環境でも、字の色だけは兄弟結合子で付く */
+.sound:has(.sound__radio:checked) {
+  background: color-mix(in srgb, var(--tone) 12%, var(--sunken));
+  border-color: var(--tone);
+}
+
+.sound__radio:checked ~ .sound__name {
+  color: var(--tone);
+}
+
+/* 解禁条件。閉じている札にだけ出す。
+   .is-locked（JS が付ける）と radio の disabled、どちらでも同じ見た目に落ちる。
+   実際に «選べない» を作っているのは disabled のほうで、class は見た目の担当 */
+.sound__lock {
+  display: none;
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--off);
+  word-break: auto-phrase;
+}
+
+.sound__lock::before {
+  content: "🔒 ";
+}
+
+.sound.is-locked .sound__lock,
+.sound:has(.sound__radio:disabled) .sound__lock {
+  display: block;
+}
+
+.sound.is-locked,
+.sound:has(.sound__radio:disabled) {
+  border-style: dashed;
+  border-color: var(--line-soft);
+  background: color-mix(in srgb, var(--sunken) 88%, transparent);
+  cursor: not-allowed;
+}
+
+/* 名前と説明は落とすが、読めなくはしない（--fg-dim は札の上でも 7:1 以上ある）。
+   «開いていない» は破線と鍵の札で言う。字を薄くして言うと、ただ読みにくいだけになる */
+.sound.is-locked .sound__name,
+.sound:has(.sound__radio:disabled) .sound__name {
+  color: var(--fg-mid);
+}
+
+/* ---------------------------------------------------------------- #/ 玄関 と #/learn 覚える */
+
+.hero {
+  display: grid;
+  gap: 0;
+  padding: 26px 0 8px;
+}
+
+.hero__title {
+  margin: 0;
+  font-size: clamp(28px, 5.2vw, 50px);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: var(--tone);
+  text-shadow: 0 0 34px var(--glow);
+}
+
+.hero__title span {
+  display: block;
+  font-size: 0.52em;
+  color: var(--fg);
+  text-shadow: none;
+}
+
+.hero__creed {
+  max-width: 34rem;
+  margin: 20px 0 0;
+  padding-left: 15px;
+  border-left: 2px solid color-mix(in srgb, var(--tone) 55%, transparent);
+  font-size: 17px;
+  line-height: 1.9;
+  color: var(--fg);
+}
+
+.hero__lead {
+  max-width: 38rem;
+  margin: 18px 0 0;
+  font-size: 13.5px;
+  line-height: 2.05;
+  color: var(--fg-mid);
+}
+
+/* --- 振り分けの一問 ---
+   «初めてか、打てるか» を一度だけ聞く。門ではないので、囲みは軽くする。
+   warn（注意書き）と同じ強さにすると «答えないと進めない» に見えてしまう */
+
+.ask {
+  display: grid;
+  gap: 8px;
+  margin: 26px 0 0;
+  padding: 16px 18px 15px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--tone);
+  border-radius: var(--r-m);
+}
+
+.ask__q {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.ask__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+.ask__note b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.ask__acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+/* 答えたあと。問いが消えて一行だけ残る。
+   消えて何も残らないと «さっき何を選んだか» が確かめられず、
+   選び直す道も無くなる。取り消せる形を必ず残す */
+.ask__done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 0;
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+/* --- ふたつの入口 ---
+   覚える / 鍛える。この画面でいちばん大事なのはここ。
+
+   三つ（腕試し・コース・稽古）をやめて二つにした。
+   腕試しは «固定の一本を打つだけ» で稽古と中身が重なっており、
+   専用の入口を立てる理由が無かった。記録は三つ目に並べず、
+   下の «自分の数字»（.mine）を入口にしている ── 打つことの代わりにはならないものを
+   同じ形で横に並べると、«いまどれをやるべきか» が読めなくなる。
+
+   auto-fit をやめて明示的に 2 列にしてある。auto-fit のままだと、
+   幅によっては «2 列目が半端に空く» 形になり、二択が二択に見えない。 */
+
+.pick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0 0;
+}
+
+/* 答えが «打ったことがある» のときは、鍛えるを先に見せる。
+   HTML の順は変えないので、読み上げと Tab の順は覚える → 鍛えるのまま。
+   app.js が .pick に付ける */
+.pick.is-flip #pickLearn { order: 2; }
+.pick.is-flip #pickTrain { order: 1; }
+
+.pick__one {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 20px 20px 18px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  transition: border-color 0.16s, transform 0.16s;
+}
+
+/* a のときだけ札ごと持ち上げる。div（覚える）は中のボタンが押される所なので動かさない */
+a.pick__one:hover {
+  transform: translateY(-2px);
+  border-color: var(--tone);
+}
+
+/* おすすめの側。振り分けの答えでどちらに付くかが変わる。
+   «閉じている» の反対ではなく «こちらから» の印なので、
+   付いていないほうも同じだけ押せるように見せておくこと */
+.pick__one--main {
+  border-color: color-mix(in srgb, var(--tone) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone) 18%, transparent);
+}
+
+.pick__name {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fg);
+}
+
+.pick__one--main .pick__name {
+  color: var(--tone);
+}
+
+.pick__note {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+/* 札の中で «まだ打てない字 / もう打てる字» だけを起こす。
+   二つの札の違いは実質この一語なので、そこだけ地の色に上げる */
+.pick__note b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+/* いまの状態を一行。«第一課 · ホームポジション» «弱点集中・総ざらい…» など。
+   ここが空のままだと、二択がただの飾りになる */
+.pick__state {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+.pick__one.is-open .pick__state {
+  color: var(--perfect);
+}
+
+.pick__one.is-locked .pick__state {
+  color: var(--off);
+}
+
+.pick__one--main .btn {
+  margin-top: 2px;
+}
+
+/* «つづきから» の下に置く、一覧への抜け道。
+   主な用は続きを打つことなので、一覧はここまで下げてよい */
+.pick__more {
+  font-size: 12px;
+}
+
+/* 札ごと <a> の側に置く «押せる» の印。
+   .btn を名乗らせていないのは、これがボタンではなく «札が押せる» ことの印だから。
+   実際に押される的は札の全面で、ここだけを狙わせたいわけではない */
+.pick__go {
+  margin-top: 2px;
+  padding: 9px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tone);
+}
+
+a.pick__one:hover .pick__go {
+  color: var(--fg);
+}
+
+/* 二つの違いを地の文で言い切る一行。札の «外» に置くのが肝で、
+   どちらかの札の中に書くと «その札の説明» になってしまい、対比にならない */
+.pick__diff {
+  max-width: 44rem;
+  margin: 14px 0 0;
+  padding-left: 13px;
+  border-left: 2px solid var(--line);
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+.pick__diff b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.mine {
+  display: block;
+  margin: 26px 0 0;
+  padding: 16px 18px 14px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  transition: border-color 0.16s;
+}
+
+.mine:hover {
+  border-color: var(--tone);
+}
+
+.mine__rank {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+
+.mine__rank b {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--tone);
+}
+
+.mine__rank small {
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+.mine .tally {
+  padding-bottom: 12px;
+}
+
+.mine__go {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-mid);
+}
+
+.mine:hover .mine__go {
+  color: var(--tone);
+}
+
+/* --- 道具（配列表・設定）---
+   練習ではないので、入口の札（.pick__one）から一段落とす。
+   落とすのは «大きさ» だけで、色は落とさない。押せるものを暗くすると
+   «閉じている» に見えるが、この二つはいつでも開いている */
+
+.tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.tool {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 15px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  transition: border-color 0.16s;
+}
+
+.tool:hover {
+  border-color: var(--tone);
+}
+
+.tool__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-mid);
+}
+
+.tool:hover .tool__name {
+  color: var(--tone);
+}
+
+.tool__note {
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+/* --- コース札 ---
+   閉じている札に «なぜ閉じているか» と «いまどこまで進んだか» を必ず出す。
+
+   ここが今回いちばん直したかった所。以前は閉じた札が淡くなるだけで、
+   条件も進捗も出ていなかった。開かない理由が見えない鍵は、ただの行き止まりで、
+   人は行き止まりを二度は見に来ない。UNLOCKS の hint はそのために書かれている。 */
+
+.courses__cat {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 10px 0 -4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--fg-mid);
+}
+
+.courses__cat::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+}
+
+.courses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+  gap: 12px;
+}
+
+.course {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 16px 14px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+
+.course:hover {
+  transform: translateY(-2px);
+  border-color: var(--tone);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.course__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--fg);
+}
+
+.course__note {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+/* 進捗。開いている札にも閉じている札にも出す。
+   閉じている札に «0/5» が見えることに意味がある。手つかずだと分かる */
+.course__prog {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 4px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.course__progBar {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--tone) 16%, var(--bg));
+  overflow: hidden;
+}
+
+/* --p は 0〜1。app.js が style で入れる */
+.course__progBar i {
+  display: block;
+  width: calc(var(--p, 0) * 100%);
+  height: 100%;
+  border-radius: 99px;
+  background: var(--tone);
+}
+
+.course__progText {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 解禁条件。閉じている札にだけ入れる。UNLOCKS の hint をそのまま出せばよい。
+
+   鍵の絵文字はここでは足さない。app.js が `🔒 ${hint}` の形で文字列ごと入れており、
+   ::before と二重になって «🔒 🔒 単独打鍵の面で20キー打つ» と出ていた。
+   飾りは CSS 側が持つほうが筋は良いので、app.js が絵文字を落とすなら
+   下の 2 行を戻すこと（.sound__lock は文言が HTML に静的に置いてあるので、
+   あちらは今も CSS 側が ::before で足している）。
+
+     .course__lock::before { content: "🔒 "; }
+*/
+.course__lock {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--off);
+  word-break: auto-phrase;
+}
+
+.course.is-locked {
+  border-style: dashed;
+  border-color: var(--line-soft);
+}
+
+.course.is-locked .course__name,
+.course.is-locked .course__note {
+  color: var(--fg-dim);
+}
+
+.course.is-locked:hover {
+  transform: none;
+  border-color: color-mix(in srgb, var(--off) 45%, transparent);
+  box-shadow: none;
+}
+
+/* 打ち切ったコース。派手にはしない。済んだものは静かに退く */
+.course.is-done .course__name::before {
+  content: "✓ ";
+  color: var(--perfect);
+}
+
+.course.is-done .course__progBar i {
+  background: var(--perfect);
+}
+
+.lessons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: 12px;
+}
+
+.lesson {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 16px 16px 13px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+
+.lesson:hover {
+  transform: translateY(-2px);
+  border-color: var(--tone);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.lesson__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lesson__sub {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.lesson__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.lesson__best {
+  margin-left: auto;
+  color: var(--perfect);
+}
+
+.lesson.is-cleared .lesson__title::before {
+  content: "✓ ";
+  color: var(--perfect);
+}
+
+/* ---------------------------------------------------------------- #/play */
+
+.screen--play {
+  position: fixed;
+  inset: 54px 0 0; /* ヘッダーの下いっぱい */
+  display: flex;
+}
+
+.play {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.play__bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  /* 課題の狙い（.play__note）は長さが課題ごとに違う。折り返せるようにしておかないと、
+     長い一文が来たときに数値と «やり直す» を押し出す */
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.play__lesson {
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+/* 何のための一本か。腕試し・稽古・自由入力でもこの画面を使うので、
+   課題を打っているときとの区別が付くようにする。打鍵の邪魔をしない大きさで */
+.play__badge {
+  padding: 3px 9px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--tone-ink);
+  background: var(--tone);
+  border-radius: 99px;
+}
+
+/* 課題の狙い。lesson.note がそのまま入る。
+   これが要るのは «メーターが黙る回» があるから。第一課の basic-4 / basic-5 は
+   親指を休ませて場所だけ覚える回で、狙いが読めないと故障に見える。
+
+   ただし打鍵中に読ませるものではない。読むのは «始まる前の一瞬» だけなので、
+   課題名より一段落として、色も付けない。中身が無いときは行ごと消す ──
+   空の受け皿が隙間として残ると、バーの間隔が課題ごとに変わってしまう */
+/* 課題の狙い。
+   かつては «一行に切り詰めて、続きは title で» にしてあった。折り返させると
+   バーが三段になってお題を下へ押し出したからだが、これは代償が大きすぎた。
+   basic-4 / basic-5 の «ここは親指を休ませて場所だけ覚える回。メーターが黙るのは
+   そのため» が読めないと、メーターが動かないのがただの故障に見える。
+   いちばん読ませたい断りが、いちばん出ない形になっていた。
+
+   直し方は «幅を与えてから、行数を抑える»。
+   バーの中で自分の一段を占めさせる（flex-basis:100%）。数値や «やり直す» と
+   横並びにすると幅が 1/3 しか取れないが、一段まるごとなら 1280px で百数十字入り、
+   課題文の狙いはほぼ二行に収まる。押し出すのは «三段目» ではなく、
+   もともと一段に詰め込みすぎていたことのほうだった。
+
+   そのうえで二行で止める。長い一文が来ても、伸びるのはここまで。
+   はみ出した分は、置くか（hover）触れると（focus）その場で開く。
+   開くのは «打っていない手» が要る操作なので、打鍵中に勝手に動くことはない。 */
+.play__note {
+  /* 一段まるごと。order で数値と «やり直す» の «下» に回す */
+  flex: 1 0 100%;
+  order: 5;
+  min-width: 0;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+/* 二行に収まらなかった分。読みたい人だけが開く。
+   :focus-visible ではなく :focus にしてあるのは、触る画面には hover が無いから。
+   tabindex を持たせてあるので、指で触れても（＝focus）同じように開く */
+.play__note:hover,
+.play__note:focus {
+  -webkit-line-clamp: 99;
+  line-clamp: 99;
+  color: var(--fg-mid);
+}
+
+/* 縦が惜しくなってきたら一行に戻す。ここから先は «打つもの» のほうが大事で、
+   狙いは hover / focus で開ける（開く道が残っているから一行にしてよい） */
+@media (max-height: 820px) {
+  .play__note {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+}
+
+/* 縦が足りない窓では、狙いより打つものを優先する */
+@media (max-height: 720px) {
+  .play__note { display: none; }
+}
+
+/* ノートPC の窓（縦 800px 以下）では、お題・メーター・配列図が縦に積み上がって
+   配列図の下段が画面の外に出ていた。打っている最中はスクロールできないので、
+   出た分はそのまま «見えない» になる。詰められる所を詰めて一画面に収める。
+   数値そのものより «全部見えていること» の方が練習に効く */
+@media (max-height: 800px) {
+  .screen--play .play__stage { gap: clamp(8px, 1.4vh, 16px); padding: 10px 18px; }
+  .screen--play .board { gap: 8px; }
+  .screen--play .key { width: 46px; }
+  .screen--play .meter { gap: 7px; }
+}
+
+@media (max-height: 700px) {
+  .screen--play .key { width: 40px; padding: 3px; }
+  .screen--play .phrase { font-size: clamp(20px, 3.4vh, 28px); }
+}
+
+/* ここまで低いと全部は載らない。何を残すかを選ぶ。
+   «次の一打» と «メーター» と «親指ランプ» が打つのに要るもので、
+   配列図は «どこにあるか» を覚えるための補助なので、最後に畳む */
+@media (max-height: 660px) {
+  .screen--play .key__face { font-size: 8px; }
+  .screen--play .key__solo { font-size: 15px; }
+  .screen--play .key { width: 36px; padding: 2px; }
+  .screen--play .board { gap: 5px; }
+  /* メーターは «今の一打» が読めれば用が足りる。判定の言葉と目盛りの端書きは
+     場所を食う割に、打っている最中は目に入らない */
+  .screen--play .meter { gap: 4px; }
+  .screen--play .meter__ends { font-size: 9.5px; }
+  .screen--play .meter__advice { display: none; }
+  .screen--play .play__stage { gap: 6px; padding: 6px 18px; }
+}
+
+.play__note:empty {
+  display: none;
+}
+
+/* 打鍵中に数字を目で追わせない。小さく、色も付けない */
+.stats {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-family: var(--mono);
+}
+
+.stat b {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat small {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--fg-dim);
+}
+
+.play__stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* «safe» が要る。ただの center だと、中身が入りきらないときに上へあふれ、
+     あふれた分がスクロールで掴めなくなる（flex の中央寄せとあふれの噛み合わせ）。
+     実際、窓が低いとお題の一行目が上で切れて読めなくなっていた。
+     safe を付けると、入りきらないときだけ先頭寄せに落ちて全部読める */
+  justify-content: safe center;
+  gap: clamp(10px, 2.2vh, 26px);
+  padding: 14px 18px;
+  overflow: auto;
+}
+
+/* --- お題 --- */
+
+.phrase {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 0;
+  margin: 0;
+  font-family: var(--kana);
+  /* 横幅だけで決めると、横に広くて縦が低い窓（ノートPCはたいていこれ）で
+     字が大きいまま行数が増え、配列図を画面外へ押し出す。縦も見る */
+  font-size: clamp(22px, min(4vw, 5.2vh), 40px);
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+}
+
+/* 進み具合は別の帯にせず、字の下の線の太さで出す。
+   視線がお題から離れないほうが速く読める */
+.phrase__c {
+  padding: 0 0.06em 6px;
+  border-bottom: 2px solid var(--line-soft);
+  transition: color 0.14s, border-color 0.14s;
+}
+
+.phrase__c.is-done {
+  color: var(--fg-mid);
+  border-bottom-color: color-mix(in srgb, var(--tone) 60%, var(--bg));
+}
+
+.phrase__c.is-cur {
+  color: var(--fg);
+  border-bottom-color: var(--tone);
+  border-bottom-width: 3px;
+  text-shadow: 0 0 20px var(--glow);
+}
+
+.phrase__c.is-err {
+  color: var(--misfire);
+  border-bottom-color: var(--misfire);
+}
+
+/* --- 次の一打 --- */
+
+.cue {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 10px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: 99px;
+}
+
+.cue__kana {
+  font-family: var(--kana);
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--fg);
+}
+
+.cue__how {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--fg-mid);
+}
+
+/* 左右は言葉で足りる。ここに色を足すと、右隣の同側/交差の札とぶつかる */
+.cue__thumb--left,
+.cue__thumb--right { color: var(--fg); }
+
+/* 単独打鍵のときは親指の欄ごと消す。「押さない」は空白で示すのが一番速い */
+.cue__thumb--none { color: var(--fg-dim); }
+
+.cue__plus {
+  color: var(--fg-dim);
+}
+
+.cue__kind {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  border: 1px solid;
+}
+
+.cue__kind--cross {
+  color: var(--cross);
+  border-color: color-mix(in srgb, var(--cross) 45%, transparent);
+  background: color-mix(in srgb, var(--cross) 10%, transparent);
+}
+
+.cue__kind--same {
+  color: var(--same);
+  border-color: color-mix(in srgb, var(--same) 45%, transparent);
+  background: color-mix(in srgb, var(--same) 10%, transparent);
+  border-style: dashed;
+}
+
+.cue__kind--solo {
+  color: var(--fg-dim);
+  border-color: var(--line-soft);
+}
+
+/* ================================================================ メーター
+   画面の主役。meter.js がこの構造を組む。
+   目盛りは ±80ms（同時打鍵が成立しなくなる幅）で固定してある。
+   端 ＝ もう同時打鍵ではない、という意味になるので、目盛りに意味が宿る。
+
+   3 段に重ねてある。
+     上  傾向の三角  … 直近の中央値。1 打の運ではなく「クセ」がここに出る
+     中  レール      … 今の 1 打。針の位置がそのまま時間差
+     下  直近の点    … 同じ横軸。散らばり方が見える
+   3 段が横軸を共有しているので、目を動かさずに «今» と «クセ» を較べられる。 */
+
+.meter {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+/* 判定の言葉。ここだけは大きく出す。
+   ずれと不発のときは、向き（先行/遅れ）を必ず言葉で添える */
+.meter__verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 40px;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  transition: color 0.12s;
+}
+
+.meter__value {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+
+.meter[data-tier="perfect"] .meter__verdict { color: var(--perfect); }
+.meter[data-tier="good"] .meter__verdict { color: var(--good); }
+.meter[data-tier="off"] .meter__verdict { color: var(--off); }
+.meter[data-tier="misfire"] .meter__verdict { color: var(--misfire); }
+
+.meter__scale {
+  width: 100%;
+  display: grid;
+  gap: 5px;
+}
+
+/* 中央の「ぴったり」は、レールの中心と厳密に揃える。
+   space-between だと文字数で中心がずれ、目盛りの意味が崩れる */
+.meter__ends {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.meter__end--late {
+  text-align: right;
+}
+
+/* 端の言葉は常に出しっぱなしにする。判定が出てから向きを探させない */
+.meter__end--early { color: color-mix(in srgb, var(--fg-dim) 70%, var(--good)); }
+.meter__end--late { color: color-mix(in srgb, var(--fg-dim) 70%, var(--off)); }
+
+.meter__end--mid {
+  color: var(--fg-mid);
+}
+
+.meter__rail {
+  position: relative;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+
+/* 判定の窓を地に焼いておく。針がどの帯に入ったかで tier が読める */
+.meter__zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* ±35ms → 全幅 ±80ms のうち 43.75% */
+.meter__zone--good {
+  width: 43.75%;
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+}
+
+/* ±15ms → 18.75% */
+.meter__zone--perfect {
+  width: 18.75%;
+  background: color-mix(in srgb, var(--perfect) 22%, transparent);
+}
+
+.meter__center {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  margin-left: -0.5px;
+  background: color-mix(in srgb, var(--fg) 40%, transparent);
+}
+
+/* 針。--at は -1〜1 の素の数。0 が «ぴったり» */
+.meter__needle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(50% + (var(--at, 0) * 50%));
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--fg);
+  box-shadow: 0 0 10px currentColor;
+  transition: left 0.1s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.meter[data-tier="perfect"] .meter__needle { background: var(--perfect); }
+.meter[data-tier="good"] .meter__needle { background: var(--good); }
+.meter[data-tier="off"] .meter__needle { background: var(--off); }
+
+/* 不発は «時間差» が存在しない。針を出すと嘘になるので消す */
+.meter[data-tier="misfire"] .meter__needle,
+.meter[data-tier="none"] .meter__needle {
+  opacity: 0;
+}
+
+.meter[data-tier="misfire"] .meter__rail {
+  border-color: var(--misfire);
+  background: color-mix(in srgb, var(--misfire) 14%, var(--sunken));
+}
+
+/* 目盛りを振り切った打。端で止めたうえで、はみ出していることを形で示す */
+.meter__needle.is-clamped {
+  width: 6px;
+  border-radius: 0;
+}
+
+/* 傾向。直近の中央値。1 打の運に振り回されないための目印 */
+.meter__trend {
+  position: relative;
+  height: 12px;
+  width: 100%;
+}
+
+.meter__trendMark {
+  position: absolute;
+  top: 0;
+  left: calc(50% + (var(--at, 0) * 50%));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--fg-mid);
+  transition: left 0.3s ease;
+}
+
+.meter__trendMark::before {
+  content: "▼";
+  font-size: 9px;
+  color: var(--fg-mid);
+}
+
+.meter__trend.is-biased .meter__trendMark,
+.meter__trend.is-biased .meter__trendMark::before {
+  color: var(--off);
+}
+
+/* 直近の打。レールと横軸を共有する */
+.meter__dots {
+  position: relative;
+  height: 10px;
+  width: 100%;
+}
+
+.meter__dot {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + (var(--at, 0) * 50%));
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--fg-dim);
+  opacity: var(--fade, 1);
+}
+
+.meter__dot[data-tier="perfect"] { background: var(--perfect); }
+.meter__dot[data-tier="good"] { background: var(--good); }
+.meter__dot[data-tier="off"] { background: var(--off); }
+.meter__dot[data-tier="misfire"] {
+  background: transparent;
+  border: 1px solid var(--misfire);
+  top: 2px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+}
+
+/* 直し方の一行。tier が off / misfire のときだけ字が入る。
+   «早い/遅い» のどちらかで直し方が真逆なので、ここを空にしてはいけない */
+.meter__advice {
+  min-height: 1.9em;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.9;
+  text-align: center;
+  color: var(--fg-mid);
+}
+
+.meter[data-tier="off"] .meter__advice { color: var(--off); }
+.meter[data-tier="misfire"] .meter__advice { color: var(--misfire); }
+
+/* 読み上げ専用。判定の言葉は目で追うが、見えない人には声で要る */
+.meter__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* 小さい版。設定画面の試し打ちで使う */
+.meter--mini {
+  width: min(420px, 100%);
+}
+
+.meter--mini .meter__verdict {
+  font-size: 18px;
+  min-height: 28px;
+}
+
+/* ================================================================ 配列図
+   keyboard.js がこの構造を組む。
+   1 キーに 3 面ある。上に 2 つのシフト面、下に単独打鍵の面。
+   色は «左シフトか右シフトか» ではなく «同じ側の親指か、逆側か» で分ける。
+   左右のどちらの親指かは、面が左寄りか右寄りかという «位置» が示す。
+   ―― こうすると「逆側（交差）なら主に濁音・半濁音、同じ側なら別のかな」という
+   NICOLA の規則（規格 §5.3）がそのまま模様になって見えるので、覚えるのが速い。
+   濁音になるのは交差シフトの面。そちらを地の塗られた重い面にしてある。 */
+
+.board {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  width: 100%;
+}
+
+/* --- 親指ランプ --- */
+
+.board__thumbs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  transition: color 0.08s, border-color 0.08s, background 0.08s;
+}
+
+.thumb i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.08s, box-shadow 0.08s;
+}
+
+/* 押している «あいだ» ずっと光らせる。
+   親指が沈みっぱなしなのに気づかないまま連続でミスする、が典型的な詰まり方なので、
+   状態そのものを常時見えるようにしておく */
+.thumb.is-on {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 16%, var(--bg));
+  border-color: var(--tone);
+}
+
+.thumb.is-on i {
+  background: var(--tone);
+  box-shadow: 0 0 10px var(--tone);
+}
+
+/* 次に押してほしい親指。押す «前» の案内なので、点線で控えめに */
+.thumb.is-next {
+  border-color: var(--tone);
+  border-style: dashed;
+  color: var(--fg-mid);
+}
+
+/* --- キー --- */
+
+.board__rows {
+  display: grid;
+  gap: 5px;
+}
+
+.board__row {
+  display: flex;
+  gap: 5px;
+}
+
+/* 実物の段差。ホームポジションが目で分かる */
+.board__row[data-row="2"] { margin-left: 22px; }
+.board__row[data-row="3"] { margin-left: 50px; }
+
+.key {
+  position: relative;
+  width: 54px;
+  display: grid;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  transition: border-color 0.1s, background 0.1s, transform 0.1s;
+}
+
+.key__shifts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.key__face {
+  display: grid;
+  place-items: center;
+  min-height: 17px;
+  font-family: var(--kana);
+  font-size: 12px;
+  line-height: 1;
+  border-radius: 3px;
+  color: var(--fg-dim);
+}
+
+/* 交差＝主に濁音・半濁音。地を塗って «重い» 面に見せる。
+   この図で覚えてほしい規則そのものなので、いちばん強い扱いにする */
+.key__face--cross {
+  color: var(--cross);
+  background: color-mix(in srgb, var(--cross) 15%, transparent);
+}
+
+/* 同側＝別のかな。破線の枠にして、交差と «形» でも区別が付くようにする */
+.key__face--same {
+  color: var(--same);
+  border: 1px dashed color-mix(in srgb, var(--same) 45%, transparent);
+  background: color-mix(in srgb, var(--same) 8%, transparent);
+}
+
+.key__face:empty {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* 単独打鍵。いちばん使うので、いちばん大きく */
+.key__solo {
+  display: grid;
+  place-items: center;
+  min-height: 24px;
+  font-family: var(--kana);
+  font-size: 18px;
+  line-height: 1;
+  color: var(--fg);
+}
+
+.key__code {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: color-mix(in srgb, var(--fg-dim) 55%, transparent);
+  pointer-events: none;
+}
+
+/* --- 次に押すキー --- */
+
+.key.is-next {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 14%, var(--bg));
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 1px var(--tone), 0 0 18px var(--glow);
+}
+
+/* 押してほしい «面» だけを立てる。3 面のうちどれかを間違えるのが
+   親指シフトのいちばん多いミスなので、面まで指し示す */
+.key.is-next .key__face,
+.key.is-next .key__solo {
+  opacity: 0.35;
+}
+
+.key.is-next[data-next-face="solo"] .key__solo,
+.key.is-next[data-next-face="same"] .key__face--same,
+.key.is-next[data-next-face="cross"] .key__face--cross {
+  opacity: 1;
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* --- 大きい版（配列表の画面） --- */
+
+.board--big .key { width: 76px; padding: 6px; }
+.board--big .key__face { min-height: 24px; font-size: 16px; }
+.board--big .key__solo { min-height: 34px; font-size: 25px; }
+.board--big .key__code { font-size: 9px; }
+.board--big .board__row[data-row="2"] { margin-left: 30px; }
+.board--big .board__row[data-row="3"] { margin-left: 70px; }
+
+/* --- ヒートマップ（マイページ）---
+   同じ配列図をそのまま塗る。別の図を作ると、練習中の図と対応が取れなくなる */
+
+.board--heat .key__face,
+.board--heat .key__solo {
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--misfire) calc(var(--heat, 0) * 22%), transparent);
+  border-color: transparent;
+}
+
+.board--heat .key__face--same {
+  border: 1px dashed color-mix(in srgb, var(--same) 30%, transparent);
+}
+
+.board--heat .key {
+  cursor: default;
+}
+
+/* --- 凡例 --- */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+.legend__i {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend__i i {
+  width: 20px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+
+.legend__i--solo i { background: color-mix(in srgb, var(--fg) 18%, transparent); }
+
+.legend__i--cross i {
+  background: color-mix(in srgb, var(--cross) 30%, transparent);
+  border-color: color-mix(in srgb, var(--cross) 55%, transparent);
+}
+
+.legend__i--same i {
+  background: color-mix(in srgb, var(--same) 16%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--same) 60%, transparent);
+}
+
+.legend__i b {
+  color: var(--fg);
+}
+
+/* ================================================================ 節目の演出
+   ここだけ派手にしてよい。打鍵中は絶対に出さない */
+
+.finish {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: fade 0.24s ease-out;
+}
+
+@keyframes fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.finish__card {
+  width: min(440px, 100%);
+  margin: auto;
+  padding: 26px 24px 20px;
+  text-align: center;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  box-shadow: 0 0 0 1px var(--glow), 0 30px 80px rgba(0, 0, 0, 0.8);
+  animation: rise 0.32s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+
+@keyframes rise {
+  from { transform: translateY(14px) scale(0.97); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+.finish__eyebrow {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+}
+
+.finish__title {
+  margin: 7px 0 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.finish__hero {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 14px 0 0;
+}
+
+.finish__hero b {
+  font-family: var(--mono);
+  font-size: 46px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+.finish__hero small {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+
+.finish__best {
+  align-self: center;
+  margin-left: 8px;
+  padding: 3px 10px;
+  font-size: 11px;
+  border-radius: 99px;
+  color: var(--perfect);
+  background: color-mix(in srgb, var(--perfect) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--perfect) 40%, transparent);
+  animation: pop 0.42s cubic-bezier(0.2, 1.4, 0.5, 1) 0.2s backwards;
+}
+
+@keyframes pop {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* 結果の «主役» も速さではなくズレ。cpm より下に置くが、色は付ける */
+.finish__offset {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 9px;
+  margin: 16px 0 0;
+  padding: 11px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.finish__offsetLabel {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.finish__offset b {
+  font-family: var(--mono);
+  font-size: 22px;
+  color: var(--tone);
+  font-variant-numeric: tabular-nums;
+}
+
+.finish__offset small {
+  font-size: 11.5px;
+  color: var(--fg-mid);
+}
+
+.finish__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.finish__grid dt {
+  margin-bottom: 4px;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+.finish__grid dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.finish__grid div:nth-child(1) dd { color: var(--perfect); }
+.finish__grid div:nth-child(2) dd { color: var(--good); }
+.finish__grid div:nth-child(3) dd { color: var(--off); }
+.finish__grid div:nth-child(4) dd { color: var(--misfire); }
+
+.finish__earned {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+  text-align: left;
+}
+
+/* 取った実績の札。定義が無く、素の文字が縦に並ぶだけになっていた。
+   一本で十個以上出ることがあるので、札の形にしないと単語の羅列にしか見えない */
+.finish__earned::before {
+  content: "実績を取りました";
+  font-size: 11.5px;
+  letter-spacing: .08em;
+  color: var(--fg-dim);
+}
+
+.finish__badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--tone) 38%, var(--line));
+  border-radius: var(--r-s);
+}
+
+.finish__badge::before {
+  content: "✦";
+  color: var(--tone);
+}
+
+.finish__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 9;
+  padding: 9px 16px;
+  font-size: 12.5px;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--misfire) 22%, var(--bg));
+  border: 1px solid var(--misfire);
+  border-radius: var(--r-s);
+}
+
+/* ---------------------------------------------------------------- #/record 記録 */
+
+.rank {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.rank__name {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--tone);
+  text-shadow: 0 0 22px var(--glow);
+}
+
+.rank__score {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+.rank__bar {
+  height: 4px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--tone) 18%, var(--bg));
+  overflow: hidden;
+}
+
+.rank__bar i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 99px;
+  background: var(--tone);
+  box-shadow: 0 0 10px var(--glow);
+}
+
+.rank__next {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+/* ズレの分布。中心が «ぴったり»。山がどちらに寄っているかだけ読めればよい */
+.hist {
+  display: grid;
+  gap: 6px;
+}
+
+.hist__label {
+  font-size: 11.5px;
+  color: var(--fg-mid);
+}
+
+/* ここも左右に色は当てない。見るのは «山がどちらに寄っているか» だけ */
+.hist .hist__label { color: var(--fg-mid); }
+
+.hist__rail {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 60px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hist__bin {
+  flex: 1;
+  min-height: 1px;
+  height: calc(var(--h, 0) * 100%);
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--tone) 55%, var(--bg));
+}
+
+/* 中心の桶だけ «ぴったり» の色にする */
+.hist__bin.is-center {
+  background: var(--perfect);
+}
+
+.hist__ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+/* 練習した日。草 */
+.cal {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 12px);
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.cal__day,
+.cal__legend i {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--tone) calc(var(--lv, 0) * 1%), var(--sunken));
+}
+
+.cal__day[data-level="0"], .cal__legend i[data-level="0"] { --lv: 0; }
+.cal__day[data-level="1"], .cal__legend i[data-level="1"] { --lv: 22; }
+.cal__day[data-level="2"], .cal__legend i[data-level="2"] { --lv: 44; }
+.cal__day[data-level="3"], .cal__legend i[data-level="3"] { --lv: 68; }
+.cal__day[data-level="4"], .cal__legend i[data-level="4"] { --lv: 100; }
+
+/* 狭いときだけ出る断り書き。下の «画面が狭いとき» の節で開ける */
+.cal__hint {
+  display: none;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.cal__legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--fg-dim);
+}
+
+.trophies {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+/* 系統の見出し。定義が無く grid の1セル扱いだったので、列の途中にばらばらに散っていた。
+   行を丸ごと使わせて、札の群れを本当に区切る */
+.trophies__cat {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 5px;
+}
+
+.trophies__cat:first-child { margin-top: 0; }
+
+.trophy {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--tone) 5%, transparent);
+}
+
+.trophy b {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+
+.trophy small {
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  opacity: 0.75;
+}
+
+.trophy.is-got {
+  border-color: color-mix(in srgb, var(--tone) 45%, transparent);
+}
+
+.trophy.is-got b {
+  color: var(--tone);
+}
+
+.trophy.is-got small {
+  opacity: 1;
+}
+
+.trophy--new {
+  animation: pop 0.4s ease-out;
+}
+
+.rec {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.rec th {
+  padding: 0 10px 9px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.rec td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.rec tr:last-child td {
+  border-bottom: 0;
+}
+
+.data__keys {
+  margin: 0;
+  padding: 10px 14px;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+}
+
+.data__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.empty {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+
+/* ---------------------------------------------------------------- 入力欄
+   数値・選択・貼り付け。素の <input> は地の色を持たないので、
+   配色を替えたときにここだけ白く残る。必ず自前で塗る。
+   地に --sunken を使うのは、押し込まれた «書ける所» と、
+   浮いている «札» を形で区別するため */
+
+.input {
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+}
+
+.input:hover {
+  border-color: color-mix(in srgb, var(--tone) 50%, var(--line));
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--fg-dim) 70%, transparent);
+}
+
+.input--num {
+  width: 6.5em;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 貼り付け欄。打つのは日本語なので、かな用の書体で行間を広く取る */
+.input--area {
+  width: 100%;
+  min-height: 108px;
+  font-family: var(--kana);
+  font-size: 14px;
+  line-height: 1.95;
+  resize: vertical;
+}
+
+/* ---------------------------------------------------------------- 弱点とズレの見せ方
+   «鍛える» の «いまの弱点» で使う部品。
+
+   もとは «腕試し»（#/check）の診断結果のために作った一式だった。
+   腕試しは «固定の一本を打つだけ» で «鍛える» と中身が重なっていたので入口ごと廃し、
+   ここで見せていた «左右のズレ» と «苦手な面» は、それを見て打つ場所
+   ── つまり «鍛える» の一番上 ── に一本化した。
+   CPM・正確率の大きな数字（.result__big）と振り分けの札（.verdict）は、
+   置き場所が無くなったので消してある。速さは記録画面に、行き先はホームの一問に移った。 */
+
+/* --- 左右のズレ ---
+   メーターと同じ横軸（中央がぴったり、端が ±80ms ＝ 同時打鍵が成立しなくなる幅）。
+   左右を上下に並べるのは «左右で向きが違う» が一目で分かるようにするため。
+   親指が片方だけ遅れている人はかなり多く、その人に «平均は -5ms» と言っても直せない。 */
+
+.skew__ends {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: baseline;
+  margin: 2px 0 0;
+  /* 左のラベル欄と右の数値欄を差し引く。ここを合わせないと «ぴったり» の字が
+     レールの中心からずれ、目盛りの意味が崩れる（メーターの .meter__ends と同じ理由）。
+     単位は必ず rem。em にすると .skew（16px）と .skew__ends（11px）で
+     同じ «4.2» が別の長さになり、静かに 20px ずれる */
+  padding-left: calc(4.2rem + 8px);
+  padding-right: calc(5.5rem + 8px);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.skew__end--early { color: color-mix(in srgb, var(--fg-dim) 70%, var(--good)); }
+
+.skew__end--late {
+  text-align: right;
+  color: color-mix(in srgb, var(--fg-dim) 70%, var(--off));
+}
+
+.skew__ends b {
+  font-weight: 400;
+  color: var(--fg-mid);
+}
+
+.skews {
+  display: grid;
+  gap: 8px;
+}
+
+.skew {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr 5.5rem;
+  align-items: center;
+  gap: 8px;
+}
+
+.skew__label {
+  font-size: 11.5px;
+  color: var(--fg-mid);
+}
+
+.skew__rail {
+  position: relative;
+  height: 12px;
+  border-radius: 99px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+}
+
+/* 中心線。«ぴったり» の位置を地に焼いておく */
+.skew__rail::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 50%;
+  width: 1px;
+  background: color-mix(in srgb, var(--fg) 35%, transparent);
+}
+
+/* --at は -1〜1 の素の数。0 が «ぴったり»、±1 が ±80ms。
+   目盛りが無いのに数字だけ動かすと嘘になるので、右の .skew__val に必ず ms を出すこと */
+.skew__mark {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(50% + (var(--at, 0) * 50%));
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--tone);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+/* 判定の色をそのまま持ち込む。メーターと意味を揃える */
+.skew[data-tier="perfect"] .skew__mark { background: var(--perfect); }
+.skew[data-tier="good"] .skew__mark { background: var(--good); }
+.skew[data-tier="off"] .skew__mark { background: var(--off); }
+
+.skew__val {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- 面ごとの弱点 ---
+   一枚ずつ <li class="weak"> を並べる。app.js が作る中身の形:
+
+     <li class="weak" style="--p:.62">
+       <span class="weak__face weak__face--cross">交差シフト</span>
+       <span class="weak__what">右手のキー × 左親指</span>
+       <span class="weak__bar"><i></i></span>
+       <span class="weak__num">18%</span>
+     </li>
+
+   --p は 0〜1（濃いほど悪い）。face の修飾子は solo / same / cross の3つで、
+   色は配列図・凡例と同じものを使う。別の色を当てると、この画面で覚えた色が
+   配列図で通用しなくなる */
+
+.weaks {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weak {
+  display: grid;
+  grid-template-columns: 6.5em 1fr 6em 3.5em;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+}
+
+.weak__face {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-mid);
+}
+
+.weak__face--cross { color: var(--cross); }
+.weak__face--same { color: var(--same); }
+.weak__face--solo { color: var(--fg-dim); }
+
+.weak__what {
+  font-size: 12px;
+  color: var(--fg-mid);
+}
+
+.weak__bar {
+  height: 5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--fg-dim) 18%, transparent);
+  overflow: hidden;
+}
+
+.weak__bar i {
+  display: block;
+  width: calc(var(--p, 0) * 100%);
+  height: 100%;
+  border-radius: 99px;
+  background: var(--misfire);
+}
+
+.weak__num {
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+  color: var(--misfire);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- ローマ字時代の速さを入れる欄（記録画面）--- */
+
+.romaji__set {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.romaji__unit {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+/* ---------------------------------------------------------------- #/train 鍛える
+   モードは3つだけ。増やすと «どれを選べばいいのか» が新しい負担になる。
+   選ぶ根拠（弱点）を上に置いてあるので、ここは «そこを狙う道具» の並びでよい。 */
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
+  gap: 12px;
+}
+
+.mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px 18px 16px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+}
+
+.mode:hover {
+  transform: translateY(-2px);
+  border-color: var(--tone);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.mode__name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--fg);
+}
+
+.mode__note {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+/* «今回は交差シフトを多めに» のような、その場の出題の説明。
+   同じボタンでも中身が毎回違うので、何が出るのかをここで先に言う */
+.mode__meta {
+  font-family: var(--mono);
+  font-style: normal;
+  font-size: 11px;
+  color: var(--tone);
+}
+
+.mode.is-locked {
+  border-style: dashed;
+  border-color: var(--line-soft);
+  cursor: not-allowed;
+}
+
+.mode.is-locked:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--line-soft);
+}
+
+.mode.is-locked .mode__name {
+  color: var(--fg-dim);
+}
+
+.mode.is-locked .mode__meta {
+  color: var(--off);
+}
+
+/* --- 実文の題材一覧 ---
+   18本ある。select だけだと «開くまで何があるか分からない» ので、札で並べる。
+
+   札に何を載せるかで、選べるかどうかが決まる。題名だけでは選べない。
+   稽古で知りたいのは「これを打つと何が鍛えられるか」なので、
+     題名 → 字数と同時打鍵の割合 → 狙い → 特徴のタグ
+   の順に、上から «どれか» → «どんなものか» → «なぜ打つか» と降りていく。
+
+   札そのものが <button> になっている。中に押す所を作ると、
+   «札を押しても始まらない» という当たり判定のズレが必ず出る。
+
+   打ち終えた札（.is-done）は、消さずに印だけ変える。
+   実文は何度打ってもよいもので、済んだら用済みという性質のものではない。 */
+
+.materials {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 8px;
+}
+
+.material {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 12px 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--fg);
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-s);
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s;
+}
+
+.material:hover {
+  background: color-mix(in srgb, var(--tone) 9%, var(--bg));
+  border-color: var(--tone);
+}
+
+.material__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* 数値は等幅で。札を縦に並べたとき、字数と割合が桁で揃って比べられる */
+.material__meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.material__note {
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+/* 特徴のタグ。0〜4個。4個並ぶ札があるので、必ず折り返させる。
+   :empty を消しておかないと、タグの無い札にだけ隙間が残って高さが揃わない */
+.material__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.material__tags:empty {
+  display: none;
+}
+
+.material__tags i {
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-style: normal;
+  line-height: 1.6;
+  color: var(--fg-mid);
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+  border: 1px solid var(--line-soft);
+  border-radius: 99px;
+}
+
+/* 打ち終えた札。題名の頭に印を置く。
+   色«だけ»で済ませると、色が見えない人には «済み» が届かない */
+.material.is-done {
+  border-color: color-mix(in srgb, var(--tone) 38%, transparent);
+}
+
+.material.is-done .material__name {
+  color: var(--tone);
+}
+
+.material.is-done .material__name::before {
+  content: "✓ ";
+  font-family: var(--mono);
+}
+
+/* 名前で選ぶほうの一行。札の一覧より下に、静かに置く */
+.materials__pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 4px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.materials__pick .input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+
+/* ---------------------------------------------------------------- ローマ字比較
+   trophies.js の romajiComparison(stats) が返す値をそのまま出す所。
+
+   棒を2本並べるだけにしてある。割合の数字より «どれだけ足りないか» のほうが
+   体で分かるし、追い抜いた瞬間に «上の棒を越えた» という形で見えるのが効く。
+   message は日本語の一文として出来上がっているので、加工しないでそのまま入れること。 */
+
+.romaji {
+  display: grid;
+  gap: 8px;
+}
+
+.romaji__row {
+  display: grid;
+  grid-template-columns: 4.5em 1fr 4.5em;
+  align-items: center;
+  gap: 10px;
+}
+
+.romaji__who {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.romaji__bar {
+  height: 12px;
+  border-radius: 99px;
+  background: var(--sunken);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+
+/* --w は 0〜1。長いほうを 1 にして、もう片方をその比で描く */
+.romaji__bar i {
+  display: block;
+  width: calc(var(--w, 0) * 100%);
+  height: 100%;
+  background: color-mix(in srgb, var(--fg-dim) 45%, transparent);
+  transition: width 0.4s ease;
+}
+
+.romaji__row--now .romaji__who {
+  color: var(--fg);
+}
+
+.romaji__row--now .romaji__bar i {
+  background: var(--tone);
+}
+
+.romaji__cpm {
+  font-family: var(--mono);
+  font-size: 13px;
+  text-align: right;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.romaji__row--now .romaji__cpm {
+  color: var(--fg);
+}
+
+.romaji__msg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+/* 追い抜く見込み。出せないときは行ごと隠す。
+   «予測できません» と書くくらいなら、何も書かないほうが静かで正しい */
+.romaji__forecast {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.85;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+  border-radius: var(--r-s);
+}
+
+/* 追い抜いた日。一生に一度の節目なので、ここだけは派手にしてよい */
+.romaji__passed {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--perfect);
+  background: color-mix(in srgb, var(--perfect) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--perfect) 42%, transparent);
+  border-radius: var(--r-s);
+}
+
+.romaji__passed::before {
+  content: "🏁 ";
+}
+
+/* ---------------------------------------------------------------- 通知
+   実績が解けた瞬間の置き場所。body 直下・画面右下に固定する。
+
+   平時は静か、節目だけ派手。だから «静か» の側もここで決めておく。
+     ・打鍵中でも視線を奪わない位置（右下、お題の外）
+     ・出るのは実績・段位・自己ベストの3つだけ。それ以外をここに流さない
+     ・自分から消える。閉じるボタンを押させない
+   打っている最中に画面中央で何かが跳ねたら、その一本は台無しになる。 */
+
+.notices {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  pointer-events: none;
+  /* 一本で十枚出ることがある。積み上がって画面を覆わないよう、
+     入る分だけ出して古いものから隠す。下（新しい方）を残す */
+  max-height: min(46vh, 340px);
+  overflow: hidden;
+  align-content: end;
+}
+
+/* 狭い画面では右下に逃げ場が無く、お題の真上に重なって
+   «次に何を打つのか読めない» 状態が数秒続いていた。画面の下端に寄せて薄く敷く */
+@media (max-width: 700px) {
+  .notices {
+    right: 8px;
+    left: 8px;
+    bottom: 8px;
+    justify-items: stretch;
+    max-height: 30vh;
+  }
+
+  .notice {
+    width: auto;
+    padding: 8px 12px;
+    opacity: 0.96;
+  }
+}
+
+.notice {
+  display: grid;
+  gap: 3px;
+  width: min(300px, calc(100vw - 36px));
+  padding: 12px 15px;
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--tone);
+  border-radius: var(--r-s);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  animation: slidein 0.34s cubic-bezier(0.2, 1.1, 0.4, 1);
+}
+
+@keyframes slidein {
+  from { transform: translateX(18px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* 消えていくとき。app.js が付けて、終わったら要素を外す */
+.notice.is-going {
+  animation: slideout 0.3s ease-in forwards;
+}
+
+@keyframes slideout {
+  to { transform: translateX(18px); opacity: 0; }
+}
+
+.notice__eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--fg-dim);
+}
+
+.notice__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--tone);
+}
+
+.notice__hint {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+.notice--rank {
+  border-left-color: var(--perfect);
+}
+
+.notice--rank .notice__name {
+  color: var(--perfect);
+}
+
+.notice--best {
+  border-left-color: var(--good);
+}
+
+.notice--best .notice__name {
+  color: var(--good);
+}
+
+/* ---------------------------------------------------------------- 画面が狭いとき */
+
+@media (max-width: 900px) {
+  .nav {
+    gap: 10px;
+    padding: 0 14px;
+  }
+
+  .nav__brand span {
+    display: none;
+  }
+
+  .tones__opt span {
+    display: none;
+  }
+
+  .page {
+    padding: 28px 16px 56px;
+  }
+
+  /* 画面が6つある。狭いところでは畳まず横に流す。
+     畳んで «その他» に入れると、腕試しと稽古が «その他» の中に消える。
+     min-width:0 が要る。flex の子は既定で内容幅より縮まないので、
+     これが無いと溢れた分だけ連続日数と配色が押し潰される。
+
+     ただし «横に流す» が効くのは、流れた先が見えるうちだけ。
+     390px では見えている幅が 65px しかなく、六つのうち二つも出ていなかった。
+     スクロールできると分かる印も無いので «設定へ行けない» と同じことになる。
+     700px から下では、下の節で行ごと折り返す */
+  .nav__links {
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav__links a {
+    padding: 6px 8px;
+    white-space: nowrap;
+  }
+
+  .nav__brand,
+  .nav__streak,
+  .tones {
+    flex: none;
+  }
+
+  .nav__streak {
+    white-space: nowrap;
+  }
+
+  /* 課題の狙いが長いと、この幅からバーが二段になる。
+     二段目に落ちた «やり直す» が左端に来ると、← 戻る と隣り合って押し間違える。
+     右端に寄せて、戻ると やり直す を左右に離しておく */
+  .play__tools {
+    margin-left: auto;
+  }
+
+  .key { width: 44px; }
+  .key__solo { font-size: 15px; min-height: 20px; }
+  .key__face { font-size: 10px; min-height: 14px; }
+  .key__code { display: none; }
+  /* 56px だと 3 段目の字下げ込みで 675px 要り、700px の窓に収まらなかった */
+  .board--big .key { width: 52px; }
+  .board--big .key__solo { font-size: 20px; }
+  .board--big .key__face { font-size: 13px; }
+}
+
+/* 配列図は横に長い。縮めきれない幅では、図だけ横に流す */
+@media (max-width: 720px) {
+  .board__rows {
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .cue {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: var(--r-m);
+  }
+
+  .finish__grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px 8px;
+  }
+
+  /* 弱点の行。狭いところでは «面と割合» を上、«内訳と棒» を下に折る */
+  .weak {
+    grid-template-columns: 1fr 4em;
+    gap: 6px 10px;
+  }
+
+  .weak__what {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .weak__bar {
+    grid-row: 3;
+    grid-column: 1 / -1;
+  }
+
+  .skew {
+    grid-template-columns: 3.6rem 1fr 5rem;
+    gap: 6px;
+  }
+
+  .skew__ends {
+    padding-left: calc(3.6rem + 6px);
+    padding-right: calc(5rem + 6px);
+  }
+}
+
+/* ================================================================ 手のひらの幅
+   ここから下は «横に並べきれない» 幅。上の節までは詰めれば入ったが、
+   700px を切ると入らないものが二つ出る。ヘッダーの六つの入口と、10 列の配列図。
+   どちらも «横に流して隠す» で済ませていたが、390px では流れた先が見えず、
+   スクロールできる印も無いので、実質そこへ行けないのと同じだった。
+   隠すのをやめて、両方とも折り返す。
+
+   700px という境目の根拠：
+     配列図（小）= 字下げ 50px + 44px × 10 + 隙間 5px × 9 = 535px
+     配列図（大）= 字下げ 70px + 52px × 10 + 隙間 5px × 9 = 635px
+     ヘッダー   = 銘 66 + 入口 300 + 連続 66 + 配色 126 + 隙間と余白 58 ≒ 616px
+   いちばん幅を食う «配列図（大）+ ページの左右余白 32px» が 667px。
+   そこに少し足して 700px。これより広ければ、上の節までの詰め方で収まる */
+@media (max-width: 700px) {
+
+  /* ---- ヘッダー。二段にして、五つの入口を全部見せる ---- */
+
+  .nav {
+    height: auto;
+    flex-wrap: wrap;
+    column-gap: 10px;
+    row-gap: 7px;
+    padding: 7px 12px;
+  }
+
+  /* 一段目は «銘 / 連続日数 / 配色»、二段目を入口が丸ごと使う。
+     order で下へ送っているだけなので、読み上げと Tab の順は HTML のまま */
+  .nav__links {
+    order: 3;
+    flex: 1 0 100%;
+    flex-wrap: wrap;
+    gap: 4px;
+    overflow: visible;
+  }
+
+  /* 指で押す的にする。24px では小さいので 38px まで上げ、
+     地を薄く敷いて «ここが押せる» を見えるようにする */
+  .nav__links a {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 6px 8px;
+    text-align: center;
+    background: color-mix(in srgb, var(--tone) 6%, transparent);
+  }
+
+  /* 罫は幅いっぱいに折り返した並びでは意味を成さない（縦の仕切りが
+     行の途中に立って、かえって «どこで切れるか» を分からなくする）。
+     二段目は五つが等分に並ぶので、道具かどうかは字の大きさだけで出す */
+  .nav__sep {
+    display: none;
+  }
+
+  .nav__links a.is-tool {
+    flex: 0 1 auto;
+    background: transparent;
+  }
+
+  /* ---- 配列図。10 列を 5 列で折る ---- */
+
+  /* 折る位置に意味を持たせてある。段はどれも «左手 5 キー + 右手 5 キー» なので、
+     5 列で折ると一行目が左手、二行目が右手になる。
+     縮めて 10 列を保つと 1 キー 26px まで痩せて、3 面の字が読めなくなる。
+     配列表はスマホで «覚えるために» 見るものなので、字の大きさを優先した。
+     段差（字下げ）はここでは意味を失うので外す */
+  .board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 段の中の隙間（4px）より、段と段の隙間（18px）をはっきり広く取る。
+     1 段が 2 行に見えるので、これを詰めると «どこまでが同じ段か» が読めなくなる */
+  .board__rows {
+    width: min(100%, 430px);
+    gap: 18px;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .board__row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .board__row[data-row="2"],
+  .board__row[data-row="3"],
+  .board--big .board__row[data-row="2"],
+  .board--big .board__row[data-row="3"] {
+    margin-left: 0;
+  }
+
+  /* 幅は列が決める。.board--big の 76px より詳しい指定にしておかないと勝てない */
+  .board__row .key,
+  .board--big .board__row .key {
+    width: auto;
+    min-width: 0;
+  }
+
+  /* 1 キーが 68〜80px 取れるので、900px の節で詰めた字を戻す。
+     刻印（Q・W・E…）も出す。どの物理キーかが分からないと配列表として使えない */
+  .board .key__solo { font-size: 22px; min-height: 28px; }
+  .board .key__face { font-size: 14px; min-height: 20px; }
+  .board .key__code { display: block; font-size: 9px; }
+
+  /* ---- 打鍵の画面 ---- */
+
+  /* 断り書きを出す。理由は .kbnote の定義の所に書いた */
+  .kbnote {
+    display: grid;
+  }
+
+  .kbnote--play {
+    flex: none;
+    margin: 12px 14px 0;
+  }
+
+  /* 画面いっぱいに固定するのをやめて、ふつうに縦へ流す。
+     inset の 54px はヘッダーの高さの決め打ちで、上で二段にした以上もう合わない。
+     断り書きと結果を置く縦の余地も要る */
+  .screen--play {
+    position: static;
+    inset: auto;
+    display: block;
+  }
+
+  .play {
+    display: block;
+  }
+
+  .play__bar {
+    gap: 8px 10px;
+    padding: 8px 14px;
+  }
+
+  .play__stage {
+    padding: 16px 14px 32px;
+    overflow: visible;
+  }
+
+  /* 親になる .play が縦に伸びるので、absolute のままだと
+     «画面の外の真ん中» に出る。窓に貼り直す */
+  .finish {
+    position: fixed;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 18px;
+  }
+
+  /* ---- 玄関 ---- */
+
+  /* 二択を縦に積む。二列のままだと 1 枚 173px しか取れず、
+     «まだ打てない字 / もう打てる字» の一行が細かく割れて、対比が読めなくなる。
+     縦に積むと «並んだ二つ» という形が消えるぶん、
+     下の .pick__diff の一行がいっそう効く */
+  .pick {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 振り分けの二択。指で押す的にするため、横幅を分け合わせる */
+  .ask__acts .btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+
+  /* ---- こまごま ---- */
+
+  /* 配色の見本。900px の節で字を落としてあるので、丸だけだと高さ 22px しか無い。
+     指で押す的が 24px を切る。押せる大きさに戻す */
+  .tones__opt,
+  .nav__streak {
+    min-height: 34px;
+  }
+
+  /* 1年分の帯だけは、どう詰めても入らない。横に流すことを字で断ったうえで、
+     右端に «まだ続く» が見えるように地を薄く落とす */
+  .cal__hint {
+    display: block;
+  }
+
+  .cal {
+    mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
+  }
+
+  .rec th,
+  .rec td {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+
+  .legend {
+    gap: 8px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

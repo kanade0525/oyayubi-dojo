@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>親指シフトタイピング道場 — 同時打鍵のズレが、ミリ秒で見える</title>
+<meta name="description" content="親指シフト（NICOLA配列）の練習。文字キーと親指キーの押下時間差をミリ秒で測り、1打ごとに判定として返します。">
+<meta name="color-scheme" content="dark">
+<!-- 外部への発信は一切しない。フォントもアイコンも埋め込みか system-ui。
+     配列表も fetch せず JS モジュールとして import しているので connect-src は
+     'none' で締められる。CSP は配信側のヘッダ（_headers）で当てる。 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0e14'/%3E%3Crect x='6' y='19' width='20' height='6' rx='3' fill='%237aa2f7'/%3E%3Crect x='9' y='7' width='5' height='8' rx='2.5' fill='%23f4a3c0'/%3E%3Crect x='18' y='7' width='5' height='8' rx='2.5' fill='%23e7ecf3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<script>
+  // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
+  // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
+  // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
+  (function () {
+    var ok = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
+    var t = 'midnight';
+    try {
+      var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
+      if (ok[s.tone]) t = s.tone;
+    } catch (e) {
+      /* 読めなくても既定色で動く。ここで転ぶと画面が出ない */
+    }
+    document.documentElement.dataset.tone = t;
+  })();
+</script>
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <a class="nav__brand" href="#/">親指シフト<span>タイピング道場</span></a>
+
+  <!-- 入口は «そこで何をするか» を動詞で言う。
+       «コース / 稽古 / 腕試し» の三語をやめた理由は、どれも «道場でやること» を指していて、
+       言葉だけでは区別が付かなかったから。比喩（道場）は看板に留め、
+       中の部品には比喩を使わない。看板は世界観を作れるが、
+       比喩の中の言葉どうしは互いを区別できない。
+
+       並び順が導線そのもの。«覚える → 鍛える → 記録» は、そのまま人が通る順。
+       配列表と設定は練習ではなく «道具» なので、仕切りを挟んで一段落とす。
+       語を足さずに «種類が違う» を出したいので、言葉ではなく罫で分ける。 -->
+  <nav class="nav__links" aria-label="画面">
+    <a href="#/learn" data-nav="/learn">覚える</a>
+    <a href="#/train" data-nav="/train">鍛える</a>
+    <a href="#/record" data-nav="/record">記録</a>
+    <i class="nav__sep" aria-hidden="true"></i>
+    <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
+    <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
+  </nav>
+
+  <!-- 連続日数。毎日開く動機はここ一点に集める -->
+  <a class="nav__streak" href="#/record" title="連続で練習した日数">
+    <b id="navStreak">0</b><span>日連続</span>
+  </a>
+
+  <div class="tones" role="group" aria-label="配色">
+    <button type="button" class="tones__opt" data-tone-set="midnight" aria-pressed="true"><i></i><span>藍</span></button>
+    <button type="button" class="tones__opt" data-tone-set="matcha" aria-pressed="false"><i></i><span>抹茶</span></button>
+    <button type="button" class="tones__opt" data-tone-set="plum" aria-pressed="false"><i></i><span>藤</span></button>
+    <button type="button" class="tones__opt" data-tone-set="sumi" aria-pressed="false"><i></i><span>墨</span></button>
+  </div>
+</header>
+
+
+<!-- ================================================================ #/setup
+     最初に必ず通す画面。親指キーの code はキーボードと OS で違うので、
+     「押して覚えさせる」以外に確実な方法がない。 -->
+<section class="screen screen--setup" id="screenSetup" hidden>
+  <div class="page">
+    <h1 class="page__title">はじめの設定</h1>
+    <p class="page__lead">親指キーがどのキーかは、キーボードと OS で違います。実際に押して覚えさせてください。</p>
+
+    <!-- 狭い画面のときだけ出る案内。出し入れは CSS の @media だけでやるので JS は要らない。
+         打鍵の要る画面が «黙って壊れている» ように見えるのが一番よくない。
+         打てない理由と、代わりに見られる場所を書いておく。
+         同じものを #/train・#/play にも置いてある -->
+    <aside class="kbnote">
+      <b class="kbnote__head">この画面は物理キーボードで使います</b>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
+        画面上のソフトキーボードでは押した時刻の差が取れないため、設定も試し打ちもできません。
+        パソコンで開くか、外付けキーボードをつないでください。</p>
+      <p class="kbnote__acts">
+        <a class="link" href="#/layout">配列表を見る →</a>
+        <a class="link" href="#/record">記録を見る →</a>
+      </p>
+    </aside>
+
+    <!-- IME とエミュレータ。ここを外すと、以降の測定が全部あてにならない。
+         数値がおかしい原因の大半がこの二つなので、設定の一番上に置く -->
+    <div class="warn warn--stop" id="setupWarnIme">
+      <b>日本語入力（IME）は OFF にしてください</b>
+      <p>IME が ON だと、このページに届く前に OS が文字を作ってしまい、押下の時間差が測れません。
+        <kbd>英数</kbd> / <kbd>半角/全角</kbd> で直接入力に切り替えてください。</p>
+    </div>
+
+    <div class="warn" id="setupWarnEmu">
+      <b>親指シフトのエミュレータは、一旦止めてください</b>
+      <p>やまぶき・DvorakJ などの常駐ソフトが動いていると、キーが二重に届いたり、
+        押下の時刻が書き換わったりします。この道場は自前で同時打鍵を判定するので、
+        練習中は止めておくのが確実です。</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">1. 親指キーを覚えさせる</h2>
+      <div class="assign">
+        <div class="assign__one" data-thumb="left">
+          <span class="assign__label">左親指キー</span>
+          <button type="button" class="btn assign__catch" id="btnCatchLeft">押して覚えさせる</button>
+          <code class="assign__code" id="thumbLeftCode">英数（Lang2）</code>
+        </div>
+        <div class="assign__one" data-thumb="right">
+          <span class="assign__label">右親指キー</span>
+          <button type="button" class="btn assign__catch" id="btnCatchRight">押して覚えさせる</button>
+          <code class="assign__code" id="thumbRightCode">かな（Lang1）</code>
+        </div>
+      </div>
+      <p class="note">
+        既定は、macOS の JIS キーボードで実測した <kbd>英数</kbd>（<code>Lang2</code>・スペースの左）と
+        <kbd>かな</kbd>（<code>Lang1</code>・スペースの右）です。
+        ちょうど親指の下にあり、押下も解放も取れて、IME に横取りされないことを確認しています。
+        Safari では <kbd>かな</kbd> が <code>KanaMode</code> として届きます。
+      </p>
+      <p class="note">
+        <kbd>Space</kbd> は親指キーには使いません。文字キー側で使う可能性があるためです。
+        別のキーを親指に割り当てたいときは、上のボタンから覚えさせてください。
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">2. 同時打鍵とみなす幅</h2>
+      <p class="note">
+        文字キーと親指キーが、どれだけ離れていたら「別々に押した」とみなすか。
+        既定は 80ms（NICOLA 規格の考え方に合わせています）。速くなってきたら詰めてください。
+      </p>
+      <div class="field">
+        <label class="field__label" for="tauRange">判定の幅</label>
+        <input type="range" id="tauRange" min="30" max="150" step="5" value="80">
+        <output class="field__out" id="tauOut">80ms</output>
+      </div>
+    </div>
+
+    <!-- 打鍵音。既定は «無音» なので、ここを置かないと sound.js は一度も鳴らない。
+         この道場の芯は «押下の時間差を 1 打ごとに返すこと» で、音はそれを
+         «画面を見ずに» 受け取れる唯一の道。同時打鍵の練習では手元と画面を往復せずに済む。
+
+         音色の一覧・説明文は sound.js の SOUND_KINDS と、
+         解禁条件は trophies.js の UNLOCKS（kind:'sound'）と同じ文にしてある。
+         増減があったら両方を見て直すこと。
+
+         app.js への申し送り:
+           - 音色 … name="soundKind" の radio 4 つ。value がそのまま settings.sound
+           - 解禁されていない音色 … その札に .is-locked を付け、中の radio に disabled を立てる。
+             見た目は class でも disabled でも同じに落ちるが、«選べない» を効かせるのは disabled のほう
+           - 音量 … #soundVolume は 0〜100。settings.soundVolume は 0〜1 なので 100 で割る。
+             現在値は #soundVolumeOut に入れる -->
+    <div class="card" id="soundCard">
+      <h2 class="card__head">3. 打鍵音</h2>
+      <p class="note">
+        判定は音でも返します。<b>親指が先行していれば低い音から高い音へ</b>、
+        <b>遅れていれば高い音から低い音へ</b>鳴り、ぴったり合うと二つが融けて<b>一つの音</b>に聞こえます。
+        画面を見ていなくても、耳だけで «早いのか遅いのか» が分かります。
+        既定は無音です。下の「4. 試し打ち」でそのまま確かめられます。
+      </p>
+
+      <fieldset class="sounds" id="soundKinds">
+        <legend class="sounds__legend">音色</legend>
+
+        <label class="sound" id="soundOptOff" data-sound-opt="off">
+          <input type="radio" class="sound__radio" name="soundKind" id="soundOff" value="off" checked>
+          <b class="sound__name">無音</b>
+          <span class="sound__note">音を出さない（既定）</span>
+        </label>
+
+        <label class="sound" id="soundOptTsuzumi" data-sound-opt="tsuzumi">
+          <input type="radio" class="sound__radio" name="soundKind" id="soundTsuzumi" value="tsuzumi">
+          <b class="sound__name">鼓</b>
+          <span class="sound__note">皮の低い響き。長く打っても疲れない</span>
+          <span class="sound__lock" id="soundLockTsuzumi">課題をひとつ打ち切る</span>
+        </label>
+
+        <label class="sound" id="soundOptHyoshigi" data-sound-opt="hyoshigi">
+          <input type="radio" class="sound__radio" name="soundKind" id="soundHyoshigi" value="hyoshigi">
+          <b class="sound__name">拍子木</b>
+          <span class="sound__note">硬く短い。ズレの輪郭がいちばん立つ</span>
+          <span class="sound__lock" id="soundLockHyoshigi">ぴったり判定を通算50回出す</span>
+        </label>
+
+        <label class="sound" id="soundOptTypewriter" data-sound-opt="typewriter">
+          <input type="radio" class="sound__radio" name="soundKind" id="soundTypewriter" value="typewriter">
+          <b class="sound__name">和文タイプ</b>
+          <span class="sound__note">機械の音。打っている実感が出る</span>
+          <span class="sound__lock" id="soundLockTypewriter">交差シフト（濁音・半濁音）で20キー打つ</span>
+        </label>
+      </fieldset>
+
+      <p class="note">選ぶとその場で一度鳴ります。🔒 の付いた音色は、書いてある条件を満たすと選べるようになります。</p>
+
+      <div class="field">
+        <label class="field__label" for="soundVolume">音量</label>
+        <input type="range" id="soundVolume" min="0" max="100" step="5" value="40">
+        <output class="field__out" id="soundVolumeOut" for="soundVolume">40</output>
+      </div>
+      <p class="note">動かすと、その音量で一打だけ鳴ります。0 にすると鳴りません（無音と同じ扱いです）。
+        単独打鍵はいちばん小さく、同時打鍵は少し大きく、課題を打ち切ったときだけはっきり鳴ります。</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">4. 試し打ち</h2>
+      <p class="note">記録は残りません。設定が効いているか、ここで確かめてください。音を入れていれば、ここでも鳴ります。</p>
+      <div class="meter" id="setupMeter"></div>
+      <div class="board" id="setupBoard"></div>
+    </div>
+
+    <p class="page__foot">
+      <a class="btn btn--primary" href="#/">設定はここまで。はじめる →</a>
+    </p>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/
+     玄関。ここは «選ぶ» だけの画面で、課題の一覧は置かない。
+
+     以前はこの画面が «玄関» と «入門コースの一覧» を兼ねていた。だから
+     «コース» と «稽古» と «腕試し» が同じ面に並び、どれが何なのか読み取れなかった。
+     一覧は #/learn に出して、ここには «打つ場所ふたつ» と «自分の数字» だけを置く。 -->
+<section class="screen screen--home" id="screenHome" hidden>
+  <div class="page">
+    <header class="hero">
+      <h1 class="hero__title">親指シフト<span>タイピング道場</span></h1>
+      <p class="hero__creed">速さより先に、ズレを直す。</p>
+      <p class="hero__lead">
+        親指シフトは、文字キーと親指キーを<b>同時に</b>押して入力します。
+        この道場は、その二つの押下が何ミリ秒ずれたかを 1 打ごとに測り、
+        <b>先行しているのか、遅れているのか</b>を返します。
+        向きが分かれば直せます。速さは後から付いてきます。
+      </p>
+
+      <!-- 振り分け。«腕試し» という専用の入口を廃した代わりがここ。
+           1〜2分の測定を通さないと稽古が開かない作りは、初めての人には重すぎ、
+           既に打てる人には «なぜ測られるのか» が伝わらなかった。
+           行き先を決めるのに要るのは測定値ではなく «初めてかどうか» の一つだけなので、
+           一問だけ聞いて、下の二つの並びと «おすすめ» の付き方を変える。
+
+           三つ守ること。
+             1. これは門ではない。答えなくても、答えを間違えても、下の二つは両方押せる
+             2. いつでも取り消せる（#btnFirstReset）。取り消せない問いは人を身構えさせる
+             3. 記録には一切関わらない。速さも段位もここでは決まらない
+
+           app.js への申し送り:
+             - 保存先は settings 側の一項目でよい（例 settings.firstTime = true|false|null）
+             - null（未回答）… #firstAsk を出し、#firstAnswered を hidden
+             - 答えたら … #firstAsk を hidden、#firstAnswered を出し、
+               #firstAnsweredText に «はじめての方向けに並べています。» ／
+               «打てる方向けに並べています。» のどちらかを入れる
+             - true … #pickLearn に .pick__one--main、#pickTrain からは外す
+               false … その逆（.pick には順番を入れ替える .is-flip を付ける） -->
+      <div class="ask" id="firstAsk">
+        <b class="ask__q">親指シフトで打ったことはありますか？</b>
+        <p class="ask__note">下の二つの<b>並び方が変わるだけ</b>です。どちらもいま押せますし、あとから変えられます。</p>
+        <p class="ask__acts">
+          <button type="button" class="btn btn--primary" id="btnFirstNew">はじめて</button>
+          <button type="button" class="btn" id="btnFirstUsed">打ったことがある</button>
+        </p>
+      </div>
+
+      <p class="ask__done" id="firstAnswered" hidden>
+        <span id="firstAnsweredText">はじめての方向けに並べています。</span>
+        <button type="button" class="btn btn--quiet" id="btnFirstReset">変える</button>
+      </p>
+
+      <!-- 打つ場所はふたつだけ。«記録» を横に並べて三つ目の入口にはしない。
+           覚えると鍛えるは互いの代わりになる（どちらも «いま打つ»）が、
+           記録は打つことの代わりにはならない。同じ形で三つ並べると
+           «いまどれをやるべきか» が読めなくなる。記録へは下の «自分の数字» から入る。 -->
+      <div class="pick" id="homePick">
+        <div class="pick__one pick__one--main" id="pickLearn">
+          <b class="pick__name">覚える</b>
+          <span class="pick__note">配列を順に。<b>まだ打てない字</b>を打てるようにします。単独打鍵から濁音・交差シフトまで、七つの課・46題を決まった道筋で。</span>
+          <button type="button" class="btn btn--primary" id="btnStart">▶ つづきから</button>
+          <em class="pick__state" id="startSub">第一課 · ホームポジション</em>
+          <a class="link pick__more" href="#/learn">七つの課をぜんぶ見る →</a>
+        </div>
+
+        <a class="pick__one" href="#/train" id="pickTrain">
+          <b class="pick__name">鍛える</b>
+          <span class="pick__note">順番はありません。<b>もう打てる字</b>を速く正確にします。落としている面とズレの大きいキーだけを、そのつど組んで出します。</span>
+          <!-- 押せることを形で出す。隣の «覚える» には «つづきから» のボタンがあるので、
+               こちら側に何も無いと «説明の札» に見えて、押されなくなる。
+               札そのものが <a> なので、中に button は置かない（入れ子になる） -->
+          <span class="pick__go">弱いところから打つ →</span>
+          <em class="pick__state" id="pickTrainState">弱点集中・総ざらい・速度／実文18本・自由入力</em>
+        </a>
+      </div>
+
+      <!-- 二つの違いを、札の外にもう一度、一行で言い切る。
+           «利用者が違いを説明できない» が今回の出発点だったので、
+           言葉の選び直しだけで済ませない。名前に頼らず、地の文で名指しする -->
+      <p class="pick__diff">
+        <b>違いはひとつだけ。</b>覚えるは<b>まだ打てない字</b>を、鍛えるは<b>もう打てる字</b>を扱います。
+        どちらで打っても、測り方も記録の貯まる先も同じです。
+      </p>
+
+      <!-- 記録への入口。«ふりかえる» という札は置かない。
+           札に書いた動詞より、自分の数字そのもののほうが強い入口になる。
+           «白帯 / 5日連続 / 平均ズレ -8ms» は、それ自体がもう «ふりかえり» で、
+           押せばもっと見られる、という関係が形から読める -->
+      <a class="mine" href="#/record">
+        <span class="mine__rank"><b id="homeRank">白帯</b><small>段位</small></span>
+        <dl class="tally" id="homeTally">
+          <div><dt>連続</dt><dd id="homeStreak">0日</dd></div>
+          <div><dt>総打鍵</dt><dd id="homeKeys">0</dd></div>
+          <div><dt>平均ズレ</dt><dd id="homeOffset">—</dd></div>
+          <div><dt>ぴったり率</dt><dd id="homePerfect">—</dd></div>
+        </dl>
+        <span class="mine__go">記録をぜんぶ見る（実績・ヒートマップ・カレンダー・ズレの分布）→</span>
+      </a>
+    </header>
+
+    <!-- 道具。練習ではないので、札の作りから一段落とす。
+         «打つ» と同じ大きさで並べると、また «どれをやればいいのか» に戻る -->
+    <h2 class="courses__cat">道具</h2>
+    <div class="tools">
+      <a class="tool" href="#/layout">
+        <b class="tool__name">配列表</b>
+        <span class="tool__note">どのキーにどのかながあるか。覚えるためではなく、いつでも引くための表です。</span>
+      </a>
+      <a class="tool" href="#/setup">
+        <b class="tool__name">設定</b>
+        <span class="tool__note">親指キーの割り当て、同時打鍵とみなす幅、打鍵音。最初に一度だけ通してください。</span>
+      </a>
+    </div>
+
+    <footer class="page__foot">
+      <p class="note">
+        配列データは NICOLA 規格に基づきます。記録はこの端末の中だけに保存され、どこにも送信しません。
+      </p>
+    </footer>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/learn
+     覚える。配列を順に覚える場所。以前の «入門コース» の一覧がそのまま来る。
+
+     玄関から一覧を切り離した。玄関に一覧を置くと、玄関が «選ぶ画面» と
+     «第一課の入口» を兼ねてしまい、«鍛える» と «コース» が同じ重さに見えなくなる。
+     続きから打つだけの人は玄関の «つづきから» で直行できるので、
+     ここへ来るのは «全体のどこに居るか» を見たいときだけでよい。 -->
+<section class="screen screen--learn" id="screenLearn" hidden>
+  <div class="page">
+    <h1 class="page__title">覚える</h1>
+    <p class="page__lead">
+      <b>まだ打てない字</b>を打てるようにする場所です。七つの課・46題を、決まった順に積みます。
+      前の課をある程度打つと次が開きます。順番そのものに意味があるので、飛ばさないほうが結局速い。
+    </p>
+
+    <aside class="kbnote">
+      <b class="kbnote__head">打つには物理キーボードが要ります</b>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
+        画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。
+        下の一覧は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__acts">
+        <a class="link" href="#/layout">配列表を見る →</a>
+        <a class="link" href="#/record">記録を見る →</a>
+      </p>
+    </aside>
+
+    <h2 class="courses__cat">七つの課</h2>
+
+    <!-- コース札は app.js が流し込む。ここは空の受け皿。
+         札は「閉じている理由」と「いまどこまで進んだか」を必ず持たせること。
+         閉じているのに理由も出口も見えない札は、ただの行き止まりになる。
+
+         札一枚の構造（CSS はこの形に付けてある）:
+           <a class="course [is-locked|is-done]" href="#/play/…">
+             <b class="course__name">第二課 · 濁音</b>
+             <span class="course__note">…コースの説明…</span>
+             <span class="course__prog">                 進捗。閉じている札にも出す
+               <span class="course__progBar" style="--p:.4"><i></i></span>
+               <span class="course__progText">5課題中 2</span>
+             </span>
+             <span class="course__lock">単独打鍵の面で20キー打つ</span>   UNLOCKS の hint
+           </a>
+         --p は 0〜1。course__lock は is-locked の札にだけ入れる -->
+    <div class="courses" id="courseList"></div>
+
+    <footer class="page__foot">
+      <p class="note">
+        ここを一周し終えたら <a class="link" href="#/train">鍛える</a> へ。
+        覚えた字を速く正確にするのはそちらの仕事です。一周する前に行っても構いません。
+      </p>
+    </footer>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/play/:id
+     主役はタイミングメーター。上から
+       数値（静か） → お題 → 次の一打 → メーター → 親指ランプ → 配列図
+     の順で、視線が下りるほど「今どうすればいいか」が具体になるように積む。 -->
+<section class="screen screen--play" id="screenPlay" hidden>
+  <div class="play">
+
+    <div class="play__bar">
+      <button type="button" class="ghost" id="btnBack" aria-label="前の画面へ戻る">←</button>
+      <!-- 何のための一本かを一語で出す。鍛える・自由入力でもこの画面を流用するので、
+           これが無いと «いま何を打たされているのか» が分からなくなる。
+           «覚える» の課題を打っているときは、右の課題名がそのまま答えになるので
+           app.js が hidden のままにする。
+           app.js への申し送り: mode の文言は «鍛える» / «自由入力» の二つになった
+           （'check' は廃止） -->
+      <span class="play__badge" id="playBadge" hidden>鍛える</span>
+      <span class="play__lesson" id="playLesson">第一課 · ホームポジション</span>
+
+      <!-- 課題の狙い（lesson.note）。空の受け皿で、app.js が入れる。
+           これが読めないと «メーターが黙る回»（basic-4 / basic-5 は親指を休ませて
+           場所だけ覚える回）が、ただの故障に見える。打鍵中に読ませるものではないので
+           小さく静かに置く。中身が無いときは CSS 側の :empty で行ごと消える。
+
+           バーの中で «自分の一段» を占める（CSS で flex-basis:100%）。
+           数値や «やり直す» と横に並べると幅が 1/3 しか取れず、
+           どの課題でも一行目の途中で切れていた。段を分ければ幅いっぱい使えて、
+           課題文の狙いはほぼ二行に収まる。二行を超える分だけ、置くか触れると開く。
+           tabindex はそのため ── 触れる手が無い人にも開く道を残す -->
+      <span class="play__note" id="playNote" tabindex="0"></span>
+
+      <!-- 打鍵中に目で追わせたくないので、数値は小さく、色も付けない -->
+      <span class="stats">
+        <span class="stat"><b id="statTime">0.0</b><small>s</small></span>
+        <span class="stat"><b id="statCpm">0</b><small>cpm</small></span>
+        <span class="stat"><b id="statAcc">100</b><small>%</small></span>
+      </span>
+
+      <span class="play__tools">
+        <button type="button" class="ghost" id="btnRetry">やり直す</button>
+      </span>
+    </div>
+
+    <aside class="kbnote kbnote--play">
+      <b class="kbnote__head">この画面は物理キーボードで打ちます</b>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
+        画面上のソフトキーボードでは押した時刻の差が取れないため、この一本は進みません。
+        パソコンで開くか、外付けキーボードをつないでください。</p>
+      <p class="kbnote__acts">
+        <a class="link" href="#/layout">配列表を見る →</a>
+        <a class="link" href="#/record">記録を見る →</a>
+      </p>
+    </aside>
+
+    <div class="play__stage">
+
+      <!-- お題。打った字の下だけ線が太くなる -->
+      <p class="phrase" id="phrase" aria-label="お題">
+        <span class="phrase__c is-done">は</span><span class="phrase__c is-done">る</span><span class="phrase__c is-done">の</span><span class="phrase__c is-done">か</span><span class="phrase__c is-done">ぜ</span><span class="phrase__c is-cur">が</span><span class="phrase__c">ふ</span><span class="phrase__c">く</span>
+      </p>
+
+      <!-- 次の一打。かなと「どの親指＋どのキー」を一組にして出す。
+           親指シフトの初学者が知りたいのは常にこの二つ。
+           «が» は左手の «か»（W）×右親指＝交差シフトなので、濁音になる -->
+      <p class="cue" id="cue">
+        <b class="cue__kana" id="cueKana">が</b>
+        <span class="cue__how" id="cueHow">
+          <span class="cue__thumb cue__thumb--right" id="cueThumb">右親指</span>
+          <span class="cue__plus">＋</span>
+          <kbd class="cue__key" id="cueKey">W</kbd>
+        </span>
+        <span class="cue__kind cue__kind--cross" id="cueKind">交差 · 濁音</span>
+      </p>
+
+      <!-- ここが主役。中身は meter.js が組む -->
+      <div class="meter" id="meter"></div>
+
+      <!-- 親指ランプと配列図。どちらも keyboard.js が container の中に組む -->
+      <div class="board" id="board"></div>
+
+    </div>
+
+    <!-- 節目だけ派手にする。ふだんは出さない -->
+    <div class="finish" id="finish" hidden>
+      <div class="finish__card">
+        <p class="finish__eyebrow" id="finishEyebrow">第一課</p>
+        <h2 class="finish__title" id="finishTitle">ホームポジション</h2>
+
+        <p class="finish__hero">
+          <b id="finishCpm">0</b><small>cpm</small>
+          <span class="finish__best" id="finishBest" hidden>自己ベスト更新</span>
+        </p>
+
+        <!-- 結果の主役も「速さ」ではなく「ズレ」。上に大きく出す -->
+        <div class="finish__offset">
+          <span class="finish__offsetLabel">平均のズレ</span>
+          <b id="finishOffset">-8ms</b>
+          <small id="finishOffsetWord">親指がわずかに先行</small>
+        </div>
+
+        <dl class="finish__grid">
+          <div><dt>ぴったり</dt><dd id="finishPerfect">0</dd></div>
+          <div><dt>良い</dt><dd id="finishGood">0</dd></div>
+          <div><dt>ずれ</dt><dd id="finishOff">0</dd></div>
+          <div><dt>不発</dt><dd id="finishMisfire">0</dd></div>
+        </dl>
+
+        <div class="finish__earned" id="finishEarned" hidden></div>
+
+        <div class="finish__buttons">
+          <button type="button" class="btn btn--primary" id="btnNext">次の課題へ</button>
+          <button type="button" class="btn" id="btnAgain">もう一度</button>
+          <button type="button" class="btn btn--quiet" id="btnHome">やめる</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/train
+     鍛える。もう打てる字を、速く正確にする場所。
+
+     «覚える» と違って段階的な解禁は無い。ここは最初から全部開いている。
+     以前は «腕試しを受けるまで閉じる» という門を置いていたが、
+     測らないと弱点が出せないのは «弱点集中» の一つだけで、
+     残り（総ざらい・速度・実文・自由入力）は最初から成立する。
+     一つのために全部を閉じるのは重すぎたので、門ごとやめた。
+     弱点がまだ出せないときは、下の «いまの弱点» が自分でそう言う。
+
+     «何をやらされるか» ではなく «いま自分の何が弱いか» から始まるように、
+     弱点の表示を選択肢より上に置いてある。順番を逆にすると、
+     ただのメニュー画面になって、選ぶ理由が自分の中に残らない。
+
+     内側の id は drill* のままにしてある。画面の名前は変わったが、
+     ここでやっていること（適応出題＝drill）は変わっていないので、
+     配線を切ってまで綴りを揃える利は無い。 -->
+<section class="screen screen--train" id="screenTrain" hidden>
+  <div class="page">
+    <h1 class="page__title">鍛える</h1>
+    <p class="page__lead">
+      <b>もう打てる字</b>を、速く正確にする場所です。決まった順番はありません。
+      課題を順に消化するのではなく、<b>いま弱いところ</b>を狙って、出題はそのつど組み直します。
+      まだ打てない字を覚えるのは <a class="link" href="#/learn">覚える</a> の仕事です。
+    </p>
+
+    <aside class="kbnote">
+      <b class="kbnote__head">打つには物理キーボードが要ります</b>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
+        画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。
+        下の弱点は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__acts">
+        <a class="link" href="#/layout">配列表を見る →</a>
+        <a class="link" href="#/record">記録を見る →</a>
+      </p>
+    </aside>
+
+    <!-- いま何が弱いか。ここで打つことの «根拠» なので一番上 -->
+    <div class="card" id="drillWeakCard">
+      <h2 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h2>
+
+      <p class="skew__ends">
+        <span class="skew__end--early">親指が先行</span>
+        <b>ぴったり</b>
+        <span class="skew__end--late">親指が遅れ</span>
+      </p>
+      <div class="skews">
+        <div class="skew">
+          <span class="skew__label">左親指</span>
+          <span class="skew__rail"><i class="skew__mark" id="drillSkewLeftMark"></i></span>
+          <span class="skew__val" id="drillSkewLeftVal">—</span>
+        </div>
+        <div class="skew">
+          <span class="skew__label">右親指</span>
+          <span class="skew__rail"><i class="skew__mark" id="drillSkewRightMark"></i></span>
+          <span class="skew__val" id="drillSkewRightVal">—</span>
+        </div>
+      </div>
+
+      <!-- 空の受け皿。app.js が <li class="weak"> を並べる。中身の形は CSS 側の注記を見よ -->
+      <ul class="weaks" id="drillWeak"></ul>
+      <p class="empty" id="drillWeakEmpty" hidden>まだ弱点を言えるほど記録がありません。何本か打つと出ます。</p>
+    </div>
+
+    <!-- 三つのモード。閉じているものは app.js が is-locked を付ける。
+         見出しを足したのは «この三つ» と «下の実文・自由入力» が別の種類だから。
+         上は道場が組む、下は打つ文が決まっている。同じ面に無名で並べると
+         «五つの選択肢» に見えて、また選べなくなる -->
+    <h2 class="courses__cat">その場で組んでもらう</h2>
+    <div class="modes" id="drillModes">
+      <button type="button" class="mode" id="btnDrillWeak">
+        <b class="mode__name">弱点集中</b>
+        <span class="mode__note">落としている面と、ズレの大きいキーだけを集めて出します。いちばん効くぶん、いちばんつらい。</span>
+        <em class="mode__meta" id="drillWeakMeta"></em>
+      </button>
+      <button type="button" class="mode" id="btnDrillAll">
+        <b class="mode__name">総ざらい</b>
+        <span class="mode__note">三つの面を万遍なく。しばらく打っていない面から先に回します。腕を鈍らせないための一本。</span>
+        <em class="mode__meta" id="drillAllMeta"></em>
+      </button>
+      <button type="button" class="mode" id="btnDrillSpeed">
+        <b class="mode__name">速度</b>
+        <span class="mode__note">打ち慣れた語だけで速さを出します。正確率が落ちたらその場で止めます。</span>
+        <em class="mode__meta" id="drillSpeedMeta"></em>
+      </button>
+    </div>
+
+    <!-- 実文。18本あって、札の一覧が縦にも横にも場所を要る。
+         自由入力と横並びの半分の幅に押し込むと、札が 1 列にしか並ばず縦に伸び切るので、
+         この札だけ幅を丸ごと使わせる（以前は .duo で二つ並べていた） -->
+    <h2 class="courses__cat">打つ文が決まっているとき</h2>
+    <div class="card">
+      <h2 class="card__head">実文<span class="card__count" id="drillTextCount"></span></h2>
+      <p class="note">数百字の通し打ち。語ではなく文のまま指が動くようになると、はじめて仕事で使えます。</p>
+
+      <!-- 空の受け皿。app.js が <button class="material"> の札を並べる。
+           select を開くまで «何があるか» が分からないのが元の姿だった。
+           題名だけでは選べない ── 字数と、どの面が鍛えられるかが要る。
+           札一枚の構造（CSS はこの形に付けてある）:
+             <button class="material [is-done]" data-lesson="sentence-1">
+               <b class="material__name">春はあけぼの</b>
+               <span class="material__meta">53字 · 同時打鍵 43% · 2回</span>
+               <span class="material__note">…課題の狙い…</span>
+               <span class="material__tags"><i>同側シフトが多い</i>…</span>  タグは 0〜4 個
+             </button> -->
+      <div class="materials" id="drillTextList"></div>
+
+      <!-- 札より前からある選び方。打つ文がもう決まっているときは、
+           18枚を目で探すより名前で選ぶほうが速い。狭い画面でも一手で済む。
+           札と役が違うので、押しボタンは主役（btn--primary）から下ろしてある -->
+      <p class="materials__pick">
+        <label class="field__label" for="drillTextPick">決まっているなら、名前で選ぶ</label>
+        <!-- 空の受け皿。app.js が <option> を入れる -->
+        <select class="input" id="drillTextPick" aria-label="打つ文を選ぶ"></select>
+        <button type="button" class="btn" id="btnDrillText">この文を打つ</button>
+      </p>
+    </div>
+
+    <!-- 自由入力 -->
+    <div class="card">
+      <h2 class="card__head">自由入力<span class="card__count" id="freeTextCount"></span></h2>
+      <p class="note">自分の文章を貼って打てます。ふだん書いている文で打つのが、いちばん移行が速い。</p>
+      <textarea class="input input--area" id="freeText" rows="5" placeholder="ここにひらがなの文を貼ってください。&#10;漢字・カタカナは配列に無いので打てません。"></textarea>
+      <div class="warn warn--stop" id="freeTextWarn" hidden>
+        <b>打てない字が混じっています</b>
+        <p id="freeTextWarnList"></p>
+      </div>
+      <p class="data__row">
+        <button type="button" class="btn btn--primary" id="btnFreeStart">この文を打つ</button>
+        <button type="button" class="btn btn--quiet" id="btnFreeClear">消す</button>
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/record
+     記録。打った結果が貯まるところ。以前の «マイページ»。
+
+     «マイページ» をやめたのは、それが «この場所に何があるか» を何も言っていないから。
+     会員証のような語で、中身（段位・ズレの分布・ヒートマップ・カレンダー・実績）と
+     結び付かない。«記録» なら、打てば増えることが名前だけで分かる。
+
+     玄関に «ふりかえる» という札は置いていない。ここへは玄関の «自分の数字»
+     （.mine）とヘッダーの連続日数から入る。数字そのものが札より強い入口になる。
+
+     内側の id は元のまま。画面の名前は変えたが中身は変えていない。 -->
+<section class="screen screen--record" id="screenRecord" hidden>
+  <div class="page page--narrowish">
+    <h1 class="page__title">記録</h1>
+    <p class="page__lead">
+      打った結果はぜんぶここに貯まります。<b>覚える</b>で打っても<b>鍛える</b>で打っても、行き先は同じです。
+      測るための専用の画面はありません。打てば、そのまま記録になります。
+    </p>
+
+    <div class="card card--rank">
+      <h2 class="card__head">段位</h2>
+      <div class="rank">
+        <b class="rank__name" id="rankName">白帯</b>
+        <span class="rank__score" id="rankScore">SCORE 0</span>
+      </div>
+      <div class="rank__bar"><i id="rankFill"></i></div>
+      <p class="rank__next" id="rankNext">次の段位まで —</p>
+      <dl class="tally" id="statTally"></dl>
+    </div>
+
+    <!-- ローマ字時代との比較。
+         移行の最大の障壁は速さではなく «仕事が回らない期間がいつ終わるか分からないこと» なので、
+         終わりを日数で見せる。値は trophies.js の romajiComparison(stats) がそのまま返す。
+         message は日本語の一文として出来上がっているので、加工せずに入れること。
+         daysToPass / passedAt は出せないときに null で返る。null のときは行ごと隠す
+         （«予測できません» と書くくらいなら、何も書かないほうが静かで正しい） -->
+    <div class="card" id="romajiCard">
+      <h2 class="card__head">ローマ字時代の自分<span class="card__count" id="romajiRatio"></span></h2>
+
+      <div class="romaji">
+        <div class="romaji__row">
+          <span class="romaji__who">ローマ字</span>
+          <span class="romaji__bar"><i id="romajiBaseBar"></i></span>
+          <b class="romaji__cpm" id="romajiBaseVal">—</b>
+        </div>
+        <div class="romaji__row romaji__row--now">
+          <span class="romaji__who">いま</span>
+          <span class="romaji__bar"><i id="romajiNowBar"></i></span>
+          <b class="romaji__cpm" id="romajiNowVal">—</b>
+        </div>
+      </div>
+
+      <p class="romaji__msg" id="romajiMessage"></p>
+
+      <!-- 追い抜く見込み。出せるときだけ app.js が hidden を外す -->
+      <p class="romaji__forecast" id="romajiForecast" hidden></p>
+      <!-- 追い抜いた日。一度きりの節目なので、ここだけ派手にしてよい -->
+      <p class="romaji__passed" id="romajiPassed" hidden></p>
+
+    </div>
+
+    <!-- ローマ字時代の速さを入れる欄。もとは «腕試し» の画面にあったが、
+         腕試しを廃したのでここへ移した。使う場所（上の比較）のすぐ下が本来の置き場所でもある。
+
+         上の #romajiCard とは別の札にしてあるのが肝。
+         app.js は記録が無いあいだ #romajiCard を hidden にするので、
+         入力欄を中に入れると «記録が無い人だけが欄に辿り着けない» という
+         いちばん困る形になる。この札は常に出す。
+
+         «ローマ字で測る» ボタン（旧 #btnRomajiMeasure）は置いていない。
+         押しても «上の欄に入れてください» と言うだけのボタンで、
+         欄がすぐ横にある以上、ただの回り道だった。
+
+         app.js への申し送り: paintRomajiState() を記録画面の描画から呼ぶこと。
+         id は移しただけで変えていない（#checkRomajiState / #checkRomajiStatus /
+         #romajiCpmInput / #btnRomajiSave / #btnRomajiClear）。 -->
+    <div class="card" id="romajiSetCard">
+      <h2 class="card__head">ローマ字時代の速さを入れる<span class="card__count" id="checkRomajiState">未記録</span></h2>
+      <p class="note">
+        移行前の速さを一度だけ入れておくと、上の札に <b>いまが何割か</b> と
+        <b>この伸びならあと何日で追い抜くか</b> が出ます。
+        単位は親指シフト側と同じ CPM（1分あたりの確定かな数）です。
+      </p>
+
+      <div class="romaji__set">
+        <label class="field__label" for="romajiCpmInput">ローマ字入力のときの速さ</label>
+        <input type="number" class="input input--num" id="romajiCpmInput" min="1" max="2000" step="1" inputmode="numeric" placeholder="120">
+        <span class="romaji__unit">cpm</span>
+        <button type="button" class="btn" id="btnRomajiSave">記録する</button>
+        <button type="button" class="btn btn--quiet" id="btnRomajiClear">消す</button>
+      </div>
+
+      <p class="note" id="checkRomajiStatus">まだ記録がありません。</p>
+      <p class="note">
+        分からなければ、ふだん使っているローマ字入力の練習で測った値をそのまま入れてください。
+        この道場では測れません。親指シフト側は日本語入力（IME）を OFF にして打つので、
+        同じ画面でローマ字を測ると設定が行き来して、どちらの数字も当てにならなくなります。
+      </p>
+    </div>
+
+    <!-- 平均のズレ。ここが本アプリで一番見てほしい数字 -->
+    <div class="card">
+      <h2 class="card__head">同時打鍵のクセ</h2>
+      <p class="note">左右それぞれの親指について、文字キーとの時間差の分布です。
+        山が中心から左に寄っていれば親指が早すぎ、右に寄っていれば遅すぎです。</p>
+      <div class="hist" id="histLeft" data-side="left"></div>
+      <div class="hist" id="histRight" data-side="right"></div>
+    </div>
+
+    <!-- キー×シフト面のヒートマップ。配列図をそのまま色で塗る -->
+    <div class="card">
+      <h2 class="card__head">苦手な面<span class="card__count">濃いほどミスが多い</span></h2>
+      <div class="board board--heat" id="heatBoard"></div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">練習した日<span class="card__count" id="calRange"></span></h2>
+      <div class="cal" id="cal"></div>
+      <!-- 1年分の帯は、どう詰めても狭い画面には入らない（52週 × 15px = 777px）。
+           入らないものを «入っているように» 見せるのが一番よくないので、
+           横に流すことと、今日がどちら側かを字で断っておく。狭いときだけ出る -->
+      <p class="cal__hint">1 年分あります。横に動かせます。右の端が今日です。</p>
+      <p class="cal__legend"><span>少</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>多</span></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">実績<span class="card__count" id="trophyCount"></span></h2>
+      <div class="trophies" id="trophies"></div>
+    </div>
+
+    <!-- 画面の名前が «記録» になったので、この札の見出しも «記録» のままだと
+         «記録の中の記録» になる。中身は課題ごとの直近なので、そのまま名乗らせる -->
+    <div class="card">
+      <h2 class="card__head">課題ごとの成績</h2>
+      <table class="rec"><thead><tr><th>課題</th><th>cpm</th><th>平均ズレ</th><th>最後に</th></tr></thead>
+        <tbody id="recBody"></tbody></table>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">データ</h2>
+      <p class="note">記録はこの端末の <code>localStorage</code> の中だけにあります。隠さず書いておきます。</p>
+      <ul class="data__keys" id="dataKeys"></ul>
+      <p class="data__row">
+        <button type="button" class="btn" id="btnExport">書き出す</button>
+        <button type="button" class="btn" id="btnImport">読み込む</button>
+        <button type="button" class="btn btn--danger" id="btnClear">全部消す</button>
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ================================================================ #/layout
+     配列表。1 キーに 3 面ある NICOLA を、そのまま 3 面で見せる -->
+<section class="screen screen--layout" id="screenLayout" hidden>
+  <div class="page">
+    <h1 class="page__title">NICOLA 配列表</h1>
+    <p class="page__lead">
+      1 つのキーに 3 つの面があります。単独で押した面、同じ側の親指と押した面、逆側の親指と押した面。
+    </p>
+
+    <!-- 凡例。色だけに頼らせず、必ず言葉を添える -->
+    <ul class="legend">
+      <li class="legend__i legend__i--solo"><i></i>単独打鍵</li>
+      <li class="legend__i legend__i--cross"><i></i>逆側の親指（交差シフト） → 主に<b>濁音・半濁音</b></li>
+      <li class="legend__i legend__i--same"><i></i>同じ側の親指（同側シフト） → <b>別のかな</b></li>
+    </ul>
+
+    <div class="board board--big" id="layoutBoard"></div>
+
+    <p class="note">
+      色は「左シフトか右シフトか」ではなく、<b>同じ側の親指か、逆側か</b>で分けています。
+      NICOLA には「逆側の親指なら主に濁音・半濁音、同じ側の親指なら別のかな」という規則があるので、
+      その規則がそのまま目に入るようにしてあります。左右のどちらの親指かは、面の置かれた位置で分かります。
+    </p>
+
+    <p class="note">
+      たとえば左手の <b>し</b> は、<b>右</b>親指と打てば <b>じ</b>（交差＝濁音）、
+      <b>左</b>親指と打てば <b>あ</b>（同側＝別のかな）になります。
+      左手のキーは右の面が、右手のキーは左の面が濁音側です。
+    </p>
+  </div>
+</section>
+
+<!-- ================================================================ 通知
+     実績を取った瞬間の置き場所。画面をまたいで出したいので、body 直下に置く。
+     （play 画面の .toast は .play の中に absolute で置いてあり、他の画面では出せない）
+
+     方針は «平時は静か、節目だけ派手»。ふだんは空で、実績が解けたときだけ
+     app.js がここに一枚足す。数秒で自分から消えること。打鍵の邪魔をしてはいけない。
+     aria-live="polite" にしてあるので、読み上げは «いま打っている手が空いてから» 流れる。
+
+     一枚の構造（CSS はこの形に付けてある）:
+       <div class="notice notice--trophy">
+         <span class="notice__eyebrow">実績</span>
+         <b class="notice__name">十日連続</b>
+         <span class="notice__hint">10日つづけて打つ</span>
+       </div>
+     段位が上がったときは notice--rank、自己ベスト更新は notice--best を使う -->
+<div class="notices" id="noticeStack" aria-live="polite" aria-atomic="false"></div>
+
+<script type="module" src="assets/js/app.js"></script>
+</body>
+</html>

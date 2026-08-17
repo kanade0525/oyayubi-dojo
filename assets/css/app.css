@@ -1317,6 +1317,9 @@ a.pick__one:hover .pick__go {
 
 .play__bar {
   flex: none;
+  /* 下端に進みの帯（.play__prog）を敷くため。帯を絶対配置にしておけば、
+     お題を «行» で送るぶんの高さをここから取られない */
+  position: relative;
   display: flex;
   align-items: center;
   /* 課題の狙い（.play__note）は長さが課題ごとに違う。折り返せるようにしておかないと、
@@ -1415,11 +1418,21 @@ a.pick__one:hover .pick__go {
   .screen--play .board { gap: 8px; }
   .screen--play .key { width: 46px; }
   .screen--play .meter { gap: 7px; }
+  /* お題が «いまの行＋先の二行» の三段になったぶん、上限を 32px から落とす。
+     1440×760 で実測すると、32px のままだと配列図の下端が窓の 5px 手前まで来て
+     余白が無くなる（＝あと一段何かが増えたら画面外）。28px にすると 30px 戻る。
+     行が一段しか無かった頃の余裕をそのまま使えると思っていたのが誤りだった */
+  .screen--play .script {
+    --phrase-size: clamp(18px, min(2.2vw, 5.2vh), 28px);
+    gap: calc(var(--phrase-size) * 0.22);
+  }
 }
 
 @media (max-height: 700px) {
   .screen--play .key { width: 40px; padding: 3px; }
-  .screen--play .phrase { font-size: clamp(20px, 3.4vh, 28px); }
+  /* お題は --phrase-size を一つ落とす。いまの行と次の行が同じ比で縮むので、
+     «いま» と «つぎ» の差（2倍）は保たれる */
+  .screen--play .script { --phrase-size: clamp(17px, min(2.2vw, 4.4vh), 27px); }
 }
 
 /* ここまで低いと全部は載らない。何を残すかを選ぶ。
@@ -1436,6 +1449,10 @@ a.pick__one:hover .pick__go {
   .screen--play .meter__ends { font-size: 9.5px; }
   .screen--play .meter__advice { display: none; }
   .screen--play .play__stage { gap: 6px; padding: 6px 18px; }
+  /* 先読みは一行に減らす。二行先まで見えるのは «あると速い» もので、
+     一行先が見えるのは «無いと行が変わるたび止まる» もの。落とす順はこちら */
+  .screen--play .script__next--far { display: none; }
+  .screen--play .script { gap: calc(var(--phrase-size) * 0.2); }
 }
 
 .play__note:empty {
@@ -1480,24 +1497,79 @@ a.pick__one:hover .pick__go {
   overflow: auto;
 }
 
-/* --- お題 --- */
+/* --- お題（カラオケの歌詞方式で行を送る） ---
+
+   かつてはお題の全文を .phrase 一つに流し込んで折り返させていた。
+   1本が30〜178字のうちは成り立っていたが、数百〜2000字の題材では壊れる。
+   実測 ── いまいちばん長い題材（text-50 ＝ 178字）を旧来の 40px で 1440×760 に出すと
+   六行 ＝ 332px を占め、配列図の下段が窓の外に出ていた。2000字ならこの 11 倍で、
+   そもそも «出す» という話ではなくなる。字を小さくすれば入るが、こんどは
+   «いまどこを打っているか» が字の海に沈む。長さの問題は «縮める» では解けない。
+
+   解くのは «一度に見せる量を決める» ほう。
+   いま打っている行だけを大きく出し、先の二行を小さく添えて、
+   打ち終わったら次が上がってくる。カラオケの歌詞と同じ形で、
+   一画面に出る量が題材の長さに関係なく一定になる（同じ窓で 105px 固定）。
+
+   高さの捻出。行を二段足しているのに、この画面はむしろ 227px 低くなっている。
+     足した分 … 次の行 2 段（各 0.5em × 1.5 と段間 ＝ 合わせて 54px）
+     減った分 … 折り返しが無くなった（178字で 6 行 → 1 行）
+     引いた分 … いまの行の上限を 40px → 32px（縦 800px 以下の窓ではさらに 28px）
+   短い課題（«覚える» はほとんど一行で終わる）では次の行が空になるので、
+   :empty で段ごと消える ── 足した分もそこでは 0 になる。
+   進みの帯はバーの下端に絶対配置、行数と字数はもとからある数値の棚に入れたので、
+   どちらも縦を 1px も食わない。要するに、どこからも «削って» いない。 */
+
+.script {
+  /* いまの行の字の大きさ。行の幅も、次の行の大きさも、段間も、全部ここから導く。
+     一箇所で決めておけば、低い窓で詰めるときに触るのもここ一行で済む。
+
+     2.2vw の根拠は «一行 34字（app.js の LINE_MAX）が折り返さずに収まる» こと。
+     全角かな1字の送りは 1em ＋ 字間 0.06em ＋ .phrase__c の左右 padding 0.12em ＝ 1.18em。
+     34字で 40.1em なので幅を 41em 取る（下の width）。
+     1280px 幅で 41em が入る大きさが 2.2vw ＝ 28px。
+     34字を超える行が来ると折り返し、その一行ぶん（＝下の min-height を超えた分）
+     配列図が窓の下へ出る。app.js が LINE_MAX を上げるなら、ここも一緒に下げること。
+
+     5.2vh も見るのは、横に広くて縦が低い窓（ノートPCはたいていこれ）で
+     字が大きいまま行が増えるのを防ぐため。
+     18px の下限は、幅が足りない端末（＝そもそも打てない端末）で
+     読むだけはできるように。ここでは一行が二行に折り返してよい */
+  --phrase-size: clamp(18px, min(2.2vw, 5.2vh), 32px);
+
+  width: min(100%, calc(var(--phrase-size) * 41));
+  display: grid;
+  gap: calc(var(--phrase-size) * 0.3);
+}
 
 .phrase {
   display: flex;
   flex-wrap: wrap;
+  /* 中央寄せ。左端を固定する（＝左寄せ）案も試したが二つの理由でやめた。
+     一つ、«覚える» の課題はほとんど一行で終わるので、41em の桁の左端から
+     始まると、下の «次の一打»・メーター・配列図（どれも中央）から一つだけ外れる。
+     二つ、«行が続くときだけ左寄せ» に切り替えると、先読みが両方とも空になる
+     «最後の一行» でだけ中央へ飛ぶ。80行打ってきた最後で飛ぶのは最悪の壊れ方。
+     中央寄せなら «先読みの行の中心» が上がってくるときも動かないので、
+     目のよりどころは中心のほうで作れる。カラオケの歌詞が中央なのも同じ理由 */
   justify-content: center;
+  align-content: center;
   gap: 2px 0;
   margin: 0;
+  /* 一行分だけ高さを確保する。行の長さは不揃いなので、
+     ここが中身なりに縮むと «次の一打» 以下が毎行上下する。
+     打鍵の的（メーター）が動くのがいちばんまずい */
+  min-height: calc(var(--phrase-size) * 1.5);
   font-family: var(--kana);
-  /* 横幅だけで決めると、横に広くて縦が低い窓（ノートPCはたいていこれ）で
-     字が大きいまま行数が増え、配列図を画面外へ押し出す。縦も見る */
-  font-size: clamp(22px, min(4vw, 5.2vh), 40px);
+  font-size: var(--phrase-size);
   letter-spacing: 0.06em;
   color: var(--fg-dim);
 }
 
-/* 進み具合は別の帯にせず、字の下の線の太さで出す。
-   視線がお題から離れないほうが速く読める */
+/* «この行のどこまで打ったか» は帯にせず、字の下の線の濃さで出す。
+   視線がお題から離れないほうが速く読める。
+   «本文全体のどこまで来たか» のほうは、行が送られる作りにした以上
+   この行の中だけでは出せないので、バーの下端の .play__prog が受け持つ */
 .phrase__c {
   padding: 0 0.06em 6px;
   border-bottom: 2px solid var(--line-soft);
@@ -1519,6 +1591,122 @@ a.pick__one:hover .pick__go {
 .phrase__c.is-err {
   color: var(--misfire);
   border-bottom-color: var(--misfire);
+}
+
+/* 打ち間違いを一瞬だけ光らせる。app.js が 160ms だけ .is-miss を付けるのに、
+   受ける規則が無くて何も起きていなかった（お題を行送りにするとき気づいた）。
+   動かさず、色だけで出す ── 判定は数十msを見ているので、
+   間違えた瞬間に的が揺れると、次の一打がそのぶん崩れる。
+   ミスは «その一打» の話なので、いま打つ字の下線だけを不発色にする */
+.phrase.is-miss .phrase__c.is-cur {
+  /* 出るのは即座、引くのは .phrase__c の 0.14s に任せる。
+     .phrase__c の transition をそのまま効かせると、色が乗りきる 140ms より前に
+     app.js が 160ms でクラスを外すので、いちばん見せたい瞬間がほぼ出ない */
+  transition: none;
+  color: var(--misfire);
+  border-bottom-color: var(--misfire);
+}
+
+/* これから来る行。
+   «いま» と «つぎ» の差は大きさで付ける（半分）。明るさを主にはできない ──
+   いまの行の «まだ打っていない字» がすでに --fg-dim なので、次の行をそれより
+   薄くすれば読めなくなるほうへ近づき、同じ濃さにすれば差が立たない。
+   位置（インデントやずらし）で付けるのも採らない。行が上がってくるときに
+   横へも動くことになり、«打鍵中に動かさない» が崩れる。
+   大きさだけが、動かさずに二段の差を作れる軸だった。
+   明るさは «二行先をもう一段落とす» ぶんにだけ使う（下の --far）。
+   加えて、いまの行には字ごとの下線（.phrase__c の border-bottom）が付いている。
+   色が見えない人にも «下線のある段が打つ段» で分かる。 */
+.script__next {
+  margin: 0;
+  font-family: var(--kana);
+  /* いまの行の半分。ただし 12px は下回らせない ── 幅の狭い端末では
+     --phrase-size 自体が下限（18px）に張り付くので、素直に半分にすると 9px になる。
+     打てない端末でも «読める» ようにはしておく */
+  font-size: max(12px, calc(var(--phrase-size) * 0.5));
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  /* いまの行と同じ中央寄せ。行が上がってくるとき、大きさは倍になるが
+     中心は動かない ── これが «行送りを動かさない» の中身 */
+  text-align: center;
+  color: var(--fg-dim);
+  /* 折り返させない。先読みは行の頭が読めれば足りるし、
+     二行に伸びた時点で配列図を画面外へ押し出す。長い行は … で切る */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 二行先。ここだけ一段落とすのは «遠い» ことを濃さで出すため。
+   78% は 4.5:1 を割らない上限（midnight で 5.40:1、いちばん明るい地の plum でも 5.3:1）。
+   大きさは次の行と同じにしてある ── 三段の大きさを全部違えると、
+   «小さいほど遠い» の規則を読み取る手間のほうが先読みの利より大きくなる */
+.script__next--far {
+  color: color-mix(in srgb, var(--fg-dim) 78%, var(--bg));
+}
+
+/* 中身が無ければ段ごと消す。«覚える» の一行課題では二つとも空になるので、
+   ここで消さないと空白が二段ぶん残り、短い課題ほど間延びして見える。
+   .play__note:empty と同じ考え */
+.script__next:empty {
+  display: none;
+}
+
+/* 行が入れ替わる瞬間の見せ方 ── 何もしない。
+   このファイルの冒頭に書いた «打鍵中に動くのは針と親指ランプだけ» を、
+   ここでも守る。判定は数十msを見ているので、行送りをぬるっと上へ送ると、
+   ちょうど «次の一打» を構える 200ms 前後に視野の真ん中で何かが動き続けることになる。
+   目のよりどころは «動き» ではなく «動かないこと» で作った。
+     - いまの行は高さを一行分に固定してあるので、行が変わっても段の場所が動かない
+     - 中央寄せなので、行の長さが不揃いでも «行の中心» は動かない
+     - 先読みの行も同じ中心にあるので、上がってくるのは «大きさ» だけ
+   入れ替わりが «パッ» と起きても、変わるのは字だけで枠は動かない。 */
+
+/* --- 全体の進み --- */
+
+/* 字で言うほう（«3 / 18行　72/460字»）。ほかの数値と同じ棚・同じ小ささで右に置く。
+   お題のそばに置かないのは、一打ごとに動く数字を目のよりどころの隣に出すと、
+   打っている最中にそれを読んでしまうから。
+   .stats が等幅（var(--mono)）で、そこに tabular-nums を足してあるので、
+   字数が 1 ずつ増える途中で幅が揺れない（桁が増える瞬間だけ動く） */
+.stat--count {
+  font-size: 11.5px;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 割合のほう。3px の帯にしてバーの下端へ敷く。
+   2000字の題材では «18行» と言われても、それが遠いのか近いのか分からない。
+   残りの長さが一目になるのは帯だけ。
+   絶対配置なので縦を 1px も食わない ── 行を二段足せた原資の一つがこれ。
+
+   中身は ::after で描く。子要素を置いて style 属性で幅を入れる作りにすると
+   CSP の style-src が止める（_headers は 'unsafe-inline' を許していない）。
+   app.js は --p に 0〜1 を style.setProperty で入れる ── これは属性ではなく
+   CSSOM なので CSP に触らない。既存の .course__progBar と同じ流儀 */
+.play__prog {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  /* 溝が --line-soft だと地に沈み（対 --bg で 1.22:1）«全体の長さ» が見えないので、
+     割合を読む足場が無くなる。--line まで上げて 1.6〜2.0:1。
+     3px の細さなら、これで «まだ続く» が分かる程度には見える。
+     色だけに頼らせないため、同じことは左の «3 / 18行» が字で言っている */
+  background: var(--line);
+}
+
+.play__prog::after {
+  content: "";
+  display: block;
+  height: 100%;
+  /* --p が無ければ 0。app.js が繋ぐ前でも «満タン» に見えたりしない */
+  width: calc(var(--p, 0) * 100%);
+  background: var(--tone);
+  /* transition は付けない。一打ごとになめらかに伸ばすと、視野の端で
+     打鍵のたびに何かが動き続けることになる。行送りと同じ理由 */
 }
 
 /* --- 次の一打 --- */
@@ -2846,6 +3034,30 @@ a.pick__one:hover .pick__go {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
   gap: 8px;
+}
+
+/* 長さの束の見出し。83本を平らに並べると «長い一本» を探せない。
+   行を丸ごと使わせて、札の群れを本当に区切る（実績の系統見出しと同じ作り） */
+.materials__group {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 14px 0 0;
+  padding-bottom: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  color: var(--fg-mid);
+  border-bottom: 1px solid var(--line);
+}
+
+.materials__group:first-child { margin-top: 0; }
+
+.materials__group small {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-dim);
 }
 
 .material {

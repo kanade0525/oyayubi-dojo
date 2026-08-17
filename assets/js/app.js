@@ -80,7 +80,10 @@ const el = {
   // play
   playLesson: $('playLesson'), playNote: $('playNote'),
   statTime: $('statTime'), statCpm: $('statCpm'), statAcc: $('statAcc'),
-  phrase: $('phrase'), cue: $('cue'), cueKana: $('cueKana'), cueThumb: $('cueThumb'),
+  // お題は行送り。先の行と全体の進みは、デザイン担当が受け皿を置いたら効く
+  phrase: $('phrase'), phraseNext: $('phraseNext'), phraseAfter: $('phraseAfter'),
+  phraseProgress: $('phraseProgress'), phraseCount: $('phraseCount'),
+  cue: $('cue'), cueKana: $('cueKana'), cueThumb: $('cueThumb'),
   cueKey: $('cueKey'), cueKind: $('cueKind'), cueHow: $('cueHow'),
   meter: $('meter'), board: $('board'), toast: $('toast'),
   btnBack: $('btnBack'), btnRetry: $('btnRetry'),
@@ -207,6 +210,47 @@ function buildEngine(onOutput) {
 
 // -- お題の進行 -------------------------------------------------------------
 
+// 一行の狙いの長さ（字）。カラオケの歌詞と同じで、一息で目に入る量にする。
+// 長すぎると次の行を予測できず、短すぎると行送りばかりで落ち着かない
+const LINE_TARGET = 26;
+const LINE_MAX = 34;
+
+/**
+ * 本文を行に割る。
+ *
+ * 長い文章を全部いっぺんに出すと画面に入らないし、いまどこを打っているのかも見失う。
+ * カラオケの歌詞と同じで、句読点で切って一息ぶんずつ送る。
+ *
+ * 返すのは「各行の開始位置（文字数）」。本文そのものは切らない。
+ * 位置だけ持てば、進捗（index）は本文全体に対する通し番号のままでよく、
+ * 中断と再開も行の切り方を変えても壊れない。
+ */
+function lineStarts(chars) {
+  const starts = [0];
+  let len = 0;
+  for (let i = 0; i < chars.length; i++) {
+    len++;
+    const c = chars[i];
+    const breakable = c === '。' || c === '、' || c === '・';
+    const last = i === chars.length - 1;
+    if (last) break;
+    // 句読点の直後で切る。狙いの長さに届いていれば切り、
+    // 上限を越えたら句読点が来なくても切る（一行が延々と伸びるのを防ぐ）
+    if ((breakable && len >= LINE_TARGET) || len >= LINE_MAX) {
+      starts.push(i + 1);
+      len = 0;
+    }
+  }
+  return starts;
+}
+
+/** いま何行目か。index は本文全体の通し番号 */
+function lineIndexOf(starts, index) {
+  let n = 0;
+  while (n + 1 < starts.length && starts[n + 1] <= index) n++;
+  return n;
+}
+
 // キーの刻印。`Semicolon` と出しても、手元のどのキーか分からない。
 // 打ち手が見るのは自分のキーボードなので、刻印そのものを見せる
 const KEY_LEGEND = { Semicolon: ';', Comma: ',', Period: '.', Slash: '/' };
@@ -232,6 +276,9 @@ function startRun(lesson) {
   run = {
     lesson,
     chars,
+    // 行の切り方は表示のためだけのもの。進捗（index）は本文全体の通し番号なので、
+    // 切り方を変えても中断と再開は壊れない
+    starts: lineStarts(chars),
     index: 0,
     startedAt: null,
     kana: 0,
@@ -276,14 +323,48 @@ function startRun(lesson) {
   loop();
 }
 
+/**
+ * お題を行単位で出す。
+ *
+ * 打っている行だけを #phrase に入れ、先の行は薄く別に出す。
+ * 長文の全文を一度に出すと画面に入らず、いまどこを打っているかも見失う。
+ */
 function paintPhrase() {
-  const cs = run.chars.map((c, i) => {
+  const { starts } = run;
+  const n = lineIndexOf(starts, run.index);
+  const from = starts[n];
+  const to = starts[n + 1] ?? run.chars.length;
+
+  // いまの行。字ごとの見た目（打ち終えた／いま打つ）は既存のまま
+  const cs = [];
+  for (let i = from; i < to; i++) {
     const span = document.createElement('span');
-    span.className = 'phrase__c' + (i < run.index ? ' is-done' : i === run.index ? ' is-cur' : '');
-    span.textContent = c;
-    return span;
-  });
+    span.className = 'phrase__c'
+      + (i < run.index ? ' is-done' : i === run.index ? ' is-cur' : '');
+    span.textContent = run.chars[i];
+    cs.push(span);
+  }
   el.phrase.replaceChildren(...cs);
+
+  // 先の行。次に何が来るか見えると速度が出る
+  const ahead = (target, k) => {
+    if (!target) return;
+    const s = starts[n + k];
+    if (s == null) { target.textContent = ''; return; }
+    target.textContent = run.chars.slice(s, starts[n + k + 1] ?? run.chars.length).join('');
+  };
+  ahead(el.phraseNext, 1);
+  ahead(el.phraseAfter, 2);
+
+  // 全体のどこまで来たか。長文だと «あとどれくらい» が分からないと折れる
+  if (el.phraseProgress) {
+    el.phraseProgress.style.setProperty('--p', String(run.chars.length ? run.index / run.chars.length : 0));
+  }
+  if (el.phraseCount) {
+    el.phraseCount.textContent = starts.length > 1
+      ? `${n + 1} / ${starts.length}行　${run.index}/${run.chars.length}字`
+      : `${run.index}/${run.chars.length}字`;
+  }
 }
 
 function paintCue() {
@@ -463,11 +544,22 @@ function finishRun() {
   sound.finish({ best: !!(records && records.length) });
   if (earned && earned.length) sound.earned();
 
-  // 節目は右下の通知にも積む。トーストはプレイ画面の中にしか出せない
-  for (const t of earned ?? []) {
-    notice({ eyebrow: '実績', name: typeof t === 'string' ? t : t.name, hint: typeof t === 'string' ? '' : (t.hint ?? '') });
+  // 節目は右下の通知にも積む。トーストはプレイ画面の中にしか出せない。
+  // ただし一本で十枚出ることがあり、積み上がると画面を覆う（実際に覆っていた）。
+  // 三つを越えたらまとめて一枚にする
+  const earnedList = (earned ?? []).map(t => (typeof t === 'string' ? { name: t, hint: '' } : { name: t.name, hint: t.hint ?? '' }));
+  if (earnedList.length > 3) {
+    notice({ eyebrow: '実績', name: `${earnedList.length}個を取得`, hint: earnedList.map(t => t.name).join('・') });
+  } else {
+    for (const t of earnedList) notice({ eyebrow: '実績', name: t.name, hint: t.hint });
   }
-  for (const label of records ?? []) notice({ eyebrow: '自己ベスト', name: label, kind: 'best' });
+
+  const recs = records ?? [];
+  if (recs.length > 3) {
+    notice({ eyebrow: '自己ベスト', name: `${recs.length}項目を更新`, hint: recs.join('・'), kind: 'best' });
+  } else {
+    for (const label of recs) notice({ eyebrow: '自己ベスト', name: label, kind: 'best' });
+  }
 
   run = null;
   engine = null;
@@ -977,16 +1069,36 @@ function paintWeakList(listEl, emptyEl, stats, limit = 6) {
   const has = weak.length > 0;
   if (emptyEl) emptyEl.hidden = has;
   if (!listEl) return has;
+  // CSS は 4 列（かな / 説明 / 帯 / 数）を待っている。クラスを付けずに作ると
+  // 列に収まらず、文字が枠の外へあふれる（実際あふれていた）
+  const worst = Math.max(1, ...weak.map(f => f.misses ?? 0), 1);
   listEl.replaceChildren(...weak.map(f => {
     const li = document.createElement('li');
-    li.className = 'weak' + (f.thumb === 'none' ? ' weak--solo' : f.shiftKind === 'cross' ? ' weak--cross' : ' weak--same');
+    li.className = 'weak';
+
+    const face = document.createElement('b');
+    const kind = f.thumb === 'none' ? 'solo' : f.shiftKind === 'cross' ? 'cross' : 'same';
+    face.className = `weak__face weak__face--${kind}`;
+    face.textContent = f.kana ?? '';
+
     // describeFace は「ば（交差シフト・右手×左親指）」とかなから始まる。
-    // 別にかなを出すと「ばば（交差…」と重なる
-    const b = document.createElement('b'); b.textContent = f.kana ?? '';
-    const s = document.createElement('span');
-    s.textContent = describeFace(f).replace(/^[^（]*/, '').replace(/^（|）$/g, '');
-    const r = document.createElement('em'); r.textContent = f.reason ?? '';
-    li.append(b, s, r);
+    // 隣にかなを出しているので、括弧の中だけを使う
+    const what = document.createElement('span');
+    what.className = 'weak__what';
+    what.textContent = describeFace(f).replace(/^[^（]*/, '').replace(/^（|）$/g, '');
+
+    const bar = document.createElement('span');
+    bar.className = 'weak__bar';
+    const i = document.createElement('i');
+    i.style.setProperty('--p', String(Math.min(1, (f.misses ?? 0) / worst)));
+    bar.append(i);
+
+    const num = document.createElement('span');
+    num.className = 'weak__num';
+    num.textContent = f.unseen ? '未' : `${f.misses ?? 0}`;
+
+    li.append(face, what, bar, num);
+    li.title = f.reason ?? '';
     return li;
   }));
   return has;
@@ -1131,10 +1243,46 @@ function materials() {
   return LESSONS.filter(l => isCourseOpen(l.courseId));
 }
 
+// 長さの束。83本を平らに並べると «長い文章を打ちたい» 人が探せない
+const SIZE_ORDER = ['とてもながい', 'ながめ', 'ふつう', 'みじかめ'];
+const SIZE_NOTE = {
+  とてもながい: '1000字以上。腰を据えて一本',
+  ながめ: '400〜1000字',
+  ふつう: '100〜400字',
+  みじかめ: '100字まで。軽く一本',
+};
+
+function sizeOf(lesson) {
+  if (lesson.size) return lesson.size;
+  const n = [...(lesson.text ?? '')].length;
+  return n >= 1000 ? 'とてもながい' : n >= 400 ? 'ながめ' : n >= 100 ? 'ふつう' : 'みじかめ';
+}
+
 function paintMaterials(stats) {
   const box = $('drillTextList');
   if (!box) return;
-  const rows = materials().map(l => {
+
+  // 長い順に束ねる。要望は「もっとたくさんの文章を打ちたい」なので、長い方を上に置く
+  const groups = new Map(SIZE_ORDER.map(s => [s, []]));
+  for (const l of materials()) groups.get(sizeOf(l))?.push(l);
+
+  const nodes = [];
+  for (const size of SIZE_ORDER) {
+    const list = groups.get(size) ?? [];
+    if (!list.length) continue;
+    const h = document.createElement('h3');
+    h.className = 'materials__group';
+    h.textContent = `${size}　${list.length}本`;
+    const small = document.createElement('small');
+    small.textContent = SIZE_NOTE[size] ?? '';
+    h.append(small);
+    nodes.push(h, ...materialCards(list, stats));
+  }
+  box.replaceChildren(...nodes);
+}
+
+function materialCards(list, stats) {
+  return list.map(l => {
     const info = materialInfo(l);
     const done = (stats.cleared?.[l.id] ?? 0) > 0;
 
@@ -1170,7 +1318,6 @@ function paintMaterials(stats) {
     }
     return b;
   });
-  box.replaceChildren(...rows);
 }
 
 /** 自由入力。打てない字が混ざっていたら先に言う */

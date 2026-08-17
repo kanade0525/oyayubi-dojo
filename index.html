@@ -401,7 +401,12 @@
 <!-- ================================================================ #/play/:id
      主役はタイミングメーター。上から
        数値（静か） → お題 → 次の一打 → メーター → 親指ランプ → 配列図
-     の順で、視線が下りるほど「今どうすればいいか」が具体になるように積む。 -->
+     の順で、視線が下りるほど「今どうすればいいか」が具体になるように積む。
+
+     お題は «カラオケの歌詞» 方式。数百〜2000字の題材を一度に出すのはやめ、
+     いま打っている行を大きく、先の二行を小さく出して、打ち終わったら次が上がる。
+     «全体のどこまで来たか» はバーの右（字）とバーの下端の帯（割合）で出す。
+     どちらも縦を食わない置き方にしてある ── この画面は縦がいちばん惜しい。 -->
 <section class="screen screen--play" id="screenPlay" hidden>
   <div class="play">
 
@@ -430,6 +435,12 @@
 
       <!-- 打鍵中に目で追わせたくないので、数値は小さく、色も付けない -->
       <span class="stats">
+        <!-- いま何行目・何字目か（app.js が «3 / 18行　72/460字» の形で入れる）。
+             長文は «あとどれくらいか» が見えないと折れるので、行送りにするなら必ず要る。
+             お題のそばではなくこの棚に置いたのは、一打ごとに動く数字を
+             目のよりどころの隣に出すと、打っている最中にそれを読んでしまうから。
+             ほかの数値（時間・cpm・正確さ）と同じ小ささ・同じ無彩色にしてある -->
+        <span class="stat stat--count" id="phraseCount">3 / 18行　72/460字</span>
         <span class="stat"><b id="statTime">0.0</b><small>s</small></span>
         <span class="stat"><b id="statCpm">0</b><small>cpm</small></span>
         <span class="stat"><b id="statAcc">100</b><small>%</small></span>
@@ -438,6 +449,14 @@
       <span class="play__tools">
         <button type="button" class="ghost" id="btnRetry">やり直す</button>
       </span>
+
+      <!-- 全体の進みの帯。左の #phraseCount が «何行目・何字目» を字で言い、
+           こちらは «割合» を出す。帯にしかできないのは «残りの長さが一目で分かる» ことで、
+           2000字の題材では、数字だけでは終わりが遠いのか近いのか分からない。
+           バーの下端に絶対配置してあるので、縦を 1px も食わない。
+           中身は ::after で描くので子要素が要らない（style 属性は CSP が止める）。
+           app.js は #phraseProgress の --p に 0〜1 を入れる（style.setProperty） -->
+      <div class="play__prog" id="phraseProgress" aria-hidden="true"></div>
     </div>
 
     <aside class="kbnote kbnote--play">
@@ -453,10 +472,39 @@
 
     <div class="play__stage">
 
-      <!-- お題。打った字の下だけ線が太くなる -->
-      <p class="phrase" id="phrase" aria-label="お題">
-        <span class="phrase__c is-done">は</span><span class="phrase__c is-done">る</span><span class="phrase__c is-done">の</span><span class="phrase__c is-done">か</span><span class="phrase__c is-done">ぜ</span><span class="phrase__c is-cur">が</span><span class="phrase__c">ふ</span><span class="phrase__c">く</span>
-      </p>
+      <!-- お題。長文は «全文を一度に出して折り返す» のをやめ、行ごとに送る。
+           カラオケの歌詞と同じ考えで、いま歌っている行を大きく出し、
+           先の行は小さく添える。数百〜2000字を一度に出すと画面に入らないし、
+           入ったとしても «いまどこ» が字の海の中で見えなくなる。
+
+           三段の役割（id は app.js が既に読んでいるものに合わせてある）。
+             #phrase       … いま打っている行。中身は app.js が組む（既存のまま）
+             #phraseNext   … 次の行
+             #phraseAfter  … その次の行
+
+           先を二行まで見せているのは、カラオケと違って «次に何が来るか» が
+           速度に直接効くから。歌は声を出す前に息を継ぐだけだが、
+           タイピングは «次の字の打ち方»（どの親指＋どのキーか）を先に思い出せるかで
+           速さが変わる。三行以上にすると、行が小さくなるか配列図が画面外に出るかの
+           どちらかになるので二行で止めた。縦の低い窓では一行に減らす（CSS 側）。
+
+           前の行は出さない。打ち終わった行はもう用が無く、
+           «直前に何を打ったか» はいまの行の打ち終わった部分（.is-done）に出ている。
+           縦がいちばん惜しい画面なので、いちばん要らない段から落とした。
+
+           app.js への申し送り:
+             - 中身が空なら CSS の :empty で段ごと消える。最後の行で空文字を
+               入れてもらえれば、それだけで段が畳まれます（hidden は要りません）
+             - 一行が 34字（LINE_MAX）までなら折り返しません。これを増やすときは
+               CSS の --phrase-size の但し書きを読んでください
+             - 行が変わる瞬間にアニメーションは入れていません。理由は CSS 側に書いた -->
+      <div class="script" id="script">
+        <p class="phrase" id="phrase" aria-label="いま打っている行">
+          <span class="phrase__c is-done">は</span><span class="phrase__c is-done">る</span><span class="phrase__c is-done">の</span><span class="phrase__c is-done">か</span><span class="phrase__c is-done">ぜ</span><span class="phrase__c is-cur">が</span><span class="phrase__c">ふ</span><span class="phrase__c">く</span><span class="phrase__c">と</span><span class="phrase__c">、</span>
+        </p>
+        <p class="script__next" id="phraseNext" aria-hidden="true">やまのゆきがとけて、たにへとながれこむ。</p>
+        <p class="script__next script__next--far" id="phraseAfter" aria-hidden="true">そのみずをのんで、きはめをふくらませる。</p>
+      </div>
 
       <!-- 次の一打。かなと「どの親指＋どのキー」を一組にして出す。
            親指シフトの初学者が知りたいのは常にこの二つ。

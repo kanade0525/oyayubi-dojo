@@ -28,7 +28,7 @@
 // 契約（CONTRACT.md）
 //   export function renderMeter(container)
 //   export function showJudgement(container, { offsetMs, tier })
-//   tier: 'perfect' | 'good' | 'off' | 'misfire'
+//   tier: 'perfect' | 'good' | 'off' | 'misfire' | 'continued'
 
 /** 目盛りの端（ms）。同時打鍵が成立しなくなる幅に合わせてある */
 const FULL_MS = 80;
@@ -80,8 +80,13 @@ function wordsFor(tier, offsetMs) {
     return {
       verdict: '不発',
       value: 'シフトが効いていません',
-      advice: '親指を先に沈めて、文字キーを離すまで押したままにしてください。',
+      advice: '文字キーと親指キーを同じ瞬間に落として、そのまま一緒に押さえてから離してください。',
     };
+  }
+  if (tier === 'continued') {
+    // 連続シフト（親指を押したまま続けて打つ）。同時打鍵としては成立しているが、
+    // 親指を落とした瞬間が無いのでズレが存在しない。«単独打鍵» と出すと嘘になる
+    return { verdict: '連続シフト', value: 'ズレは測れません', advice: '' };
   }
   if (offsetMs == null) {
     return { verdict: '単独打鍵', value: '', advice: '' };
@@ -102,7 +107,7 @@ function wordsFor(tier, offsetMs) {
     : {
         verdict: '遅れ',
         value: `${fmtMs(offsetMs)} 親指が遅い`,
-        advice: '親指が遅れています。文字キーより先に親指を沈めるつもりで。',
+        advice: '親指が遅れています。文字キーと同じ瞬間に落とすつもりで。',
       };
 }
 
@@ -179,7 +184,7 @@ export function renderMeter(container) {
 
 /**
  * 1 打の判定を出す。
- * @param {{ offsetMs: number|null, tier: 'perfect'|'good'|'off'|'misfire' }} judgement
+ * @param {{ offsetMs: number|null, tier: 'perfect'|'good'|'off'|'misfire'|'continued' }} judgement
  */
 export function showJudgement(container, { offsetMs = null, tier = 'off' } = {}) {
   if (!container) return;
@@ -187,7 +192,7 @@ export function showJudgement(container, { offsetMs = null, tier = 'off' } = {})
   const s = store.get(container);
 
   const hasOffset = typeof offsetMs === 'number' && Number.isFinite(offsetMs);
-  const shownTier = tier === 'misfire' ? 'misfire' : hasOffset ? tier : 'none';
+  const shownTier = tier === 'misfire' ? 'misfire' : hasOffset ? tier : 'none';   // continued は none 扱い（色も動きも出さない）
   container.dataset.tier = shownTier;
   container.dataset.dir = hasOffset ? (offsetMs < 0 ? 'early' : offsetMs > 0 ? 'late' : 'none') : 'none';
 
@@ -204,9 +209,12 @@ export function showJudgement(container, { offsetMs = null, tier = 'off' } = {})
     s.needle.classList.toggle('is-clamped', Math.abs(offsetMs) >= FULL_MS);
   }
 
-  // 履歴。不発は «時間差» を持たないが、散らばりの絵には出したいので印だけ残す
-  s.history.push({ offsetMs: hasOffset ? offsetMs : null, tier });
-  if (s.history.length > HISTORY) s.history.shift();
+  // 履歴。不発は «時間差» を持たないが、散らばりの絵には出したいので印だけ残す。
+  // 連続シフトは «測れなかった» だけなので、クセの中央値を汚さないよう履歴に入れない
+  if (tier !== 'continued') {
+    s.history.push({ offsetMs: hasOffset ? offsetMs : null, tier });
+    if (s.history.length > HISTORY) s.history.shift();
+  }
 
   drawDots(s);
   drawTrend(s);

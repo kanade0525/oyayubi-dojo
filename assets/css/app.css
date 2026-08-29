@@ -586,6 +586,53 @@ kbd {
   accent-color: var(--tone);
 }
 
+/* 打ち方のクセの切り替え。設定にチェックボックスはここが初めてなので、
+   .field（横一列）ではなく «名前＋なぜ» を縦に積む形にした。
+   この二つは「なぜ触るのか」が分からないと選べない設定なので、説明を畳まない */
+.opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 0;
+  cursor: pointer;
+}
+
+.opt + .opt {
+  border-top: 1px solid var(--line);
+}
+
+.opt__box {
+  margin: 2px 0 0;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--tone);
+}
+
+.opt__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.opt__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.opt__note {
+  font-size: 12.5px;
+  line-height: 1.95;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+.opt__note b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 .field__out {
   font-family: var(--mono);
   font-size: 13px;

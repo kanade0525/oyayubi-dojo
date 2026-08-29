@@ -72,6 +72,7 @@ const el = {
   catchLeft: $('btnCatchLeft'), catchRight: $('btnCatchRight'),
   thumbLeftCode: $('thumbLeftCode'), thumbRightCode: $('thumbRightCode'),
   tauRange: $('tauRange'), tauOut: $('tauOut'),
+  lenientRelease: $('lenientRelease'), continuousShift: $('continuousShift'),
   setupMeter: $('setupMeter'), setupBoard: $('setupBoard'),
   // home
   btnStart: $('btnStart'), startSub: $('startSub'), courseList: $('courseList'),
@@ -204,6 +205,8 @@ function buildEngine(onOutput) {
     tau: settings.tau ?? 80,
     charTimeout: settings.charTimeout ?? 150,
     thumbTimeout: settings.thumbTimeout ?? 250,
+    lenientRelease: settings.lenientRelease !== false,
+    continuousShift: settings.continuousShift === true,
     onOutput,
   });
 }
@@ -422,6 +425,11 @@ function onOutput(result) {
       }
       showJudgement(el.meter, { offsetMs: result.offsetMs, tier });
       sound.shifted({ tier, offsetMs: result.offsetMs });
+    } else if (result.thumb) {
+      // 連続シフトで出た一打。同時打鍵としては当たりだが、親指を落とした瞬間が
+      // 無いのでズレが存在しない。timing の集計にも入れない（測っていないものは数えない）
+      showJudgement(el.meter, { offsetMs: null, tier: 'continued' });
+      sound.hit();
     } else {
       sound.hit();
     }
@@ -740,6 +748,8 @@ function paintSetup() {
   el.thumbRightCode.textContent = labelOfCodes(tk.right);
   el.tauRange.value = String(settings.tau ?? 80);
   el.tauOut.textContent = `${settings.tau ?? 80}ms`;
+  if (el.lenientRelease) el.lenientRelease.checked = settings.lenientRelease !== false;
+  if (el.continuousShift) el.continuousShift.checked = settings.continuousShift === true;
   paintSoundSettings();
 }
 
@@ -775,7 +785,12 @@ function startTrial() {
     // 設定画面の目的は「設定が効いているか確かめる」こと。
     // 親指を狙ったのに単独打鍵になったなら、それは不発として見せないと確かめられない。
     // ここで契約外の tier を渡すと meter が落として「単独打鍵」と出てしまう
-    if (result.thumb) {
+    if (result.thumb && result.offsetMs == null) {
+      // 連続シフトで出た一打。ズレは測れていないので、針を動かさず «出た» とだけ返す。
+      // ここを tierOf(null) に流すと misfire になり、成功したのに不発と出る
+      showJudgement(el.setupMeter, { offsetMs: null, tier: 'continued' });
+      sound.hit();
+    } else if (result.thumb) {
       showJudgement(el.setupMeter, { offsetMs: result.offsetMs, tier: tierOf(result.offsetMs) });
       sound.shifted({ tier: tierOf(result.offsetMs), offsetMs: result.offsetMs });
     } else if (trialWantedThumb) {
@@ -1436,6 +1451,15 @@ $('soundVolume')?.addEventListener('input', e => {
 $('soundVolume')?.addEventListener('change', () => {
   settings = saveSettings(settings) ?? settings;
 });
+
+// 打ち方のクセ。変えたその場で試し打ちに効かせないと «効いたのか» が確かめられない
+for (const [node, key] of [[el.lenientRelease, 'lenientRelease'], [el.continuousShift, 'continuousShift']]) {
+  node?.addEventListener('change', () => {
+    settings[key] = node.checked;
+    settings = saveSettings(settings) ?? settings;
+    if (screen === 'setup') startTrial();
+  });
+}
 
 el.tauRange?.addEventListener('input', () => {
   settings.tau = Number(el.tauRange.value);

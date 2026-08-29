@@ -58,6 +58,8 @@ export function createNicola(options) { /* ... */ }
   tau: 80,                 // 同時打鍵未成立の判定（ms）
   charTimeout: 150,        // 文字キーのタイムアウト（ms）
   thumbTimeout: 250,       // 親指キーのタイムアウト（ms）
+  lenientRelease: true,    // 親指を先に離しても同時打鍵と認める（規格の外・既定 false）
+  continuousShift: false,  // 連続シフト（親指を押したまま続けて打つ。規格の外・既定 false）
   onOutput,                // (result) => void  確定した入力を返す
 }
 
@@ -90,9 +92,24 @@ export function createNicola(options) { /* ... */ }
   shiftKind: 'cross',      // 'same'（同側＝別のかな）| 'cross'（交差＝濁音・半濁音）| null
   offsetMs: -8,            // 親指キーと文字キーの押下時間差。
                            //   負 = 親指が先行 / 正 = 親指が遅れ / 単独打鍵なら null
+                           //   連続シフトの 2 打目以降も null（測る相手が無い）
+  continued: false,        // 連続シフトで引き継いだ親指で出た一打か
   state: 'S4',             // このイベントを処理する「前」の状態
 }
 ```
+
+**規格の外の 2 つ（`lenientRelease` / `continuousShift`）は、既定 `false` で §5.4 そのまま。**
+既定のままなら遷移表の検査（`tools/nicola.test.mjs`）が見ている挙動と完全に一致する。
+アプリ側の既定は `storage.js` の `DEFAULT_SETTINGS` が持っていて、そちらは
+`lenientRelease: true` / `continuousShift: false`。
+
+- **`lenientRelease`** … S5（親指が先）で親指キーが離れたときの 処理D の厚み検査を省く。
+  規格どおりだと、親指の押下時間が「先行ぶんの 2 倍」以下で不発になる。親指が先の S5 は
+  「別々の打鍵だった」という読み方が成り立たない（親指キー単独では字が出ない）ので、
+  ここは緩めてよい。**S4 の 処理C は緩めない** — あちらは前の字と次の親指が本当に区別できない
+- **`continuousShift`** … 一打が確定したあとも、指が乗っている親指を次の文字キーへ渡す。
+  この一打は `continued: true` / `offsetMs: null` で出る。引き継いだ親指の解放や
+  時間切れでは**親指単独を出さない**（前の一打で出し終えているため二重報告になる）
 
 補足（テスト担当の指摘で追記）:
 

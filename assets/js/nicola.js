@@ -36,14 +36,49 @@ export function createNicola(options = {}) {
   const thumbTimeout = options.thumbTimeout ?? DEFAULTS.thumbTimeout;
   const onOutput = options.onOutput ?? (() => {});
 
+  // -- 規格の外 -----------------------------------------------------------
+  // 既定は両方 false。この既定のあいだ、上の S1〜S5 は §5.4 そのままで動く
+  // （tools/nicola.test.mjs の遷移表検査はこの状態を見ている）。
+  //
+  // なぜ要るか。規格は «一打ごとに初期状態へ戻る» 前提だが、実機のエミュレータ
+  // （Lacaille・やまぶきR など）はどちらも緩めてあり、そちらに慣れた手で規格どおりの
+  // 判定に来ると「同時押しが全然通らない」という形で当たる。アプリ側（storage.js）は
+  // 既定を on にして渡す。緩めるのは «確定のしかた» だけで、遷移そのものは動かさない。
+  const continuousShift = options.continuousShift ?? false;   // 連続シフト
+  const lenientRelease = options.lenientRelease ?? false;     // 親指を先に離しても認める
+
   let state = 'S1';
   let M = null;        // { code, tDown }  抱えている文字キー
   let O = null;        // { code, side, tDown }  抱えている親指キー
   let deadline = null; // タイムアウトの期限。null なら待っていない
 
   // 物理的に押されている親指キー。確定済みでも指が離れていなければ点いたまま。
-  // 画面の親指ランプはこれを映す（判定の状態ではなく、実際の指の状態を見せたい）
-  const heldThumbs = { left: false, right: false };
+  // 画面の親指ランプはこれを映す（判定の状態ではなく、実際の指の状態を見せたい）。
+  // 連続シフトは «どのキーが・いつから» まで要るので、真偽ではなく { code, tDown } を持つ。
+  // 外へ出すとき（thumbHeld）は今までどおり真偽に落とす
+  const heldThumbs = { left: null, right: null };
+
+  /** 押しっぱなしの親指のうち、最後に押された方。無ければ null */
+  function heldThumb() {
+    const l = heldThumbs.left;
+    const r = heldThumbs.right;
+    if (l && r) return l.tDown >= r.tDown ? { ...l, side: 'left' } : { ...r, side: 'right' };
+    if (l) return { ...l, side: 'left' };
+    if (r) return { ...r, side: 'right' };
+    return null;
+  }
+
+  /**
+   * 連続シフトで次の一打へ渡す親指。continuousShift が落ちていれば常に null。
+   *
+   * tDown を «今» に置き直すのは、押しっぱなしにしていた時間がそのまま
+   * 先行ぶんとして出てこないようにするため。continued の印は offsetMs を消すのに使う。
+   */
+  function carried(t) {
+    if (!continuousShift) return null;
+    const held = heldThumb();
+    return held ? { code: held.code, side: held.side, tDown: t, continued: true } : null;
+  }
 
   // -- 出力 ---------------------------------------------------------------
 
@@ -63,18 +98,23 @@ export function createNicola(options = {}) {
       thumb: null,
       shiftKind: null,
       offsetMs: null,
+      continued: false,
       state: from,
     });
   }
 
   /** 親指キーだけが押されて終わったとき。かなは出ない */
   function emitThumb(o, from) {
+    // 連続シフトで引き継いだ親指は、前の一打で出し終えている。指を離したときや
+    // 時間切れでここへ来ても、同じ押下を二度報告することになるので黙る
+    if (o.continued) return;
     emit({
       kana: null,
       charCode: null,
       thumb: o.side,
       shiftKind: null,
       offsetMs: null,
+      continued: false,
       state: from,
     });
   }
@@ -87,7 +127,10 @@ export function createNicola(options = {}) {
       charCode: m.code,
       thumb: o.side,
       shiftKind: hit?.shiftKind ?? null,
-      offsetMs: noNegZero(o.tDown - m.tDown),
+      // 連続シフト中の一打には «親指をいつ落としたか» が無い。0 や
+      // «押しっぱなしの分だけ先行» を出すとメーターが嘘をつくので、測れないと言う
+      offsetMs: o.continued ? null : noNegZero(o.tDown - m.tDown),
+      continued: o.continued === true,
       state: from,
     });
   }
@@ -106,12 +149,32 @@ export function createNicola(options = {}) {
     deadline = null;
   }
 
+  /**
+   * 一打ぶんが確定したあとの後始末。
+   *
+   * 規格は «確定したら初期状態へ» なので、親指に指を乗せたままでも次の文字キーは
+   * 単独打鍵になる。エミュレータはここを繋いでいて（連続シフト）、その手癖のまま来ると
+   * «2文字目から全部化ける» という形で当たる。continuousShift のときだけ繋ぐ。
+   */
+  function settle(t) {
+    M = null;
+    O = carried(t);
+    if (O) {
+      // 指が乗っている間は待ち続ける。ここで期限を置くと、親指を置いたまま
+      // 次の字を考えている間に時間切れになって連続シフトが切れる
+      go('S3', t, null);
+      return;
+    }
+    state = 'S1';
+    deadline = null;
+  }
+
   // -- 入口 ---------------------------------------------------------------
 
   function keyDown(code, timeStamp) {
     const side = thumbSideOf(thumbKeys, code);
     if (side) {
-      heldThumbs[side] = true;
+      heldThumbs[side] = { code, tDown: timeStamp };
       thumbDown({ code, side, tDown: timeStamp }, timeStamp);
     } else {
       charDown({ code, tDown: timeStamp }, timeStamp);
@@ -152,9 +215,9 @@ export function createNicola(options = {}) {
         } else {
           // 親指は M1 に近い。M1 との同時打鍵として確定
           emitShifted(M, O, 'S4');
+          O = carried(t);
           M = m;
-          O = null;
-          go('S2', t, charTimeout);
+          go(O ? 'S5' : 'S2', t, charTimeout);
         }
         break;
       }
@@ -162,9 +225,9 @@ export function createNicola(options = {}) {
       case 'S5':
         // 抱えている M と O は同時打鍵として確定させ、新しい文字キーを抱え直す
         emitShifted(M, O, 'S5');
-        O = null;
+        O = carried(t);
         M = m;
-        go('S2', t, charTimeout);
+        go(O ? 'S5' : 'S2', t, charTimeout);
         break;
     }
   }
@@ -217,7 +280,7 @@ export function createNicola(options = {}) {
 
   function keyUp(code, timeStamp) {
     const side = thumbSideOf(thumbKeys, code);
-    if (side) heldThumbs[side] = false;
+    if (side) heldThumbs[side] = null;
 
     switch (state) {
       case 'S1':
@@ -252,31 +315,39 @@ export function createNicola(options = {}) {
             go('S3', timeStamp, thumbTimeout);
           } else {
             emitShifted(M, O, 'S4');
-            clear();
+            settle(timeStamp);
           }
         } else if (O && code === O.code) {
           emitShifted(M, O, 'S4');
-          clear();
+          settle(timeStamp);
         }
         break;
       }
 
       case 'S5': {
-        // 処理D: 処理Cの左右対称形。原文に本文は無く、表に名前があるだけ
+        // 処理D: 処理Cの左右対称形。原文に本文は無く、表に名前があるだけ。
+        //
+        // lenientRelease のときは、この厚みの検査を丸ごと省いて同時打鍵で確定させる。
+        // S4（文字キーが先）と違い S5 は «親指が先» で、親指キーだけを押しても字は出ない。
+        // つまり «別々の打鍵だった» という読み方がそもそも成り立たない。ここを規格どおり
+        // 厳しくすると、親指をぽんと弾いて短く離す打ち方が t1 >= t2 の壁に当たる
+        // （親指先行 15ms なら、親指の押下 30ms 以下が丸ごと不発になる）。
+        // 一方 処理C（S4）は «前の字を打ち終える前に次の親指が来た» と本当に区別が
+        // つかないので、こちらは緩めない。
         if (O && code === O.code) {
           const t1 = M.tDown - O.tDown;
           const t2 = timeStamp - M.tDown;
-          if (t1 >= t2 && t2 < tau) {
+          if (!lenientRelease && t1 >= t2 && t2 < tau) {
             emitThumb(O, 'S5');
             O = null;
             go('S2', timeStamp, charTimeout);
           } else {
             emitShifted(M, O, 'S5');
-            clear();
+            settle(timeStamp);
           }
         } else if (M && code === M.code) {
           emitShifted(M, O, 'S5');
-          clear();
+          settle(timeStamp);
         }
         break;
       }
@@ -289,6 +360,14 @@ export function createNicola(options = {}) {
    */
   function tick(timeStamp) {
     if (deadline == null || timeStamp < deadline) return;
+
+    // 指がまだ乗っている親指を、時間切れで捨てない。タイムアウトは «keyup を
+    // 取りこぼした» ときの逃げ道であって、押しっぱなしを咎めるためのものではない。
+    // ここで捨てると、親指を置いたまま次の字を考えた瞬間に連続シフトが切れる
+    if (state === 'S3' && continuousShift && O && heldThumbs[O.side]) {
+      deadline = null;
+      return;
+    }
 
     switch (state) {
       case 'S2': emitChar(M, 'S2'); break;
@@ -312,8 +391,8 @@ export function createNicola(options = {}) {
       case 'S5': emitShifted(M, O, 'S5'); break;
     }
     clear();
-    heldThumbs.left = false;
-    heldThumbs.right = false;
+    heldThumbs.left = null;
+    heldThumbs.right = null;
   }
 
   return {
@@ -323,6 +402,6 @@ export function createNicola(options = {}) {
     reset,
     get state() { return state; },
     // 呼び出し側が書き換えても内部が壊れないよう、複製を返す
-    get thumbHeld() { return { left: heldThumbs.left, right: heldThumbs.right }; },
+    get thumbHeld() { return { left: heldThumbs.left != null, right: heldThumbs.right != null }; },
   };
 }

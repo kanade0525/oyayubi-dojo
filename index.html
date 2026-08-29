@@ -98,8 +98,11 @@
 
     <div class="warn" id="setupWarnEmu">
       <b>親指シフトのエミュレータは、一旦止めてください</b>
-      <p>やまぶき・DvorakJ などの常駐ソフトが動いていると、キーが二重に届いたり、
-        押下の時刻が書き換わったりします。この道場は自前で同時打鍵を判定するので、
+      <p>macOS なら <b>Lacaille</b> や <b>Karabiner の NICOLA 設定</b>、Windows なら
+        <b>やまぶきR</b>・<b>DvorakJ</b> です。これらが動いていると、キーが二重に届いたり、
+        押下の時刻が書き換わったりします。とくに Karabiner の
+        <code>simultaneous</code> は最初のキーを一旦飲み込んでから出し直すので、
+        押下の時間差そのものが失われます。この道場は自前で同時打鍵を判定するので、
         練習中は止めておくのが確実です。</p>
     </div>
 
@@ -129,14 +132,56 @@
       </p>
     </div>
 
+    <!-- 打ち方のクセ。既定は «親指を先に離しても認める» だけを on にしてある。
+         NICOLA規格そのままだと、親指をぽんと弾いて短く離す打ち方（エミュレータで
+         慣れた人に多い）が 処理D の厚み検査に当たって不発になる。規格の意図は
+         «別々の打鍵と区別すること» で、親指が先の S5 にはその区別が要らない。
+
+         連続シフトは既定 off。tools/nicola.test.mjs:760 に «補正してはいけない» と
+         設計判断が書き残されているため、こちらは自分で選んでもらう形にした。
+
+         app.js への申し送り: どちらも change で settings に入れて startTrial() を
+         打ち直す。«変えたのに効かない» が一番たちが悪いので、その場で効かせること -->
     <div class="card">
-      <h2 class="card__head">2. 同時打鍵とみなす幅</h2>
+      <h2 class="card__head">2. 打ち方のクセ</h2>
       <p class="note">
-        文字キーと親指キーが、どれだけ離れていたら「別々に押した」とみなすか。
-        既定は 80ms（NICOLA 規格の考え方に合わせています）。速くなってきたら詰めてください。
+        同時打鍵の判定をどこまで緩めるか。<b>思ったとおりに同時押しが通らないときは、まずここです。</b>
+      </p>
+
+      <label class="opt">
+        <input type="checkbox" class="opt__box" id="lenientRelease" checked>
+        <span class="opt__text">
+          <b class="opt__name">親指を先に離しても同時打鍵と認める</b>
+          <span class="opt__note">
+            規格どおりだと、親指の押下時間が「先行ぶんの2倍」以下のときに不発になります。
+            親指を短く弾く打ち方だとここに当たります。<b>迷ったら on のまま。</b>
+          </span>
+        </span>
+      </label>
+
+      <label class="opt">
+        <input type="checkbox" class="opt__box" id="continuousShift">
+        <span class="opt__text">
+          <b class="opt__name">連続シフト（親指を押したまま続けて打つ）</b>
+          <span class="opt__note">
+            NICOLA 規格には無い打ち方ですが、Lacaille・やまぶきR などのエミュレータでは
+            使えます。off のままだと 2 文字目から単独打鍵になります。
+            この道場は「一打ごとに親指を離す」を教える作りなので、既定は off です。
+          </span>
+        </span>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2 class="card__head">3. 重なりの下限</h2>
+      <p class="note">
+        文字キーを先に押したとき、親指と<b>どれだけ重なっていれば</b>同時打鍵と認めるか。
+        既定は 80ms（NICOLA 規格の考え方に合わせています）。
+        <b>数字を大きくするほど厳しくなります</b>（重なりがそれ未満だと別々の打鍵とみなす）。
+        通らないときは<b>詰めて</b>ください。
       </p>
       <div class="field">
-        <label class="field__label" for="tauRange">判定の幅</label>
+        <label class="field__label" for="tauRange">重なりの下限</label>
         <input type="range" id="tauRange" min="30" max="150" step="5" value="80">
         <output class="field__out" id="tauOut">80ms</output>
       </div>
@@ -157,12 +202,12 @@
            - 音量 … #soundVolume は 0〜100。settings.soundVolume は 0〜1 なので 100 で割る。
              現在値は #soundVolumeOut に入れる -->
     <div class="card" id="soundCard">
-      <h2 class="card__head">3. 打鍵音</h2>
+      <h2 class="card__head">4. 打鍵音</h2>
       <p class="note">
         判定は音でも返します。<b>親指が先行していれば低い音から高い音へ</b>、
         <b>遅れていれば高い音から低い音へ</b>鳴り、ぴったり合うと二つが融けて<b>一つの音</b>に聞こえます。
         画面を見ていなくても、耳だけで «早いのか遅いのか» が分かります。
-        既定は無音です。下の「4. 試し打ち」でそのまま確かめられます。
+        既定は無音です。下の「5. 試し打ち」でそのまま確かめられます。
       </p>
 
       <fieldset class="sounds" id="soundKinds">
@@ -208,7 +253,7 @@
     </div>
 
     <div class="card">
-      <h2 class="card__head">4. 試し打ち</h2>
+      <h2 class="card__head">5. 試し打ち</h2>
       <p class="note">記録は残りません。設定が効いているか、ここで確かめてください。音を入れていれば、ここでも鳴ります。</p>
       <div class="meter" id="setupMeter"></div>
       <div class="board" id="setupBoard"></div>

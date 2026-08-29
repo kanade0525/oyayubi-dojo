@@ -551,6 +551,14 @@ export const DEFAULT_SETTINGS = {
   tau: 80, // 同時打鍵未成立の判定（ms）
   charTimeout: 150, // 文字キーのタイムアウト（ms）
   thumbTimeout: 250, // 親指キーのタイムアウト（ms）
+  // 親指を先に離しても同時打鍵と認める（規格 処理D の厚み検査を省く）。
+  // 既定 on。規格どおりだと「親指をぽんと弾いて短く離す」打ち方が
+  // t1 >= t2 の壁に当たって不発になり、同時に押しているのに通らない
+  lenientRelease: true,
+  // 連続シフト（親指を押したまま続けて打てる）。既定 off。
+  // 規格には無く、tools/nicola.test.mjs:760 に «補正してはいけない» と
+  // 書き残された設計判断がある。エミュレータ（Lacaille など）から来た人向けの逃げ道
+  continuousShift: false,
   // 配色。鍵の名前は index.html の <head> のインラインスクリプトと必ず揃える。
   // あちらは module より先に走って配色を先当てする（ちらつき防止）ため、
   // 同じ鍵を直接読んでいる。ここを theme などに変えると、色が保存されなくなる。
@@ -608,6 +616,8 @@ function normalizeSettings(raw) {
   s.showKeyboard = s.showKeyboard !== false;
   s.showMeter = s.showMeter !== false;
   s.showRomaji = s.showRomaji !== false;
+  s.lenientRelease = s.lenientRelease !== false;
+  s.continuousShift = s.continuousShift === true;
   // 三値。未回答（null）と「打ったことがある」（false）は違う意味なので、
   // 真偽値に潰さない
   s.firstTime = s.firstTime === true || s.firstTime === false ? s.firstTime : null;

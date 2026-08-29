@@ -57,8 +57,8 @@ const NICOLA_PATH = join(ROOT, 'assets/js/nicola.js');
  * CONTRACT.md と突き合わせるための一覧。tools/check.mjs がこの 2 行を読み、
  * CONTRACT.md の記述とズレていたら落とす。片方だけ直したのを見逃さないため。
  */
-export const RESULT_KEYS = ['kana', 'charCode', 'thumb', 'shiftKind', 'offsetMs', 'state'];
-export const OPTION_KEYS = ['layout', 'thumbKeys', 'tau', 'charTimeout', 'thumbTimeout', 'onOutput'];
+export const RESULT_KEYS = ['kana', 'charCode', 'thumb', 'shiftKind', 'offsetMs', 'continued', 'state'];
+export const OPTION_KEYS = ['layout', 'thumbKeys', 'tau', 'charTimeout', 'thumbTimeout', 'lenientRelease', 'continuousShift', 'onOutput'];
 
 // ---------------------------------------------------------------- 読み込み
 
@@ -137,6 +137,10 @@ function assertResultShape(r) {
     // 単独打けん（文字だけ／親指だけ）。組み合わせが無いのだからズレも面も無い
     assert.equal(r.shiftKind, null, '単独打けんの shiftKind は null');
     assert.equal(r.offsetMs, null, '単独打けんの offsetMs は null');
+  } else if (r.continued) {
+    // 連続シフト（規格の外・continuousShift のとき）。親指を落とした瞬間が
+    // 無いのでズレが存在しない。0 を出すと «完全同時» という嘘になる
+    assert.equal(r.offsetMs, null, '連続シフトの offsetMs は null');
   } else {
     assert.equal(typeof r.offsetMs, 'number', '同時打けんの offsetMs は数値');
   }
@@ -158,6 +162,9 @@ function harness(over = {}) {
     tau: over.tau ?? TAU,
     charTimeout: over.charTimeout ?? CHAR_TIMEOUT,
     thumbTimeout: over.thumbTimeout ?? THUMB_TIMEOUT,
+    // 規格の外。既定は両方 false ＝ §5.4 そのまま
+    lenientRelease: over.lenientRelease ?? false,
+    continuousShift: over.continuousShift ?? false,
     onOutput: (r) => outputs.push(assertResultShape(r)),
   });
   return { engine, outputs };
@@ -769,5 +776,117 @@ describe('連続打鍵の通し（一マスずつでは出ない、つなぎ目�
     engine.keyUp(M_LEFT, 90);
     assert.equal(engine.state, 'S1');
     for (const r of outputs) assert.equal(r.charCode, M_LEFT);
+  });
+});
+
+// ================================================================ 規格の外（既定 off）
+//
+// createNicola の既定は両方 false で、上の遷移表検査はその状態を見ている。
+// ここは «アプリが既定で渡す設定» の側を固定する。規格を緩めた結果として
+// 何が変わり、何は変わらないままなのかを、一箇所で読めるようにしておく。
+
+describe('lenientRelease ─ 親指を先に離しても同時打けんと認める', () => {
+  test('規格どおり（既定）だと、親指の押下が «先行ぶんの2倍» 以下で不発になる', () => {
+    const { engine, outputs } = harness();
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 15); // 親指が 15ms 先行 → S5
+    engine.keyUp(O_RIGHT, 30);  // t1=15, t2=15 → t1>=t2 かつ t2<tau で不発
+    assert.deepEqual(sigs(outputs), [`−/right@S5`]);
+    engine.keyUp(M_LEFT, 80);
+    assert.deepEqual(sigs(outputs), [`−/right@S5`, `${M_LEFT}/−@S2`]);
+  });
+
+  test('lenientRelease なら、同じ打ち方が同時打けんとして通る', () => {
+    const { engine, outputs } = harness({ lenientRelease: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 15);
+    engine.keyUp(O_RIGHT, 30);
+    assert.deepEqual(sigs(outputs), [`${M_LEFT}/right@S5`]);
+    assert.equal(outputs[0].offsetMs, -15, 'ズレは測れているので null にしない');
+    assert.equal(outputs[0].continued, false);
+  });
+
+  test('S4（文字キーが先）の 処理C は緩めない。前の字と次の親指の区別が付かなくなるため', () => {
+    const { engine, outputs } = harness({ lenientRelease: true });
+    engine.keyDown(M_LEFT, 0);
+    engine.keyDown(O_RIGHT, 40);  // 文字キーを抱えたまま次の親指が来た → S4
+    engine.keyUp(M_LEFT, 70);     // t1=40, t2=30 → 単独打けんのまま
+    assert.deepEqual(sigs(outputs), [`${M_LEFT}/−@S4`]);
+    assert.equal(engine.state, 'S3', '親指はまだ生きている');
+  });
+});
+
+describe('continuousShift ─ 連続シフト（親指を押したまま続けて打つ）', () => {
+  test('既定 off では、2 打目から単独打けんになる（規格どおり）', () => {
+    const { engine, outputs } = harness();
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    engine.keyDown(M_LEFT2, 80);
+    engine.keyUp(M_LEFT2, 130);
+    assert.deepEqual(sigs(outputs), [`${M_LEFT}/right@S5`, `${M_LEFT2}/−@S2`]);
+  });
+
+  test('on なら、親指を離すまで何打でも同時打けんが続く', () => {
+    const { engine, outputs } = harness({ continuousShift: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    engine.keyDown(M_LEFT2, 80);
+    engine.keyUp(M_LEFT2, 130);
+    engine.keyDown(M_RIGHT, 150);
+    engine.keyUp(M_RIGHT, 200);
+    assert.deepEqual(sigs(outputs), [
+      `${M_LEFT}/right@S5`,
+      `${M_LEFT2}/right@S5`,
+      `${M_RIGHT}/right@S5`,
+    ]);
+  });
+
+  test('2 打目以降の offsetMs は null。親指を落とした瞬間が無いので測れない', () => {
+    const { engine, outputs } = harness({ continuousShift: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    engine.keyDown(M_LEFT2, 80);
+    engine.keyUp(M_LEFT2, 130);
+    assert.equal(outputs[0].offsetMs, -10, '1 打目は実測どおり');
+    assert.equal(outputs[0].continued, false);
+    assert.equal(outputs[1].offsetMs, null, '2 打目は測れない');
+    assert.equal(outputs[1].continued, true);
+  });
+
+  test('親指を置いたまま考え込んでも、時間切れで連続シフトが切れない', () => {
+    const { engine, outputs } = harness({ continuousShift: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    engine.tick(60 + THUMB_TIMEOUT * 4); // 指はまだ乗っている。捨ててはいけない
+    engine.keyDown(M_LEFT2, 1200);
+    engine.keyUp(M_LEFT2, 1250);
+    assert.deepEqual(sigs(outputs), [`${M_LEFT}/right@S5`, `${M_LEFT2}/right@S5`]);
+  });
+
+  test('親指を離せば、次の文字キーは単独打けんに戻る', () => {
+    const { engine, outputs } = harness({ continuousShift: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    engine.keyUp(O_RIGHT, 70);
+    engine.keyDown(M_LEFT2, 90);
+    engine.keyUp(M_LEFT2, 140);
+    assert.deepEqual(sigs(outputs), [`${M_LEFT}/right@S5`, `${M_LEFT2}/−@S2`]);
+    assert.deepEqual(engine.thumbHeld, { left: false, right: false });
+  });
+
+  test('reset で、押しっぱなしの親指ごと捨てられる', () => {
+    const { engine } = harness({ continuousShift: true });
+    engine.keyDown(O_RIGHT, 0);
+    engine.keyDown(M_LEFT, 10);
+    engine.keyUp(M_LEFT, 60);
+    assert.equal(engine.state, 'S3');
+    engine.reset();
+    assert.equal(engine.state, 'S1');
+    assert.deepEqual(engine.thumbHeld, { left: false, right: false });
   });
 });

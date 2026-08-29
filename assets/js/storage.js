@@ -568,6 +568,9 @@ export const DEFAULT_SETTINGS = {
   showKeyboard: true, // 3面キーボード図を出すか
   showMeter: true, // タイミングメーターを出すか
   showRomaji: true, // ローマ字時代との比較を出すか
+  // 同じ字で 6 回続けて外したとき、その字を飛ばして先へ進めるか。
+  // 既定 on（これまでの挙動）。off にすると打てるまでそこで止まる
+  autoSkip: true,
   // 玄関の一問の答え。true=はじめて / false=打ったことがある / null=未回答。
   // 二つの入口の並び順が変わるだけで、記録にも解禁にも一切関わらない
   firstTime: null,
@@ -618,6 +621,7 @@ function normalizeSettings(raw) {
   s.showRomaji = s.showRomaji !== false;
   s.lenientRelease = s.lenientRelease !== false;
   s.continuousShift = s.continuousShift === true;
+  s.autoSkip = s.autoSkip !== false;
   // 三値。未回答（null）と「打ったことがある」（false）は違う意味なので、
   // 真偽値に潰さない
   s.firstTime = s.firstTime === true || s.firstTime === false ? s.firstTime : null;

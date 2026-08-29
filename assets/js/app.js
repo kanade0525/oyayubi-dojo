@@ -73,6 +73,7 @@ const el = {
   thumbLeftCode: $('thumbLeftCode'), thumbRightCode: $('thumbRightCode'),
   tauRange: $('tauRange'), tauOut: $('tauOut'),
   lenientRelease: $('lenientRelease'), continuousShift: $('continuousShift'),
+  autoSkip: $('autoSkip'),
   setupMeter: $('setupMeter'), setupBoard: $('setupBoard'),
   // home
   btnStart: $('btnStart'), startSub: $('startSub'), courseList: $('courseList'),
@@ -454,11 +455,17 @@ function onOutput(result) {
     // 親指の向きを取り違えている場合は、何度打ってもひとりでには直らない。
     // 三度外したら打ち方を名指しで出し、それでも駄目なら送れるようにする
     run.stuck = run.stuck?.at === run.index ? { at: run.index, n: run.stuck.n + 1 } : { at: run.index, n: 1 };
-    if (run.stuck.n === 3 && how) {
+    const willSkip = settings.autoSkip !== false;
+    // 飛ばしが on なら 3 回目に一度出せば足りる（6 回目には送られるので）。
+    // off のときは逃げ道が無いので、3 回ごとに出し直す。一度きりだと
+    // 打ち方が分からないまま無言で詰まる
+    if (how && run.stuck.n % 3 === 0 && !(willSkip && run.stuck.n >= 6)) {
       toast(`「${want}」は ${how.thumb === 'left' ? '左親指' : how.thumb === 'right' ? '右親指' : '単独'}＋${keyLegend(how.code)}`);
       el.cue?.classList.add('is-stuck');
     }
-    if (run.stuck.n >= 6) {
+    // 6 回続けて外したら送る。ただし «勝手に進んだ» と感じる人もいるので、
+    // 設定で止められる。off のときは打てるまでその字に留まり、打ち方の名指しは出続ける
+    if (run.stuck.n >= 6 && willSkip) {
       toast('この字は飛ばします。あとでマイページの苦手な面に出ます');
       run.index++;
       run.stuck = null;
@@ -750,6 +757,7 @@ function paintSetup() {
   el.tauOut.textContent = `${settings.tau ?? 80}ms`;
   if (el.lenientRelease) el.lenientRelease.checked = settings.lenientRelease !== false;
   if (el.continuousShift) el.continuousShift.checked = settings.continuousShift === true;
+  if (el.autoSkip) el.autoSkip.checked = settings.autoSkip !== false;
   paintSoundSettings();
 }
 
@@ -1453,11 +1461,13 @@ $('soundVolume')?.addEventListener('change', () => {
 });
 
 // 打ち方のクセ。変えたその場で試し打ちに効かせないと «効いたのか» が確かめられない
-for (const [node, key] of [[el.lenientRelease, 'lenientRelease'], [el.continuousShift, 'continuousShift']]) {
+for (const [node, key] of [[el.lenientRelease, 'lenientRelease'], [el.continuousShift, 'continuousShift'], [el.autoSkip, 'autoSkip']]) {
   node?.addEventListener('change', () => {
     settings[key] = node.checked;
     settings = saveSettings(settings) ?? settings;
-    if (screen === 'setup') startTrial();
+    // 判定を変える二つだけ、試し打ちを打ち直して «変えたその場で» 効かせる。
+    // autoSkip は判定に関わらないので、試し打ちの針を無駄に消さない
+    if (screen === 'setup' && key !== 'autoSkip') startTrial();
   });
 }
 

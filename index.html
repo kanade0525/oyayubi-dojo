@@ -170,10 +170,7 @@
           </span>
         </span>
       </label>
-    </div>
 
-    <div class="card">
-      <h2 class="card__head">3. 重なりの下限</h2>
       <p class="note">
         文字キーを先に押したとき、親指と<b>どれだけ重なっていれば</b>同時打鍵と認めるか。
         既定は 80ms（NICOLA 規格の考え方に合わせています）。
@@ -185,6 +182,25 @@
         <input type="range" id="tauRange" min="30" max="150" step="5" value="80">
         <output class="field__out" id="tauOut">80ms</output>
       </div>
+    </div>
+
+    <!-- 練習の進み方。飛ばしは «打てない字の前で完全に止まる» のを防ぐための逃げ道だが、
+         «勝手に進んだ» と感じる打ち方もある。既定はこれまでどおり on -->
+    <div class="card">
+      <h2 class="card__head">3. 練習の進み方</h2>
+
+      <label class="opt">
+        <input type="checkbox" class="opt__box" id="autoSkip" checked>
+        <span class="opt__text">
+          <b class="opt__name">打てない字を飛ばす</b>
+          <span class="opt__note">
+            同じ字を 6 回続けて外したとき、その字を飛ばして先へ進みます
+            （飛ばした字はマイページの「いまの弱点」に出ます）。
+            <b>off にすると、打てるまでその字で止まります。</b>
+            そのとき打ち方の名指しは 3 回外すごとに出し直します。
+          </span>
+        </span>
+      </label>
     </div>
 
     <!-- 打鍵音。既定は «無音» なので、ここを置かないと sound.js は一度も鳴らない。

@@ -41,21 +41,18 @@
   <a class="nav__brand" href="#/">親指シフト<span>タイピング道場</span></a>
 
   <!-- 入口は «そこで何をするか» を動詞で言う。
-       «コース / 稽古 / 腕試し» の三語をやめた理由は、どれも «道場でやること» を指していて、
-       言葉だけでは区別が付かなかったから。比喩（道場）は看板に留め、
-       中の部品には比喩を使わない。看板は世界観を作れるが、
-       比喩の中の言葉どうしは互いを区別できない。
-
-       並び順が導線そのもの。«覚える → 鍛える → 記録» は、そのまま人が通る順。
-       配列表と設定は練習ではなく «道具» なので、仕切りを挟んで一段落とす。
-       語を足さずに «種類が違う» を出したいので、言葉ではなく罫で分ける。 -->
+       前の三つ（覚える・鍛える・腕試し）は、来る人がまるで違う。まだ打てない人、
+       打てるが速く正確にしたい人、腕前を試して遊びたい人。だから三つは別の画面にし、
+       ナビの左に同じ重さで並べる。記録・配列表・設定はどの三つから来ても使う «共通の道具» なので、
+       仕切りを挟んで右に置く。語を足さずに «種類が違う» を出したいので、言葉ではなく罫で分ける。
+       この並びは game.html のナビと揃えること。 -->
   <nav class="nav__links" aria-label="画面">
     <a href="#/learn" data-nav="/learn">覚える</a>
     <a href="#/train" data-nav="/train">鍛える</a>
-    <a href="#/record" data-nav="/record">記録</a>
-    <!-- ゲームは別ページ（game.html）。練習の流れには入れず、入口だけ置く -->
-    <a href="game.html">回転ずし</a>
+    <!-- 腕試しは回転ずし（game.html）。別のページ -->
+    <a href="game.html">腕試し</a>
     <i class="nav__sep" aria-hidden="true"></i>
+    <a class="is-tool" href="#/record" data-nav="/record">記録</a>
     <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
   </nav>
@@ -274,7 +271,8 @@
 
      以前はこの画面が «玄関» と «入門コースの一覧» を兼ねていた。だから
      «コース» と «稽古» と «腕試し» が同じ面に並び、どれが何なのか読み取れなかった。
-     一覧は #/learn に出して、ここには «打つ場所ふたつ» と «自分の数字» だけを置く。 -->
+     一覧は #/learn に出して、ここには «目的ごとの入口三つ» と «自分の数字» だけを置く。
+     配列表と設定はナビの右（共通の道具）から入る。玄関に札を並べ直すと、また入口が五つに見える。 -->
 <section class="screen screen--home" id="screenHome" hidden>
   <div class="page">
     <header class="hero">
@@ -284,69 +282,39 @@
         親指シフトは、文字キーと親指キーを<b>同時に</b>押して打ちます。ここでは二つのキーを押した時刻の差を 1 打ごとに測り、<b>親指が早いのか遅いのか</b>を出します。早すぎる人と遅すぎる人では、直し方が逆になるからです。
       </p>
 
-      <!-- 振り分け。«腕試し» という専用の入口を廃した代わりがここ。
-           1〜2分の測定を通さないと稽古が開かない作りは、初めての人には重すぎ、
-           既に打てる人には «なぜ測られるのか» が伝わらなかった。
-           行き先を決めるのに要るのは測定値ではなく «初めてかどうか» の一つだけなので、
-           一問だけ聞いて、下の二つの並びと «おすすめ» の付き方を変える。
-
-           三つ守ること。
-             1. これは門ではない。答えなくても、答えを間違えても、下の二つは両方押せる
-             2. いつでも取り消せる（#btnFirstReset）。取り消せない問いは人を身構えさせる
-             3. 記録には一切関わらない。速さも段位もここでは決まらない
-
-           app.js への申し送り:
-             - 保存先は settings 側の一項目でよい（例 settings.firstTime = true|false|null）
-             - null（未回答）… #firstAsk を出し、#firstAnswered を hidden
-             - 答えたら … #firstAsk を hidden、#firstAnswered を出し、
-               #firstAnsweredText に «はじめての方向けに並べています。» ／
-               «打てる方向けに並べています。» のどちらかを入れる
-             - true … #pickLearn に .pick__one--main、#pickTrain からは外す
-               false … その逆（.pick には順番を入れ替える .is-flip を付ける） -->
-      <div class="ask" id="firstAsk">
-        <b class="ask__q">親指シフトで打ったことはありますか？</b>
-        <p class="ask__note">答えで変わるのは、下の二つの<b>並び順だけ</b>です。あとで変えられます。</p>
-        <p class="ask__acts">
-          <button type="button" class="btn btn--primary" id="btnFirstNew">はじめて</button>
-          <button type="button" class="btn" id="btnFirstUsed">打ったことがある</button>
-        </p>
-      </div>
-
-      <p class="ask__done" id="firstAnswered" hidden>
-        <span id="firstAnsweredText">はじめての方向けに並べています。</span>
-        <button type="button" class="btn btn--quiet" id="btnFirstReset">変える</button>
-      </p>
-
-      <!-- 打つ場所はふたつだけ。«記録» を横に並べて三つ目の入口にはしない。
-           覚えると鍛えるは互いの代わりになる（どちらも «いま打つ»）が、
-           記録は打つことの代わりにはならない。同じ形で三つ並べると
-           «いまどれをやるべきか» が読めなくなる。記録へは下の «自分の数字» から入る。 -->
+      <!-- 入口は三つ。«何をしに来たか» で選ぶ。
+           以前は «打ったことはありますか？» と一問聞いてから、覚える／鍛えるの二つの並びを変えていた。
+           だが来る人の違いは «初めてかどうか» の 1 ビットではなく目的そのもので、
+           腕試し（回転ずし）はその問いの外にあった。問いをやめ、目的ごとの三つの札を同じ重さで並べる。
+           各札の一行目（.pick__who）が «誰のための入口か» を名指しする。名前（覚える等）だけでは
+           自分がどれか分からなかった、が出発点なので、人の側の言葉で言う。 -->
       <div class="pick" id="homePick">
-        <div class="pick__one pick__one--main" id="pickLearn">
+        <div class="pick__one" id="pickLearn">
+          <span class="pick__who">はじめての人</span>
           <b class="pick__name">覚える</b>
-          <span class="pick__note"><b>まだ打てない字</b>を、配列の順に覚えます。単独打鍵から濁音・交差シフトまで、七つの課・46題。</span>
+          <span class="pick__note"><b>まだ打てない字</b>を、配列の順に一つずつ覚えます。単独打鍵から濁音・交差シフトまで、七つの課・46題。</span>
           <button type="button" class="btn btn--primary" id="btnStart">▶ つづきから</button>
           <em class="pick__state" id="startSub">第一課 · ホームポジション</em>
           <a class="link pick__more" href="#/learn">七つの課をぜんぶ見る →</a>
         </div>
 
         <a class="pick__one" href="#/train" id="pickTrain">
+          <span class="pick__who">もう打てる人</span>
           <b class="pick__name">鍛える</b>
           <span class="pick__note"><b>もう打てる字</b>を、速く正確にします。落としている面とズレの大きいキーを集めて、毎回組み直して出します。</span>
-          <!-- 押せることを形で出す。隣の «覚える» には «つづきから» のボタンがあるので、
-               こちら側に何も無いと «説明の札» に見えて、押されなくなる。
-               札そのものが <a> なので、中に button は置かない（入れ子になる） -->
+          <!-- 札そのものが <a> なので、中に button は置かない（入れ子になる） -->
           <span class="pick__go">弱いところから打つ →</span>
-          <em class="pick__state" id="pickTrainState">弱点集中・総ざらい・速度／実文18本・自由入力</em>
+          <em class="pick__state" id="pickTrainState">弱点集中・総ざらい・速度・実文・自由入力</em>
+        </a>
+
+        <a class="pick__one" href="game.html" id="pickPlay">
+          <span class="pick__who">腕前を試したい人</span>
+          <b class="pick__name">腕試し</b>
+          <span class="pick__note">流れてくる皿の単語を、時間内に打って食べる<b>回転ずし</b>。同時打鍵がぴったりなら皿の値段が上がります。</span>
+          <span class="pick__go">回転ずしで遊ぶ →</span>
+          <em class="pick__state">お手軽 60秒・おすすめ 90秒・高級 120秒</em>
         </a>
       </div>
-
-      <!-- 二つの違いを、札の外にもう一度、一行で言い切る。
-           «利用者が違いを説明できない» が今回の出発点だったので、
-           言葉の選び直しだけで済ませない。名前に頼らず、地の文で名指しする -->
-      <p class="pick__diff">
-        <b>違いはひとつだけ。</b>覚えるは<b>まだ打てない字</b>を、鍛えるは<b>もう打てる字</b>を扱います。どちらで打っても、測り方も記録の貯まる先も同じです。
-      </p>
 
       <!-- 記録への入口。«ふりかえる» という札は置かない。
            札に書いた動詞より、自分の数字そのもののほうが強い入口になる。
@@ -363,20 +331,6 @@
         <span class="mine__go">記録を見る（ズレの分布・苦手な面・練習した日・実績）→</span>
       </a>
     </header>
-
-    <!-- 道具。練習ではないので、札の作りから一段落とす。
-         «打つ» と同じ大きさで並べると、また «どれをやればいいのか» に戻る -->
-    <h2 class="courses__cat">道具</h2>
-    <div class="tools">
-      <a class="tool" href="#/layout">
-        <b class="tool__name">配列表</b>
-        <span class="tool__note">どのキーを、どの親指と押すと何のかなになるか。打ちながら引くための表です。</span>
-      </a>
-      <a class="tool" href="#/setup">
-        <b class="tool__name">設定</b>
-        <span class="tool__note">親指キーの割り当て、同時打鍵の判定の緩さ、打鍵音。はじめに一度通してください。</span>
-      </a>
-    </div>
 
     <footer class="page__foot">
       <p class="note">

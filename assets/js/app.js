@@ -42,10 +42,7 @@ const el = {
     layout: $('screenLayout'), setup: $('screenSetup'),
   },
   // 玄関の振り分け。門ではなく、二つの札の並び順を変えるだけの一問
-  firstAsk: $('firstAsk'), btnFirstNew: $('btnFirstNew'), btnFirstUsed: $('btnFirstUsed'),
-  firstAnswered: $('firstAnswered'), firstAnsweredText: $('firstAnsweredText'),
-  btnFirstReset: $('btnFirstReset'),
-  pickLearn: $('pickLearn'), pickTrain: $('pickTrain'), pickTrainState: $('pickTrainState'),
+  pickTrainState: $('pickTrainState'),
   noticeStack: $('noticeStack'), playBadge: $('playBadge'),
   // ローマ字の基準。記録画面に置く。
   // 記録が無い間は #romajiCard が隠れるので、入力欄は別の札に分けてある
@@ -849,29 +846,6 @@ function paintHome() {
       : '弱点集中・総ざらい・速度・実文・自由入力';
   }
 
-  paintFirstAsk();
-}
-
-/**
- * 玄関の一問。「初めてかどうか」だけを聞いて、二つの札の並び順を変える。
- *
- * 門にはしない。答えなくても両方押せる。以前は測定（腕試し）を通さないと
- * 稽古が開かなかったが、行き先を決めるのに要るのは測定値ではなく 1 ビットだけだった。
- */
-function paintFirstAsk() {
-  const answered = settings.firstTime === true || settings.firstTime === false;
-  if (el.firstAsk) el.firstAsk.hidden = answered;
-  if (el.firstAnswered) el.firstAnswered.hidden = !answered;
-  if (answered && el.firstAnsweredText) {
-    el.firstAnsweredText.textContent = settings.firstTime
-      ? 'はじめての方向けに並べています。'
-      : '打てる方向けに並べています。';
-  }
-  // 打てる人には «鍛える» を先に見せる。鍵盤の順（Tab や読み上げ）は変えない
-  el.pickHome?.classList.toggle('is-flip', settings.firstTime === false);
-  $('homePick')?.classList.toggle('is-flip', settings.firstTime === false);
-  el.pickLearn?.classList.toggle('pick__one--main', settings.firstTime !== false);
-  el.pickTrain?.classList.toggle('pick__one--main', settings.firstTime === false);
 }
 
 /** 課題の一覧。玄関から切り離して «おぼえる» の中へ移した */
@@ -1578,16 +1552,6 @@ el.btnClear?.addEventListener('click', () => {
   toast('消しました');
   paintMypage();
 });
-
-// ---- 玄関の一問。答えても答えなくても、両方の入口は押せる
-const answerFirst = v => {
-  settings.firstTime = v;
-  settings = saveSettings(settings) ?? settings;
-  paintFirstAsk();
-};
-el.btnFirstNew?.addEventListener('click', () => answerFirst(true));
-el.btnFirstUsed?.addEventListener('click', () => answerFirst(false));
-el.btnFirstReset?.addEventListener('click', () => answerFirst(null));
 
 el.btnRomajiSave?.addEventListener('click', () => {
   const v = Number(el.romajiCpmInput?.value);

@@ -926,84 +926,24 @@ kbd {
   color: var(--fg-mid);
 }
 
-/* --- 振り分けの一問 ---
-   «初めてか、打てるか» を一度だけ聞く。門ではないので、囲みは軽くする。
-   warn（注意書き）と同じ強さにすると «答えないと進めない» に見えてしまう */
+/* --- 三つの入口 ---
+   覚える / 鍛える / 腕試し。この画面でいちばん大事なのはここ。
 
-/* 囲まない。上下の罫だけで «ここで一つ聞いている» を区切る。
-   札にすると下の «覚える／鍛える» の札と同じ重さに見え、門のように立ちはだかる */
-.ask {
-  display: grid;
-  gap: 8px;
-  margin: 26px 0 0;
-  padding: 16px 0 17px;
-  border-top: 1px solid var(--line-soft);
-  border-bottom: 1px solid var(--line-soft);
-}
+   来る人の目的がまるで違う三つなので、同じ重さで横に並べる。«おすすめ» の印は付けない。
+   以前は一問（打ったことがあるか）で覚える／鍛えるの並びを変えていたが、
+   腕試しがその問いの外にあり、問いそのものが入口の前の関門に見えた。
+   記録は四つ目に並べず、下の «自分の数字»（.mine）とナビから入る。
 
-.ask__q {
-  font-size: 15.5px;
-  font-weight: 700;
-  color: var(--fg);
-}
-
-.ask__note {
-  margin: 0;
-  font-size: 12.5px;
-  line-height: 1.85;
-  color: var(--fg-mid);
-  word-break: auto-phrase;
-}
-
-.ask__note b {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-.ask__acts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 4px 0 0;
-}
-
-/* 答えたあと。問いが消えて一行だけ残る。
-   消えて何も残らないと «さっき何を選んだか» が確かめられず、
-   選び直す道も無くなる。取り消せる形を必ず残す */
-.ask__done {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin: 26px 0 0;
-  font-size: 12.5px;
-  color: var(--fg-mid);
-}
-
-/* --- ふたつの入口 ---
-   覚える / 鍛える。この画面でいちばん大事なのはここ。
-
-   三つ（腕試し・コース・稽古）をやめて二つにした。
-   腕試しは «固定の一本を打つだけ» で稽古と中身が重なっており、
-   専用の入口を立てる理由が無かった。記録は三つ目に並べず、
-   下の «自分の数字»（.mine）を入口にしている ── 打つことの代わりにはならないものを
-   同じ形で横に並べると、«いまどれをやるべきか» が読めなくなる。
-
-   auto-fit をやめて明示的に 2 列にしてある。auto-fit のままだと、
-   幅によっては «2 列目が半端に空く» 形になり、二択が二択に見えない。 */
+   auto-fit をやめて明示的に 3 列にしてある。auto-fit のままだと、
+   幅によっては «3 列目だけ下に落ちる» 形になり、三択が三択に見えない。
+   900px 以下では縦に積む（下の @media）。 */
 
 .pick {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin: 22px 0 0;
+  margin: 26px 0 0;
 }
-
-/* 答えが «打ったことがある» のときは、鍛えるを先に見せる。
-   HTML の順は変えないので、読み上げと Tab の順は覚える → 鍛えるのまま。
-   app.js が .pick に付ける */
-.pick.is-flip #pickLearn { order: 2; }
-.pick.is-flip #pickTrain { order: 1; }
 
 .pick__one {
   display: flex;
@@ -1023,12 +963,12 @@ a.pick__one:hover {
   border-color: var(--tone);
 }
 
-/* おすすめの側。振り分けの答えでどちらに付くかが変わる。
-   «閉じている» の反対ではなく «こちらから» の印なので、
-   付いていないほうも同じだけ押せるように見せておくこと */
-.pick__one--main {
-  border-color: color-mix(in srgb, var(--tone) 55%, transparent);
-  border-top: 3px solid var(--tone);
+/* 誰のための入口か。札の名前より先に読ませる一行 */
+.pick__who {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--tone);
 }
 
 .pick__name {
@@ -1036,10 +976,6 @@ a.pick__one:hover {
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--fg);
-}
-
-.pick__one--main .pick__name {
-  color: var(--tone);
 }
 
 .pick__note {
@@ -1050,8 +986,8 @@ a.pick__one:hover {
   word-break: auto-phrase;
 }
 
-/* 札の中で «まだ打てない字 / もう打てる字» だけを起こす。
-   二つの札の違いは実質この一語なので、そこだけ地の色に上げる */
+/* 札の中で «まだ打てない字 / もう打てる字 / 回転ずし» だけを起こす。
+   札どうしの違いは実質この一語なので、そこだけ地の色に上げる */
 .pick__note b {
   color: var(--fg);
   font-weight: 600;
@@ -1077,7 +1013,7 @@ a.pick__one:hover {
   color: var(--off);
 }
 
-.pick__one--main .btn {
+.pick__one .btn {
   margin-top: 2px;
 }
 
@@ -1100,22 +1036,6 @@ a.pick__one:hover {
 
 a.pick__one:hover .pick__go {
   color: var(--fg);
-}
-
-/* 二つの違いを地の文で言い切る一行。札の «外» に置くのが肝で、
-   どちらかの札の中に書くと «その札の説明» になってしまい、対比にならない */
-.pick__diff {
-  max-width: 44rem;
-  margin: 14px 0 0;
-  font-size: 13px;
-  line-height: 1.95;
-  color: var(--fg-mid);
-  word-break: auto-phrase;
-}
-
-.pick__diff b {
-  color: var(--fg);
-  font-weight: 600;
 }
 
 .mine {
@@ -1163,51 +1083,6 @@ a.pick__one:hover .pick__go {
 
 .mine:hover .mine__go {
   color: var(--tone);
-}
-
-/* --- 道具（配列表・設定）---
-   練習ではないので、入口の札（.pick__one）から一段落とす。
-   落とすのは «大きさ» だけで、色は落とさない。押せるものを暗くすると
-   «閉じている» に見えるが、この二つはいつでも開いている */
-
-.tools {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.tool {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 13px 15px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-m);
-  transition: border-color 0.16s;
-}
-
-.tool:hover {
-  border-color: var(--tone);
-}
-
-.tool__name {
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--fg-mid);
-}
-
-.tool:hover .tool__name {
-  color: var(--tone);
-}
-
-.tool__note {
-  font-size: 11.5px;
-  line-height: 1.8;
-  color: var(--fg-dim);
-  word-break: auto-phrase;
 }
 
 /* --- コース札 ---
@@ -3485,6 +3360,11 @@ a.pick__one:hover .pick__go {
 /* ---------------------------------------------------------------- 画面が狭いとき */
 
 @media (max-width: 900px) {
+  /* 三つの入口を縦に積む。三列のままだと 1 枚 250px を切り、説明の一行が細かく割れる */
+  .pick {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .nav {
     gap: 10px;
     padding: 0 14px;
@@ -3749,19 +3629,7 @@ a.pick__one:hover .pick__go {
 
   /* ---- 玄関 ---- */
 
-  /* 二択を縦に積む。二列のままだと 1 枚 173px しか取れず、
-     «まだ打てない字 / もう打てる字» の一行が細かく割れて、対比が読めなくなる。
-     縦に積むと «並んだ二つ» という形が消えるぶん、
-     下の .pick__diff の一行がいっそう効く */
-  .pick {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  /* 振り分けの二択。指で押す的にするため、横幅を分け合わせる */
-  .ask__acts .btn {
-    flex: 1 1 auto;
-    text-align: center;
-  }
+  /* 三択の縦積みは 900px 以下の @media で済ませてある */
 
   /* ---- こまごま ---- */
 

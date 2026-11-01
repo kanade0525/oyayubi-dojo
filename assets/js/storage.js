@@ -571,9 +571,6 @@ export const DEFAULT_SETTINGS = {
   // 同じ字で 6 回続けて外したとき、その字を飛ばして先へ進めるか。
   // 既定 on（これまでの挙動）。off にすると打てるまでそこで止まる
   autoSkip: true,
-  // 玄関の一問の答え。true=はじめて / false=打ったことがある / null=未回答。
-  // 二つの入口の並び順が変わるだけで、記録にも解禁にも一切関わらない
-  firstTime: null,
 };
 
 /** 閾値の範囲。NICOLA の規格と実装の都合から、この外は受け付けない */
@@ -622,9 +619,6 @@ function normalizeSettings(raw) {
   s.lenientRelease = s.lenientRelease !== false;
   s.continuousShift = s.continuousShift === true;
   s.autoSkip = s.autoSkip !== false;
-  // 三値。未回答（null）と「打ったことがある」（false）は違う意味なので、
-  // 真偽値に潰さない
-  s.firstTime = s.firstTime === true || s.firstTime === false ? s.firstTime : null;
   return s;
 }
 

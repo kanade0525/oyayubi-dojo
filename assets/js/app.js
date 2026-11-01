@@ -13,7 +13,7 @@
 import { createNicola } from './nicola.js';
 import { loadLayout, lookup, handOf, thumbSideOf } from './layout.js';
 import { renderMeter, showJudgement, resetMeter, tierOf } from './meter.js';
-import { renderKeyboard, highlight, setThumbLamp, setHeat } from './keyboard.js';
+import { renderKeyboard, highlight, setThumbLamp } from './keyboard.js';
 import {
   loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
@@ -24,7 +24,10 @@ import {
   cpmOf, accuracyOf, unlockedOf, UNLOCKS, romajiComparison,
 } from './trophies.js';
 import { COURSES, LESSONS, findLesson, nextLesson, lessonsOf } from './lessons.js';
-import { makeDrill, weakFaces, describeFace, DRILL_MODES } from './drill.js';
+import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './drill.js';
+import { renderIso } from './iso.js';
+import { svg } from './viz.js';
+import { renderTrend, renderOffsetHist, renderCalendar } from './charts.js';
 import { createSound } from './sound.js';
 
 const layout = loadLayout('nicola');
@@ -98,9 +101,9 @@ const el = {
   // mypage
   rankName: $('rankName'), rankScore: $('rankScore'), rankFill: $('rankFill'),
   rankNext: $('rankNext'), statTally: $('statTally'),
-  histLeft: $('histLeft'), histRight: $('histRight'), heatBoard: $('heatBoard'),
-  cal: $('cal'), calRange: $('calRange'), trophies: $('trophies'), trophyCount: $('trophyCount'),
-  recBody: $('recBody'), dataKeys: $('dataKeys'),
+  trendBox: $('trendBox'), offsetHist: $('offsetHist'), isoBoard: $('isoBoard'), calBox: $('calBox'),
+  trophies: $('trophies'), trophyCount: $('trophyCount'),
+  recBody: $('recBody'), recTable: $('recTable'), recEmpty: $('recEmpty'), dataKeys: $('dataKeys'),
   btnExport: $('btnExport'), btnImport: $('btnImport'), btnClear: $('btnClear'),
   // layout
   layoutBoard: $('layoutBoard'),
@@ -975,13 +978,12 @@ function paintMypage() {
     return [wrap];
   }));
 
-  paintHist(el.histLeft, rep?.left, '左親指');
-  paintHist(el.histRight, rep?.right, '右親指');
+  renderTrend(el.trendBox, stats.history ?? []);
+  renderOffsetHist(el.offsetHist, stats.offset);
 
-  renderKeyboard(el.heatBoard, layout, { lookup, thumbs: thumbKeysOf(settings) });
-  setHeat(el.heatBoard, stats.faceMisses ?? {});
+  renderIso(el.isoBoard, { layout, stats });
 
-  paintCalendar(stats);
+  renderCalendar(el.calBox, stats.daily ?? {}, new Date());
   paintTrophies(stats);
   paintRecords(stats);
   paintRomajiCard(stats);
@@ -994,48 +996,6 @@ function paintMypage() {
     li.textContent = k;
     return li;
   }));
-}
-
-function paintHist(container, side, label) {
-  if (!container) return;
-  const head = document.createElement('p');
-  head.className = 'hist__head';
-  head.textContent = side && side.n
-    ? `${label}　平均 ${fmtOffset(side.mean)}（${offsetWord(side.mean)}）　ばらつき ${side.sd?.toFixed(0) ?? '—'}ms　${side.n}打`
-    : `${label}　まだ記録がありません`;
-
-  const bars = document.createElement('div');
-  bars.className = 'hist__bars';
-  const hist = side?.hist ?? [];
-  const max = Math.max(1, ...hist);
-  hist.forEach(v => {
-    const i = document.createElement('i');
-    i.style.height = `${(v / max) * 100}%`;
-    bars.append(i);
-  });
-  container.replaceChildren(head, bars);
-}
-
-function paintCalendar(stats) {
-  const daily = stats.daily ?? {};
-  const days = [];
-  const today = new Date();
-  for (let i = 363; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
-    days.push(dayKey(d));
-  }
-  const counts = days.map(k => daily[k]?.kana ?? 0);
-  const max = Math.max(1, ...counts);
-  el.cal.replaceChildren(...days.map((k, i) => {
-    const c = counts[i];
-    const i2 = document.createElement('i');
-    // CSS は .cal__day[data-level] に色を当てている。クラスを付けないと全部透明になる
-    i2.className = 'cal__day';
-    i2.dataset.level = String(c === 0 ? 0 : Math.min(4, Math.ceil((c / max) * 4)));
-    i2.title = `${k}　${c}文字`;
-    return i2;
-  }));
-  el.calRange.textContent = `${days[0]} 〜 ${days[days.length - 1]}`;
 }
 
 function paintTrophies(stats) {
@@ -1061,19 +1021,63 @@ function paintTrophies(stats) {
 }
 
 function paintRecords(stats) {
-  // history の項目は { at, id, cpm, meanOffset, ... }。lessonId でも day でもない
-  const rows = (stats.history ?? []).slice(0, 30).map(h => {
+  // 課題ごとに一行へまとめる。以前は直近 30 本をそのまま並べていて、
+  // 同じ課題が何十行も続き、見出しの «課題ごとの» と中身が食い違っていた。
+  // history は新しい順。最大 200 本なので、ここに無い古い回は数えられない（«回数» は直近の範囲で）
+  const groups = new Map();
+  for (const h of stats.history ?? []) {
+    const key = h.id ?? '—';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(h);
+  }
+  const rows = [...groups.entries()].map(([id, runs]) => {
+    const last = runs[0];
+    const cpms = runs.map(r => Number(r.cpm)).filter(Number.isFinite);
+    const best = cpms.length ? Math.max(...cpms) : null;
     const tr = document.createElement('tr');
-    const day = typeof h.at === 'string' ? h.at.slice(0, 10) : '';
-    for (const v of [findLesson(h.id)?.title ?? h.id ?? '—',
-                     String(h.cpm ?? '—'), fmtOffset(h.meanOffset), day]) {
+    const cells = [
+      findLesson(id)?.title ?? id,
+      `${runs.length}回`,
+      null, // 推移（下で SVG を入れる）
+      last.cpm == null ? '—' : Number(last.cpm).toFixed(1),
+      best == null ? '—' : best.toFixed(1),
+      fmtOffset(last.meanOffset),
+      typeof last.at === 'string' ? last.at.slice(0, 10) : '',
+    ];
+    cells.forEach((v, i) => {
       const td = document.createElement('td');
-      td.textContent = String(v);
+      if (i === 2) {
+        td.className = 'rec__spark';
+        td.append(sparkline([...cpms].reverse()));
+      } else td.textContent = String(v);
       tr.append(td);
-    }
+    });
     return tr;
   });
   el.recBody.replaceChildren(...rows);
+  // 空の表に見出しだけ出すより、一文で言う
+  if (el.recTable) el.recTable.hidden = rows.length === 0;
+  if (el.recEmpty) el.recEmpty.hidden = rows.length > 0;
+}
+
+// 速さの推移を一行に収める小さな線。古い→新しいを左→右。
+// 軸も目盛りも無いので、数字は隣の «直近» «最高» の列で読ませる（線は向きだけを言う）
+function sparkline(values) {
+  const W = 96, H = 22, P = 2;
+  if (values.length < 2) {
+    const s = svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'spark', 'aria-hidden': 'true' });
+    return s;
+  }
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const x = i => P + (i / (values.length - 1)) * (W - P * 2);
+  const y = v => H - P - (hi === lo ? 0.5 : (v - lo) / (hi - lo)) * (H - P * 2);
+  const d = values.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
+  const lastX = x(values.length - 1), lastY = y(values[values.length - 1]);
+  const up = values[values.length - 1] >= values[0];
+  return svg('svg', { viewBox: `0 0 ${W} ${H}`, width: W, height: H, class: 'spark', role: 'img',
+    'aria-label': `速さの推移。${values.length}回で ${values[0]} から ${values[values.length - 1]} cpm（${up ? '伸びている' : '落ちている'}）` },
+    svg('path', { d, class: 'spark__line' }),
+    svg('circle', { cx: lastX, cy: lastY, r: 2.5, class: 'spark__dot' }));
 }
 
 // -- 弱点の表示（覚える・鍛える の両方で使う） -----------------------------------------------------------------
@@ -1084,6 +1088,12 @@ function setSkew(markEl, valEl, side) {
   const ms = side?.mean ?? null;
   markEl.style.setProperty('--at', String(ms == null ? 0 : Math.max(-1, Math.min(1, ms / 80))));
   markEl.hidden = ms == null;
+  // 印の色を判定に合わせる（CSS は .skew[data-tier] を待っている。付けないと常に同じ色だった）
+  const row = markEl.closest('.skew');
+  if (row) {
+    if (ms == null) delete row.dataset.tier;
+    else row.dataset.tier = tierOf(ms);
+  }
   if (valEl) valEl.textContent = fmtOffset(ms);
 }
 
@@ -1094,7 +1104,11 @@ function paintWeakList(listEl, emptyEl, stats, limit = 6) {
   if (!listEl) return has;
   // CSS は 4 列（かな / 説明 / 帯 / 数）を待っている。クラスを付けずに作ると
   // 列に収まらず、文字が枠の外へあふれる（実際あふれていた）
-  const worst = Math.max(1, ...weak.map(f => f.misses ?? 0), 1);
+  //
+  // 帯と数はミスの «率»。以前は回数で、たくさん打った面ほど大きく出ていた（単位も出ていなかった）。
+  // 率は記録画面の得意・苦手の図と同じ式（missRateOf）。言うことを揃える
+  const rateOf = f => missRateOf(f.hits ?? 0, f.misses ?? 0);
+  const worst = Math.max(0.01, ...weak.filter(f => !f.unseen).map(rateOf));
   listEl.replaceChildren(...weak.map(f => {
     const li = document.createElement('li');
     li.className = 'weak';
@@ -1108,17 +1122,19 @@ function paintWeakList(listEl, emptyEl, stats, limit = 6) {
     // 隣にかなを出しているので、括弧の中だけを使う
     const what = document.createElement('span');
     what.className = 'weak__what';
-    what.textContent = describeFace(f).replace(/^[^（]*/, '').replace(/^（|）$/g, '');
+    // なぜ弱いと見たか（ミスが多い・ズレが大きい・打ち込みが足りない）を添える
+    what.textContent = `${describeFace(f).replace(/^[^（]*/, '').replace(/^（|）$/g, '')}　${f.reason ?? ''}`;
 
     const bar = document.createElement('span');
     bar.className = 'weak__bar';
     const i = document.createElement('i');
-    i.style.setProperty('--p', String(Math.min(1, (f.misses ?? 0) / worst)));
+    i.style.setProperty('--p', String(f.unseen ? 0 : Math.min(1, rateOf(f) / worst)));
     bar.append(i);
 
     const num = document.createElement('span');
     num.className = 'weak__num';
-    num.textContent = f.unseen ? '未' : `${f.misses ?? 0}`;
+    num.textContent = f.unseen ? '未' : `${(rateOf(f) * 100).toFixed(1)}%`;
+    num.title = f.unseen ? 'まだ打っていない' : `ミス率（${f.hits}打中 ${f.misses}回）`;
 
     li.append(face, what, bar, num);
     li.title = f.reason ?? '';

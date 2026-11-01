@@ -30,6 +30,8 @@
 | ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/render.js` / `assets/js/game/main.js` |
 | ランキング（サーバー） | `server/` 配下すべて / `assets/js/game/ranking.js` / `tools/server.test.mjs` |
 | コア（ゲームの設定値） | `assets/js/game/config.js` |
+| 可視化（コア） | `assets/js/viz.js` / `assets/js/iso.js` / `assets/css/viz.css` / `tools/iso.test.mjs` |
+| 可視化（グラフ） | `assets/js/charts.js` / `assets/css/charts.css` |
 
 ## 用語
 

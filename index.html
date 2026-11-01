@@ -16,6 +16,8 @@
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/viz.css">
+<link rel="stylesheet" href="assets/css/charts.css">
 <script>
   // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
@@ -764,6 +766,13 @@
       <dl class="tally" id="statTally"></dl>
     </div>
 
+    <!-- 伸び。速さ・ぴったり率・平均ズレを縦に三枚、横軸（何本目）を揃えて並べる（charts.js）。
+         単位の違う三つを一枚に重ねない（縦軸が二つになる） -->
+    <div class="card">
+      <h2 class="card__head">伸び<span class="card__count">図にマウスを乗せるか、Tab で入って ← → で一本ずつ</span></h2>
+      <div id="trendBox"></div>
+    </div>
+
     <!-- ローマ字時代との比較。
          移行の最大の障壁は速さではなく «仕事が回らない期間がいつ終わるか分からないこと» なので、
          終わりを日数で見せる。値は trophies.js の romajiComparison(stats) がそのまま返す。
@@ -833,25 +842,22 @@
     <!-- 平均のズレ。ここが本アプリで一番見てほしい数字 -->
     <div class="card">
       <h2 class="card__head">同時打鍵のクセ</h2>
-      <p class="note">左右それぞれの親指について、文字キーとの時間差の分布です。山が中心から左に寄っていれば親指が早すぎ、右に寄っていれば遅すぎです。</p>
-      <div class="hist" id="histLeft" data-side="left"></div>
-      <div class="hist" id="histRight" data-side="right"></div>
+      <!-- 説明の一文は図（charts.js）が自分で出す。ここにも書くと二重になる -->
+      <div id="offsetHist"></div>
     </div>
 
-    <!-- キー×シフト面のヒートマップ。配列図をそのまま色で塗る -->
+    <!-- 得意・苦手。配列の上に柱を立てる（iso.js）。高さと色＝平均と比べたミス率。
+         以前は平面のヒートマップで、ミスの «回数» を 0〜1 の濃さとしてそのまま渡していたため、
+         一度でも外したキーが全部最大の濃さになっていた -->
     <div class="card">
-      <h2 class="card__head">苦手な面<span class="card__count">濃いほどミスが多い</span></h2>
-      <div class="board board--heat" id="heatBoard"></div>
+      <h2 class="card__head">得意・苦手<span class="card__count">柱にマウスを乗せると数字が出ます</span></h2>
+      <div class="iso" id="isoBoard"></div>
     </div>
 
     <div class="card">
-      <h2 class="card__head">練習した日<span class="card__count" id="calRange"></span></h2>
-      <div class="cal" id="cal"></div>
-      <!-- 1年分の帯は、どう詰めても狭い画面には入らない（52週 × 15px = 777px）。
-           入らないものを «入っているように» 見せるのが一番よくないので、
-           横に流すことと、今日がどちら側かを字で断っておく。狭いときだけ出る -->
-      <p class="cal__hint">1 年分あります。横に動かせます。右の端が今日です。</p>
-      <p class="cal__legend"><span>少</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>多</span></p>
+      <h2 class="card__head">練習した日</h2>
+      <!-- 直近 52 週（charts.js）。狭い画面では横に流れ、右端（今日）が最初に見える -->
+      <div id="calBox"></div>
     </div>
 
     <div class="card">
@@ -863,8 +869,12 @@
          «記録の中の記録» になる。中身は課題ごとの直近なので、そのまま名乗らせる -->
     <div class="card">
       <h2 class="card__head">課題ごとの成績</h2>
-      <table class="rec"><thead><tr><th>課題</th><th>cpm</th><th>平均ズレ</th><th>最後に</th></tr></thead>
-        <tbody id="recBody"></tbody></table>
+      <!-- 7 列あるので、狭い画面では表だけを横に流す（ページごとはみ出させない） -->
+      <div class="rec-scroll">
+        <table class="rec" id="recTable"><thead><tr><th>課題</th><th>回数</th><th>速さの推移</th><th>直近 cpm</th><th>最高 cpm</th><th>直近のズレ</th><th>最後に</th></tr></thead>
+          <tbody id="recBody"></tbody></table>
+      </div>
+      <p class="note" id="recEmpty" hidden>まだ記録がありません。課題を一本打つと、ここに課題ごとの速さとズレが並びます。</p>
     </div>
 
     <div class="card">

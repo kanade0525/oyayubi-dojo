@@ -136,6 +136,9 @@ assets/
     keyboard.js       3面キーボード図
     sound.js          WebAudio による打鍵音の合成
     app.js            配線
+    viz.js            図の共通部品（SVG とホバーの小窓）
+    iso.js            得意・苦手の 3D 柱（アイソメトリック）
+    charts.js         伸び・ズレの分布・練習した日
   js/game/            ゲーム（engine.js は DOM を知らない状態機械。ranking.js がランキングの窓口）
 tools/check.mjs       総合検査
 server/               ランキングの API（Lambda + DynamoDB、AWS SAM）

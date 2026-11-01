@@ -1,0 +1,349 @@
+/* 記録画面の図（charts.js）の見た目。
+ *
+ * 色は全部ここで当てる。charts.js は class を付けるだけで、生の色を持たない。
+ * 4 配色（midnight / matcha / plum / sumi）はどれも暗い地なので、
+ * 地と線は --line / --line-soft、印は --tone、字は --fg / --fg-mid / --fg-dim。
+ * 字に系列の色を使わない（明るい --tone を細い字に当てると、配色によっては読みにくい）。
+ *
+ * 格子と軸は 1px の実線で、地から一段だけ離した色。点線にしない（«予測» に見える）。
+ */
+
+.chart {
+  font-family: var(--ui);
+  color: var(--fg-mid);
+}
+
+.chart-svg {
+  display: block;
+  overflow: visible;
+  font-family: var(--ui);
+}
+
+.chart-empty {
+  margin: 0;
+  padding: 24px 0;
+  color: var(--fg-dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+.chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 8px;
+}
+
+.chart-sum {
+  margin: 0 0 8px;
+  color: var(--fg-mid);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chart-head .chart-sum {
+  margin: 0;
+}
+
+.chart-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+.chart-key__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone);
+  opacity: 0.45;
+}
+
+.chart-key__line {
+  width: 16px;
+  height: 2px;
+  margin-left: 8px;
+  border-radius: 1px;
+  background: var(--tone);
+}
+
+.chart-panel + .chart-panel {
+  margin-top: 6px;
+}
+
+.chart-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0 0 2px;
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chart-unit--piece {
+  white-space: nowrap;
+}
+
+.chart-unit {
+  color: var(--fg-dim);
+  font-size: 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 目盛り・格子・軸 */
+
+.chart text {
+  font-size: 11px;
+}
+
+.chart .tick {
+  fill: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart .tick--title,
+.chart .dir {
+  fill: var(--fg-dim);
+  font-size: 11px;
+}
+
+.chart .grid {
+  stroke: var(--line-soft);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart .grid--zero,
+.chart .axis {
+  stroke: var(--line);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+/* 判定の窓の帯。うっすら。判定の色（--perfect / --good）は信号と同じ意味なので、そのまま借りる */
+.chart .band--perfect {
+  fill: var(--perfect);
+  fill-opacity: 0.09;
+}
+
+.chart .band--good {
+  fill: var(--good);
+  fill-opacity: 0.06;
+}
+
+.chart .band-label {
+  fill: var(--fg-dim);
+  font-size: 11px;
+}
+
+.chart .chart-note {
+  fill: var(--fg-dim);
+  font-size: 12px;
+}
+
+/* ---- 伸び */
+
+.chart .dot {
+  fill: var(--tone);
+  fill-opacity: 0.35;
+}
+
+.chart .ma {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* 端の点は地の色の輪で、線と重なっても粒が読める */
+.chart .end-dot,
+.chart .cross__dot {
+  fill: var(--tone);
+  stroke: var(--panel);
+  stroke-width: 2;
+}
+
+.chart .end-dot--first {
+  fill: var(--fg-dim);
+}
+
+.chart .end-label {
+  fill: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart .end-label--first {
+  fill: var(--fg-mid);
+  font-weight: 400;
+}
+
+.chart .end-label--sub {
+  fill: var(--fg-dim);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.chart .cross__line {
+  stroke: var(--fg-dim);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart .hit,
+.chart .bar-hit {
+  fill: transparent;
+  pointer-events: all;
+}
+
+.chart-trend {
+  border-radius: var(--r-s);
+}
+
+.chart-trend:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 4px;
+}
+
+/* ---- ズレの分布 */
+
+.chart .bar {
+  fill: var(--tone);
+  fill-opacity: 0.75;
+}
+
+.chart .bin:has(.bar-hit.is-hot) .bar,
+.chart .bin:focus-within .bar {
+  fill-opacity: 1;
+}
+
+.chart .bar-hit.is-hot,
+.chart .bar-hit:focus-visible {
+  fill: var(--fg);
+  fill-opacity: 0.06;
+}
+
+.chart .bar-hit:focus-visible {
+  outline: none;
+  stroke: var(--fg);
+  stroke-width: 1;
+}
+
+.chart .zero {
+  stroke: var(--fg-dim);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.chart .mean {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.chart .mean-mark {
+  fill: var(--fg);
+}
+
+.chart .mean-label {
+  fill: var(--fg);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 印の上に重なる字には地の色の縁を付ける。点や棒をまたいでも字が読める */
+.chart .end-label,
+.chart .mean-label,
+.chart .dir,
+.chart .band-label {
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* ---- 練習した日 */
+
+.cal-body {
+  display: flex;
+  align-items: flex-start;
+}
+
+.cal-days {
+  flex: none;
+  padding-top: 2px;
+}
+
+.cal-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 6px;
+  scrollbar-width: thin;
+}
+
+.chart .cell {
+  stroke-width: 1;
+}
+
+/* 0 段：打っていない日。地に近い色でも、枠で «日がある» ことは見せる */
+.cell--0 {
+  fill: var(--sunken);
+  stroke: var(--line-soft);
+}
+
+.cell--1 {
+  fill: color-mix(in srgb, var(--tone) 28%, var(--panel));
+}
+
+.cell--2 {
+  fill: color-mix(in srgb, var(--tone) 50%, var(--panel));
+}
+
+.cell--3 {
+  fill: color-mix(in srgb, var(--tone) 74%, var(--panel));
+}
+
+.cell--4 {
+  fill: var(--tone);
+}
+
+.chart .cell--today {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.chart .cell.is-hot {
+  stroke: var(--fg);
+  stroke-width: 1.5;
+}
+
+.chart .cell:focus-visible {
+  outline: none;
+  stroke: var(--fg);
+  stroke-width: 2;
+}
+
+.cal-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 6px 0 0;
+  color: var(--fg-dim);
+  font-size: 12px;
+}
+
+.cal-legend__svg {
+  display: block;
+}

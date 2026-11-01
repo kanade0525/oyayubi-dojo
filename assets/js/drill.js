@@ -172,6 +172,15 @@ const W = {
 /** ミス率の事前分布。8打鍵ぶんの「ミス率6%」を混ぜてから率を出す */
 const MISS_PRIOR_N = 8;
 const MISS_PRIOR_P = 0.06;
+/**
+ * 事前分布を混ぜたミス率。数打しかしていない面が «ミス率 0%» や «100%» に振れないようにする。
+ * 記録画面の図（iso.js）も同じ式で塗る。出題と図で «苦手» の物差しが違うと、
+ * 図で赤い面が出題に出てこない、という食い違いになる
+ */
+export function missRateOf(hits, misses) {
+  return (numOf(misses) + MISS_PRIOR_N * MISS_PRIOR_P) / (numOf(hits) + MISS_PRIOR_N);
+}
+
 /** ミス率がここまで来たら弱さは頭打ち。3割ミスは十分に最悪 */
 const MISS_CAP = 0.3;
 /** 打ち込み量の半減点。30打鍵でようやく半分こなれた、と見る */
@@ -222,7 +231,7 @@ function scoreFace(f, s, recent) {
   const misses = numOf(s.faceMisses[f.face]);
   const unseen = hits <= 0;
 
-  const missRate = (misses + MISS_PRIOR_N * MISS_PRIOR_P) / (hits + MISS_PRIOR_N);
+  const missRate = missRateOf(hits, misses);
   const miss = Math.min(1, missRate / MISS_CAP);
   const thin = THIN_HALF / (hits + THIN_HALF);
 

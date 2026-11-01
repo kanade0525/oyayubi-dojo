@@ -1,0 +1,246 @@
+/* 図の共通の色と、ホバーの小窓。
+ *
+ * 図の色は配色（data-tone）で変えない。4 配色とも暗い地なので、一組で全部に通る。
+ * 変えると «得意の青» が配色ごとに別の色になり、比べられなくなる。
+ *
+ * 得意・苦手は分岐配色（polarity）。青＝得意、赤＝苦手、中央の灰＝平均並み。
+ * 腕ごとに 3 段（弱→強）。暗い地では «強い» ほど明るくする（地から遠いほど目に入る）。
+ * dataviz の検証スクリプトで、4 配色の札の地色（#141925 / #0f1b13 / #1e1627 / #1b1c1e）に対して
+ * 各腕が «一色相・明度が単調・隣の段の差 0.06 以上・弱い端も 2:1 以上» を満たすことを確かめた。
+ * 両端どうしは色覚の型を問わず ΔE 36 以上離れている。
+ * 中央の灰は地に対して 1.6:1 と薄いが、«何もない» を表すための意図した薄さ。
+ * 数値は小窓と表で必ず読めるようにしてある（色だけに意味を背負わせない）。 */
+:root {
+  --viz-good-1: #3f5f8f;
+  --viz-good-2: #4f8fe0;
+  --viz-good-3: #8fbaf2;
+  --viz-mid: #3a3d46;
+  --viz-bad-1: #8a4343;
+  --viz-bad-2: #d0605a;
+  --viz-bad-3: #f29a92;
+}
+
+.viz-tip {
+  position: fixed;
+  z-index: 50;
+  min-width: 140px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--sunken);
+  color: var(--fg);
+  font-size: 12px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+}
+
+.viz-tip__head {
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+
+.viz-tip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--fg-mid);
+}
+
+.viz-tip__row b {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.viz-tip__note {
+  color: var(--fg-mid);
+}
+
+/* 図の印は Tab で止まる。止まったことが見えないと、キーボードでは何も起きていないように見える */
+.viz [tabindex]:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- 得意・苦手の柱（iso.js） */
+
+.iso-ctl {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.iso-seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  overflow: hidden;
+}
+
+.iso-seg__b {
+  padding: 5px 12px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-mid);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.iso-seg__b:last-child { border-right: 0; }
+.iso-seg__b[aria-pressed="true"] {
+  background: var(--tone);
+  color: var(--tone-ink);
+  font-weight: 700;
+}
+
+.iso-fig { overflow: hidden; }
+.iso-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 520px;
+}
+
+.iso-plate {
+  fill: var(--sunken);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* 段階 → 色。面の明暗は同じ色に黒を混ぜて作る（光は左上から） */
+.iso-key { --c: var(--viz-mid); cursor: default; }
+.iso-key[data-lv="g3"] { --c: var(--viz-good-3); }
+.iso-key[data-lv="g2"] { --c: var(--viz-good-2); }
+.iso-key[data-lv="g1"] { --c: var(--viz-good-1); }
+.iso-key[data-lv="b1"] { --c: var(--viz-bad-1); }
+.iso-key[data-lv="b2"] { --c: var(--viz-bad-2); }
+.iso-key[data-lv="b3"] { --c: var(--viz-bad-3); }
+
+.iso-top { fill: var(--c); stroke: color-mix(in srgb, var(--c) 60%, #000); stroke-width: 1; }
+.iso-front { fill: color-mix(in srgb, var(--c) 66%, #000); }
+.iso-side { fill: color-mix(in srgb, var(--c) 46%, #000); }
+
+/* まだ打っていない面。柱を立てず、点線の枠だけ置く（«無い» と «平均並み» を色で混ぜない） */
+.iso-key[data-lv="none"] .iso-top {
+  fill: transparent;
+  stroke: var(--line);
+  stroke-dasharray: 3 3;
+}
+
+/* 打った数が少ない面は、上面に斜線を重ねる代わりに縁を点線にする（言い切っていない印） */
+.iso-key[data-low="1"] .iso-top { stroke: var(--fg-dim); stroke-dasharray: 2 2; }
+
+.iso-key:hover .iso-top,
+.iso-key:focus-visible .iso-top { stroke: var(--fg); stroke-width: 2; stroke-dasharray: none; }
+
+.iso-kana {
+  fill: var(--fg);
+  font-size: 15px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgb(0 0 0 / 0.55);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+
+/* 明るい段の上では白い字が沈むので、暗い字にする */
+.iso-key[data-lv="g3"] .iso-kana,
+.iso-key[data-lv="b3"] .iso-kana {
+  fill: #0b0e14;
+  stroke: rgb(255 255 255 / 0.35);
+}
+
+.iso-key[data-lv="none"] .iso-kana { fill: var(--fg-dim); }
+
+.iso-leg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--fg-mid);
+}
+
+.iso-leg__ramp { display: inline-flex; gap: 2px; }
+.iso-leg__sw {
+  width: 22px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--viz-mid);
+}
+.iso-leg__sw[data-lv="g3"] { background: var(--viz-good-3); }
+.iso-leg__sw[data-lv="g2"] { background: var(--viz-good-2); }
+.iso-leg__sw[data-lv="g1"] { background: var(--viz-good-1); }
+.iso-leg__sw[data-lv="b1"] { background: var(--viz-bad-1); }
+.iso-leg__sw[data-lv="b2"] { background: var(--viz-bad-2); }
+.iso-leg__sw[data-lv="b3"] { background: var(--viz-bad-3); }
+.iso-leg__end { color: var(--fg); font-weight: 700; }
+.iso-leg__note { flex-basis: 100%; color: var(--fg-dim); }
+
+.iso-ranks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px 24px;
+  margin-top: 16px;
+}
+
+.iso-rank__head {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* 見出しの横に色の印。色だけに意味を背負わせず、見出しの言葉が先 */
+.iso-rank__head::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.iso-rank.is-bad .iso-rank__head::before { background: var(--viz-bad-2); }
+.iso-rank.is-good .iso-rank__head::before { background: var(--viz-good-2); }
+
+.iso-rank ol {
+  margin: 0;
+  padding-left: 1.6em;
+  font-size: 12.5px;
+  line-height: 1.9;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.iso-rank__kana {
+  display: inline-block;
+  min-width: 1.6em;
+  margin-right: 8px;
+  color: var(--fg);
+  font-size: 15px;
+}
+
+.iso-rank__none { margin: 0; font-size: 12.5px; color: var(--fg-dim); }
+
+.iso-details { margin-top: 14px; }
+.iso-details summary { cursor: pointer; font-size: 12.5px; color: var(--fg-mid); }
+.iso-table { margin-top: 8px; }
+
+.iso-empty { margin: 8px 0; color: var(--fg-mid); font-size: 13px; }
+
+/* ---------------------------------------------------------------- 表の中の小さな線（課題ごとの成績） */
+
+.spark { display: block; }
+.spark__line { fill: none; stroke: var(--tone); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.spark__dot { fill: var(--tone); }
+.rec__spark { width: 104px; }
+.rec-scroll { overflow-x: auto; }
+.rec-scroll .rec td,
+.rec-scroll .rec th { white-space: nowrap; }

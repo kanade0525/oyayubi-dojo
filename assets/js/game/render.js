@@ -20,8 +20,10 @@
 //   練習画面は静か、ゲームは派手。ただし «読む字» の周りだけは静かに保つ。
 //   注文札（いま打つ単語）の上には演出を重ねない。光るのは皿と金額の側。
 //   外部画像は使わない（CSP と «外へ出ない» 約束）。皿も寿司も図形で描く。
+//   皿の上の絵は neta.js が持つ。語ごとに決まった一枚（words.js の pic）を描く。
 
 import { keyFor } from './engine.js';
+import { drawPic } from './neta.js';
 
 // app.css の --ui と同じ並び。system-ui を先頭にすると Windows・Linux で書体がばらつく
 // 数字も同じ書体で描く。等幅の欧文書体は端末の画面のような字面になり、隣の「円」「秒」と書体が二つ並ぶ。
@@ -42,23 +44,6 @@ const PLATES = [
   { rim: '#d4a83c', face: '#fbf5e4', band: '#a8801f' },  // 金
   { rim: '#2b2b30', face: '#3a3a42', band: '#c9a54a' },  // 黒（金縁）
 ];
-
-/** 寿司ネタ。単語の意味とは結び付けない（任意の語に意味の合う絵は出せない）。
-    皿ごとに決まった一つを選ぶ。«皿が流れている» が分かることが目的 */
-const NETA = [
-  { kind: 'nigiri', color: '#c9303f', stripe: null },          // まぐろ
-  { kind: 'nigiri', color: '#f0874a', stripe: '#fbd0b2' },     // サーモン
-  { kind: 'nigiri', color: '#f3c94b', stripe: null, nori: true }, // 玉子
-  { kind: 'nigiri', color: '#eeeae0', stripe: '#d8d2c4' },     // いか
-  { kind: 'nigiri', color: '#f2795c', stripe: '#fff1e8' },     // えび
-  { kind: 'gunkan', color: '#e8561f' },                        // いくら
-  { kind: 'gunkan', color: '#e2a531' },                        // うに
-  { kind: 'maki', color: '#4caf50' },                          // かっぱ
-  { kind: 'maki', color: '#c9303f' },                          // 鉄火
-];
-
-const RICE = '#f4efe4';
-const NORI = '#1d2a22';
 
 /** 一つの値を [r,g,b,a] として持つ。canvas に渡すときは rgba(...) に戻す */
 const rgba = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] ?? 1) * a})`;
@@ -189,83 +174,6 @@ export function createRenderer(canvas) {
     return Math.max(0, Math.min(PLATES.length - 1, Math.round(k * (PLATES.length - 1))));
   }
 
-  function netaOf(id) {
-    // 皿の id から決める。同じ皿は流れている間ずっと同じネタ
-    const h = (id * 2654435761) >>> 0;
-    return NETA[h % NETA.length];
-  }
-
-  function drawSushi(cx, cy, R, neta) {
-    const w = R * 1.25;
-    const h = R * 0.62;
-    // 影
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath();
-    ctx.ellipse(cx, cy + h * 0.38, w * 0.62, h * 0.32, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    if (neta.kind === 'nigiri') {
-      // しゃり
-      ctx.fillStyle = RICE;
-      roundRect(cx - w / 2, cy - h * 0.45, w, h * 0.8, h * 0.35);
-      ctx.fill();
-      // ネタ。少し大きく、角を丸めて上にかぶせる
-      ctx.fillStyle = neta.color;
-      roundRect(cx - w * 0.58, cy - h * 0.78, w * 1.16, h * 0.62, h * 0.32);
-      ctx.fill();
-      if (neta.stripe) {
-        ctx.strokeStyle = neta.stripe;
-        ctx.lineWidth = Math.max(1.5, R * 0.05);
-        for (let i = -1; i <= 1; i++) {
-          ctx.beginPath();
-          ctx.moveTo(cx + i * w * 0.3 - w * 0.08, cy - h * 0.74);
-          ctx.lineTo(cx + i * w * 0.3 + w * 0.08, cy - h * 0.22);
-          ctx.stroke();
-        }
-      }
-      if (neta.nori) {
-        ctx.fillStyle = NORI;
-        ctx.fillRect(cx - w * 0.1, cy - h * 0.8, w * 0.2, h * 1.12);
-      }
-      // つや
-      ctx.fillStyle = 'rgba(255,255,255,0.28)';
-      roundRect(cx - w * 0.42, cy - h * 0.7, w * 0.4, h * 0.12, h * 0.06);
-      ctx.fill();
-    } else if (neta.kind === 'gunkan') {
-      ctx.fillStyle = NORI;
-      roundRect(cx - w * 0.42, cy - h * 0.55, w * 0.84, h * 0.95, h * 0.2);
-      ctx.fill();
-      ctx.fillStyle = neta.color;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy - h * 0.55, w * 0.42, h * 0.24, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // 粒（いくら・うに）
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      for (let i = 0; i < 5; i++) {
-        ctx.beginPath();
-        ctx.arc(cx + (i - 2) * w * 0.15, cy - h * 0.6 + (i % 2) * h * 0.08, Math.max(1.2, R * 0.04), 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else {
-      // 細巻き二つ
-      for (const dx of [-0.26, 0.26]) {
-        const x = cx + dx * w;
-        ctx.fillStyle = NORI;
-        ctx.beginPath();
-        ctx.ellipse(x, cy - h * 0.15, w * 0.24, h * 0.5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = RICE;
-        ctx.beginPath();
-        ctx.ellipse(x, cy - h * 0.38, w * 0.2, h * 0.24, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = neta.color;
-        ctx.beginPath();
-        ctx.ellipse(x, cy - h * 0.38, w * 0.08, h * 0.1, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-
   function drawPlate(cx, cy, R, tier, { glow = null, alpha = 1, scale = 1 } = {}) {
     const pc = PLATES[tier];
     const rx = R * 1.3 * scale;
@@ -356,7 +264,8 @@ export function createRenderer(canvas) {
       if (danger) glow = rgba(C.misfire, 0.6 + 0.4 * Math.sin(now / 70));
 
       drawPlate(cx, cy, g.R, tier, { glow });
-      drawSushi(cx, cy - g.R * 0.08, g.R, netaOf(p.id));
+      // 絵は語ごとに決まっている（words.js の pic）。読んだ字と目に入る絵を食い違わせない
+      drawPic(ctx, p.word.pic, cx, cy - g.R * 0.08, g.R);
 
       // 札（名前と値段）。皿の下に吊るす
       const tagW = g.R * 2.5;

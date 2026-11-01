@@ -26,6 +26,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const WORDS_PATH = join(ROOT, 'assets/js/game/words.js');
 const COURSES_PATH = join(ROOT, 'assets/js/game/courses.js');
 const LAYOUT_PATH = join(ROOT, 'assets/js/layout.js');
+const NETA_PATH = join(ROOT, 'assets/js/game/neta.js');
 
 const load = async (p) => {
   try {
@@ -37,6 +38,7 @@ const load = async (p) => {
 const words = await load(WORDS_PATH);
 const courses = await load(COURSES_PATH);
 const layoutMod = await load(LAYOUT_PATH);
+const neta = await load(NETA_PATH);
 
 function need(got, path, what) {
   if (got.error) assert.fail(`${path} を読み込めない。まだ実装されていない。\n    要るもの : ${what}\n    実際の理由: ${got.error.message}`);
@@ -98,6 +100,13 @@ describe('words.js', () => {
     const ok = typable();
     for (const ch of ['マ', '鮪', ' ', 'a', 'ゐ']) assert.ok(!ok.has(ch), `「${ch}」が打てる字に入っている（集合の作り方が壊れている）`);
     for (const ch of ['ま', 'ぐ', 'ろ', 'ぱ', 'ー', 'ゃ', 'っ']) assert.ok(ok.has(ch), `「${ch}」が打てる字に入っていない`);
+  });
+
+  // 皿の絵は語ごとに決めてある。無い名前は描く瞬間に例外になり、ゲームが止まる
+  test('全語の pic が neta.js の PICS にある', () => {
+    need(neta, NETA_PATH, 'export const PICS = { 名前: (ctx, cx, cy, R) => {} }');
+    const bad = readyWords().filter((w) => typeof w.pic !== 'string' || typeof neta.mod.PICS[w.pic] !== 'function');
+    assert.deepEqual(bad.map((w) => `${w.kana}（pic: ${w.pic}）`), [], '絵の無い語がある');
   });
 
   for (const [lo, hi] of BANDS) {

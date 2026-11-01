@@ -27,7 +27,7 @@
 | デザイン | `index.html` / `assets/css/app.css` / `assets/js/keyboard.js` / `assets/js/meter.js` |
 | トークンエコノミー | `assets/js/storage.js` / `assets/js/trophies.js` |
 | ゲーム企画 | `assets/js/game/words.js` / `assets/js/game/courses.js` / `docs/game-design.md` |
-| ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/render.js` / `assets/js/game/main.js` |
+| ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/render.js` / `assets/js/game/neta.js` / `assets/js/game/main.js` |
 | ランキング（サーバー） | `server/` 配下すべて / `assets/js/game/ranking.js` / `tools/server.test.mjs` |
 | コア（ゲームの設定値） | `assets/js/game/config.js` |
 | 可視化（コア） | `assets/js/viz.js` / `assets/js/iso.js` / `assets/css/viz.css` / `tools/iso.test.mjs` |
@@ -267,11 +267,12 @@ export const COMBO_TIME_BONUS_MS         // 延長する時間
 ### `assets/js/game/words.js`（ゲーム企画）
 
 ```js
-export const WORDS = [ { kana: 'まぐろ', label: '鮪' }, ... ]
+export const WORDS = [ { kana: 'まぐろ', label: '鮪', pic: 'maguro' }, ... ]
 ```
 
 - `kana` は **NICOLA 配列で打てる字だけ**で書く（`loadLayout('nicola')` の三面に現れる字）。拗音の小さい字・長音「ー」は配列にあれば可
 - `label` は画面で大きく見せる表記（漢字かな交じり）。打つのは `kana`
+- `pic` は皿に載せる絵の名前（`neta.js` の `PICS` の鍵）。語が指す物の絵にする。寿司でない語はその物、季節の語はその季節の物
 - 寿司ネタ・和食・日常語など。下品・差別的な語、実在の商標・人名は入れない
 - 長さの帯（2〜4 / 3〜7 / 5〜12）それぞれに **最低 40 語**
 

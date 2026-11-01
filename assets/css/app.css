@@ -381,6 +381,13 @@ kbd {
   letter-spacing: 0.06em;
 }
 
+/* «鍛える» の頭に置く一行。弱点の一覧は記録へ移したので、そこへの道だけ残す */
+.train__weak {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--fg-mid);
+}
+
 .page__lead {
   margin: -6px 0 0;
   max-width: 42rem;

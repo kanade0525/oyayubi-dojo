@@ -585,39 +585,14 @@
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。下の弱点は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。弱点は記録で読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
       </p>
     </aside>
 
-    <!-- いま何が弱いか。ここで打つことの «根拠» なので一番上 -->
-    <div class="card" id="drillWeakCard">
-      <h2 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h2>
-
-      <p class="skew__ends">
-        <span class="skew__end--early">親指が先行</span>
-        <b>ぴったり</b>
-        <span class="skew__end--late">親指が遅れ</span>
-      </p>
-      <div class="skews">
-        <div class="skew">
-          <span class="skew__label">左親指</span>
-          <span class="skew__rail"><i class="skew__mark" id="drillSkewLeftMark"></i></span>
-          <span class="skew__val" id="drillSkewLeftVal">—</span>
-        </div>
-        <div class="skew">
-          <span class="skew__label">右親指</span>
-          <span class="skew__rail"><i class="skew__mark" id="drillSkewRightMark"></i></span>
-          <span class="skew__val" id="drillSkewRightVal">—</span>
-        </div>
-      </div>
-
-      <!-- 空の受け皿。app.js が <li class="weak"> を並べる。中身の形は CSS 側の注記を見よ -->
-      <ul class="weaks" id="drillWeak"></ul>
-      <p class="empty" id="drillWeakEmpty" hidden>まだ弱点を言えるほど記録がありません。何本か打つと出ます。</p>
-    </div>
+    <p class="train__weak">いまの弱点（落としている面と親指のズレ）は <a class="link" href="#/record">記録</a> で見られます。「弱点集中」はそこに出ている面を狙って組みます。</p>
 
     <!-- 三つのモード。閉じているものは app.js が is-locked を付ける。
          見出しを足したのは «この三つ» と «下の実文・自由入力» が別の種類だから。
@@ -806,6 +781,34 @@
     <div class="card">
       <h2 class="card__head">得意・苦手<span class="card__count">柱にマウスを乗せると数字が出ます</span></h2>
       <div class="iso" id="isoBoard"></div>
+    </div>
+
+    <!-- いま何が弱いか。以前は «鍛える» の頭に置いていたが、自分の記録を読む場所はここ（2026-11-02）。
+         «鍛える» には一行の案内だけ残す -->
+    <div class="card" id="drillWeakCard">
+      <h2 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h2>
+
+      <p class="skew__ends">
+        <span class="skew__end--early">親指が先行</span>
+        <b>ぴったり</b>
+        <span class="skew__end--late">親指が遅れ</span>
+      </p>
+      <div class="skews">
+        <div class="skew">
+          <span class="skew__label">左親指</span>
+          <span class="skew__rail"><i class="skew__mark" id="drillSkewLeftMark"></i></span>
+          <span class="skew__val" id="drillSkewLeftVal">—</span>
+        </div>
+        <div class="skew">
+          <span class="skew__label">右親指</span>
+          <span class="skew__rail"><i class="skew__mark" id="drillSkewRightMark"></i></span>
+          <span class="skew__val" id="drillSkewRightVal">—</span>
+        </div>
+      </div>
+
+      <!-- 空の受け皿。app.js が <li class="weak"> を並べる。中身の形は CSS 側の注記を見よ -->
+      <ul class="weaks" id="drillWeak"></ul>
+      <p class="empty" id="drillWeakEmpty" hidden>まだ弱点を言えるほど記録がありません。何本か打つと出ます。</p>
     </div>
 
     <div class="card">

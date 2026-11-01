@@ -933,6 +933,13 @@ function paintMypage() {
   const rep = offsetReport(stats);
   paintNav(stats);
 
+  // いまの弱点（以前は «鍛える» の頭にあった）
+  setSkew(el.drillSkewLeftMark, el.drillSkewLeftVal, rep?.left);
+  setSkew(el.drillSkewRightMark, el.drillSkewRightVal, rep?.right);
+  const weak = weakFaces(stats, { limit: 6 });
+  if (el.drillWeakCount) el.drillWeakCount.textContent = `${weak.length}面`;
+  paintWeakList(el.drillWeak, el.drillWeakEmpty, stats);
+
   el.rankName.textContent = stats.rank ?? RANKS[0].name;
   el.rankScore.textContent = `SCORE ${stats.score ?? 0}`;
   // nextRankGap は { next, cpmGap, accGap }。文言はこちらで組む。
@@ -1281,18 +1288,12 @@ function paintRomajiCard(stats) {
 
 function paintDrill() {
   const stats = loadStats();
-  const rep = offsetReport(stats);
   paintNav(stats);
 
   // 門は撤去した。以前は測定（腕試し）を通さないと三つとも押せなかったが、
   // 測らないと出せないのは「弱点集中」の狙いだけで、そのために全部を閉じるのは重すぎた。
   // 弱点が出せない間は、下の一覧が自分でそう言う。
-  setSkew(el.drillSkewLeftMark, el.drillSkewLeftVal, rep?.left);
-  setSkew(el.drillSkewRightMark, el.drillSkewRightVal, rep?.right);
-
-  const weak = weakFaces(stats, { limit: 6 });
-  if (el.drillWeakCount) el.drillWeakCount.textContent = `${weak.length}面`;
-  paintWeakList(el.drillWeak, el.drillWeakEmpty, stats);
+  // 弱点の一覧は記録の画面へ移した（paintMypage）。ここは出題の札だけ
 
   for (const [btn, meta, m] of [
     [el.btnDrillWeak, el.drillWeakMeta, DRILL_MODES.weak],

@@ -112,7 +112,7 @@
   color: var(--tone);
 }
 
-/* 看板。練習画面の見出しより一段太いゴシックで組む。明朝は道場の看板だけに使う（app.css の --head の注記）。
+/* 看板。練習画面の見出しより一段太いゴシックで組む。書体は全画面でこの一つ（app.css の --ui の注記）。
    光らせない。のれんの朱を一本、無地で添える。赤から金へのグラデーションは
    何の色でもなかったのでやめた */
 .g-title__head {
@@ -210,7 +210,8 @@
   position: absolute;
   top: 10px;
   right: 12px;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--fg-dim);
 }

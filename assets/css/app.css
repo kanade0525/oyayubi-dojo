@@ -57,18 +57,13 @@
      system-ui は先頭に置かない。Windows では Meiryo UI や Yu Gothic UI に、
      Linux では欧文書体に化けて、和文の組みが環境ごとにばらばらになる。
 
-     本文も見出しも数字もゴシック。明朝は「道場の看板」一か所だけに使う。
-     数字は等幅の欧文書体にしない。大きく出すと端末の画面のような字面になり、隣の「円」「秒」と
-     書体が二つ並ぶ。桁の揺れは tabular-nums（数字だけ同じ幅）で止める。
-     --mono はキーの名前・保存キーなど «コードそのもの» を見せる所にだけ使う。
+     書体はこの一つだけ。看板も見出しも本文も数字もキーの名前も同じゴシックで組む。
+     明朝の看板や等幅の英字を混ぜていたが、一画面に書体が二つ三つ並ぶと
+     «寄せ集め» に見えるので全部やめた。太さと大きさだけで役を分ける。
+     数字の桁の揺れは tabular-nums（数字だけ同じ幅）で止める。
      Windows は BIZ UD を先に当てる。Yu Gothic の Regular は画面で細く薄く出る */
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --ui: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
     "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
-  --head: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "Noto Serif CJK JP", "Noto Serif JP", serif;
-  /* かなを大きく出すところ専用。等幅にすると仮名の字面が痩せる */
-  --kana: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDGothic", "Yu Gothic", "Noto Sans CJK JP",
-    "Noto Sans JP", sans-serif;
 
   /* 角は小さく。大きな角丸の札が均等に並ぶと、どの画面も同じ «カードの束» に見える。
      ここは道具なので、角は «手が切れない» 程度に落とす */
@@ -141,13 +136,11 @@ body {
    何も指していない光は飾りでしかなく、どの画面も同じ «それらしい» 顔になるのでやめた。
    地は一色。面の区別は罫と札の地色で付ける */
 
-/* 明朝は看板（「親指シフト タイピング道場」）だけ。画面名や札の名前まで明朝にすると、
-   ゴシックの本文・数字と三種類の書体が並び、どの書体が何の役か読めなくなった。
-   看板以外の見出しはゴシックの太字で組み、約物だけ詰める（palt）。
+/* 看板と見出しは本文と同じゴシックの太字で組み、約物だけ詰める（palt）。
    本文には palt を掛けない。長い文で字間が揺れると読む速さが落ちる */
 .nav__brand,
 .hero__title {
-  font-family: var(--head);
+  font-weight: 700;
   font-feature-settings: "palt";
 }
 
@@ -200,7 +193,8 @@ a {
 
 code,
 kbd {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
 }
 
 kbd {
@@ -890,12 +884,12 @@ kbd {
   padding: 26px 0 8px;
 }
 
-/* 看板。光らせず、明朝の字の形だけで立たせる。
+/* 看板。光らせず、大きさと太さだけで立たせる。
    «親指シフト» が何の道場かを言う語なので大きく、«タイピング道場» は添え書きの大きさ */
 .hero__title {
   margin: 0;
   font-size: clamp(30px, 5.4vw, 52px);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.2;
   letter-spacing: 0.04em;
   color: var(--fg);
@@ -1670,7 +1664,7 @@ a.pick__one:hover .pick__go {
      ここが中身なりに縮むと «次の一打» 以下が毎行上下する。
      打鍵の的（メーター）が動くのがいちばんまずい */
   min-height: calc(var(--phrase-size) * 1.5);
-  font-family: var(--kana);
+  font-family: var(--ui);
   font-size: var(--phrase-size);
   letter-spacing: 0.06em;
   color: var(--fg-dim);
@@ -1729,7 +1723,7 @@ a.pick__one:hover .pick__go {
    色が見えない人にも «下線のある段が打つ段» で分かる。 */
 .script__next {
   margin: 0;
-  font-family: var(--kana);
+  font-family: var(--ui);
   /* いまの行の半分。ただし 12px は下回らせない ── 幅の狭い端末では
      --phrase-size 自体が下限（18px）に張り付くので、素直に半分にすると 9px になる。
      打てない端末でも «読める» ようにはしておく */
@@ -1777,7 +1771,7 @@ a.pick__one:hover .pick__go {
 /* 字で言うほう（«3 / 18行　72/460字»）。ほかの数値と同じ棚・同じ小ささで右に置く。
    お題のそばに置かないのは、一打ごとに動く数字を目のよりどころの隣に出すと、
    打っている最中にそれを読んでしまうから。
-   .stats が等幅（var(--mono)）で、そこに tabular-nums を足してあるので、
+   .stats に tabular-nums（数字だけ同じ幅）を掛けてあるので、
    字数が 1 ずつ増える途中で幅が揺れない（桁が増える瞬間だけ動く） */
 .stat--count {
   font-size: 11.5px;
@@ -1833,7 +1827,7 @@ a.pick__one:hover .pick__go {
 }
 
 .cue__kana {
-  font-family: var(--kana);
+  font-family: var(--ui);
   font-size: 34px;
   font-weight: 600;
   line-height: 1;
@@ -2238,7 +2232,7 @@ a.pick__one:hover .pick__go {
   display: grid;
   place-items: center;
   min-height: 17px;
-  font-family: var(--kana);
+  font-family: var(--ui);
   font-size: 12px;
   line-height: 1;
   border-radius: 3px;
@@ -2269,7 +2263,7 @@ a.pick__one:hover .pick__go {
   display: grid;
   place-items: center;
   min-height: 24px;
-  font-family: var(--kana);
+  font-family: var(--ui);
   font-size: 18px;
   line-height: 1;
   color: var(--fg);
@@ -2279,7 +2273,8 @@ a.pick__one:hover .pick__go {
   position: absolute;
   top: 2px;
   right: 4px;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 8px;
   color: color-mix(in srgb, var(--fg-dim) 55%, transparent);
   pointer-events: none;
@@ -2802,7 +2797,8 @@ a.pick__one:hover .pick__go {
   margin: 0;
   padding: 10px 14px;
   list-style: none;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   color: var(--fg-dim);
   background: var(--sunken);
@@ -2851,14 +2847,13 @@ a.pick__one:hover .pick__go {
   width: 6.5em;
   font-family: var(--ui);
   font-variant-numeric: tabular-nums;
-  font-variant-numeric: tabular-nums;
 }
 
 /* 貼り付け欄。打つのは日本語なので、かな用の書体で行間を広く取る */
 .input--area {
   width: 100%;
   min-height: 108px;
-  font-family: var(--kana);
+  font-family: var(--ui);
   font-size: 14px;
   line-height: 1.95;
   resize: vertical;

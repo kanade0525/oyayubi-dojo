@@ -26,6 +26,10 @@
 | テスト | `tools/` 配下すべて / `.github/workflows/check.yml` |
 | デザイン | `index.html` / `assets/css/app.css` / `assets/js/keyboard.js` / `assets/js/meter.js` |
 | トークンエコノミー | `assets/js/storage.js` / `assets/js/trophies.js` |
+| ゲーム企画 | `assets/js/game/words.js` / `assets/js/game/courses.js` / `docs/game-design.md` |
+| ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/render.js` / `assets/js/game/main.js` |
+| ランキング（サーバー） | `server/` 配下すべて / `assets/js/game/ranking.js` / `tools/server.test.mjs` |
+| コア（ゲームの設定値） | `assets/js/game/config.js` |
 
 ## 用語
 
@@ -221,6 +225,145 @@ export function showJudgement(container, { offsetMs, tier })
 | `misfire` | シフトが効かず単打になった | 不発。打ち直させる |
 
 向きを出すのが肝。親指が遅い人と早すぎる人では直し方が逆なので、向きが無いと直せない。
+
+## ゲーム「回転ずし」（2026-11-02 追加）
+
+`game.html` は独立したページ。`index.html` / `app.js` には手を入れず、ナビから一本リンクを張るだけにする。
+練習（覚える・鍛える）は**静か**、ゲームは**派手**。この対比は崩さない。
+
+### 遊び方の骨格
+
+- レーンを皿が流れる。皿には**かなの単語**が載っている。先頭の皿の単語を親指シフトで打ち切ると、皿を取れて値段が入る
+- 打ち切る前に皿がレーンの端まで流れたら、その皿は取り逃し（お金は入らない、ミスにも数えない）
+- **制限時間が尽きたら終わり**。取った皿の合計金額と、コースの値段を比べて「得した／損した」を出す
+- **ここだけの味付け：同時打鍵のズレ**。シフトを使う一打が `perfect`（±15ms）なら「ぴったり」で皿の値段に上乗せ。
+  道場の本題（ズレ）をゲームでも報酬にする。単打（シフトなし）の字には加点もしない、減点もしない
+- 連続正打（コンボ）が一定数ごとに残り時間が延びる
+- 打ち間違い・不発（`misfire`）はミス。その字は進まない（打ち直し）。コンボは切れる
+
+### `assets/js/game/courses.js`（ゲーム企画）
+
+```js
+export const COURSES = [
+  {
+    id: 'otegaru',            // 'otegaru' | 'osusume' | 'koukyu' の三つで固定。ランキングの鍵になる
+    name: 'お手軽',
+    price: 3000,              // コースの値段（円）。これと取った金額を比べて得・損を出す
+    timeMs: 60000,            // 制限時間
+    laneMs: 9000,             // 皿がレーンの端から端まで流れる時間
+    minLen: 2, maxLen: 4,     // 出す単語のかなの長さ
+  },
+  // osusume, koukyu
+];
+export function plateValue(course, word)  // 皿一枚の値段（円）。単語の長さで決まる
+export const PERFECT_BONUS               // ぴったり一打ごとの上乗せ（円）
+export const COMBO_STEP                  // コンボがこの数に達するごとに時間延長
+export const COMBO_TIME_BONUS_MS         // 延長する時間
+```
+
+### `assets/js/game/words.js`（ゲーム企画）
+
+```js
+export const WORDS = [ { kana: 'まぐろ', label: '鮪' }, ... ]
+```
+
+- `kana` は **NICOLA 配列で打てる字だけ**で書く（`loadLayout('nicola')` の三面に現れる字）。拗音の小さい字・長音「ー」は配列にあれば可
+- `label` は画面で大きく見せる表記（漢字かな交じり）。打つのは `kana`
+- 寿司ネタ・和食・日常語など。下品・差別的な語、実在の商標・人名は入れない
+- 長さの帯（2〜4 / 3〜7 / 5〜12）それぞれに **最低 40 語**
+
+### `assets/js/game/engine.js`（ゲーム画面）— DOM を知らない
+
+`nicola.js` と同じく**時刻は必ず引数で受け取る**。中で `performance.now()` / `Date.now()` / `Math.random()` を読まない（テストから時間を進めるため）。乱数は `rng` で受け取る。
+
+```js
+export function createGame({ course, words, rng })   // rng: () => number（0 以上 1 未満）
+// 返すもの
+{
+  start(t),                 // 開始時刻を入れる
+  input(result, t),         // nicola.js の onOutput の result をそのまま渡す。返り値は events の配列
+  tick(t),                  // 時間だけ進める。返り値は events の配列
+  get state(),              // 描画用のスナップショット（下）
+  summary(),                // 終了後の結果（下）。終わる前に呼んだら throw
+}
+
+// state
+{
+  phase: 'ready' | 'playing' | 'over',
+  remainingMs,
+  plates: [ { id, word: {kana,label}, value, typed /* 打ち終えた字数 */, x /* 0..1 レーン上の位置 */ } ],  // 先頭が打つ対象
+  money, combo, maxCombo,
+}
+
+// events の要素（描画と音の合図。並べた順に起きた）
+{ type: 'hit',     plateId, kana, tier }     // 一字進んだ。tier は meter.js の tierOf の値（単打なら null）
+{ type: 'perfect', plateId, bonus }          // ぴったりの上乗せ
+{ type: 'miss',    plateId, expected, got }  // 打ち間違い・不発
+{ type: 'clear',   plateId, value }          // 皿を取った
+{ type: 'lost',    plateId }                 // 流れて取り逃した
+{ type: 'combo',   combo, bonusMs }          // 時間延長
+{ type: 'over' }
+
+// summary()
+{
+  course: 'otegaru',
+  money,                    // 取った金額（円）＝ランキングのスコア
+  balance,                  // money - course.price
+  plates, lost, strokes, misses,
+  accuracy,                 // 0..1
+  kpm,                      // 一分あたりの正しい打鍵（かな）数
+  perfect, shifted,         // ぴったりの数 / シフトを使った打鍵の数
+  maxCombo,
+  durationMs,
+}
+```
+
+### `assets/js/game/config.js`（コア）
+
+```js
+export const RANKING_API_URL = '';   // 空ならランキングは「準備中」と画面に出す（隠さない）
+export const SUPPORT_URL = '';       // Buy Me a Coffee の URL。空なら支援リンクは出さない
+```
+
+本番の値は石田さんが入れる。**ダミーの URL は入れない**（投げ銭が他人に飛ぶ・存在しない API を叩く）。
+
+### `assets/js/game/ranking.js`（ランキング）
+
+```js
+export function rankingEnabled()                       // RANKING_API_URL が空でなければ true
+export function currentPlayer()                        // { playerId, nickname } | null（localStorage）
+export async function register({ nickname, consent })  // consent が true でなければ throw。{ playerId, nickname }
+export async function submitScore(summary)             // 登録済みでなければ throw。{ rank, best, isBest }
+export async function fetchRanking({ course, period }) // period: 'all' | 'month'。[{ rank, nickname, money, kpm, accuracy, at }]
+export async function forgetMe()                       // サーバーの記録を消し、手元の登録も消す
+```
+
+- **失敗は throw する**。握りつぶして空配列を返さない（「ランキングが空」と「つながらない」を画面で区別できなくなる）
+- 送るのは**ニックネームとスコアだけ**。メールアドレス・本名は取らない。手元の記録（localStorage の練習記録）は送らない
+- 登録時の同意文に「何を送るか・どこに残るか・消し方」を書く。同意の版（`CONSENT_VERSION`）をサーバーに残す
+- localStorage のキーは `oyayubi-dojo:player:v1`
+
+### サーバー（`server/`）
+
+AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを使い、依存パッケージを足さない）→ DynamoDB（1 テーブル）。
+
+| メソッド | パス | 中身 |
+| --- | --- | --- |
+| POST | `/players` | `{ nickname, consent: true, consentVersion }` → `{ playerId, token }` |
+| POST | `/scores` | `Authorization: Bearer <token>`。summary を受けて自己ベストなら更新 |
+| GET | `/ranking?course=&period=` | 上位 50 件 |
+| DELETE | `/players/me` | `Authorization: Bearer <token>`。本人の全記録を消す |
+
+- token はサーバーにハッシュでだけ残す
+- スコアは**ありえない値を弾く**（コースの時間と打鍵速度の上限から決まる上限金額を超えたら 400）
+- 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。今はダミー値。本番値は石田さんが入れる
+- 判断ロジック（検証・ハッシュ・順位）は `server/src/core.mjs` に置き、DynamoDB を差し替えられる形にする。テストは手元の偽ストアで回す
+
+### CSP
+
+ランキングは外への通信なので、`connect-src` は **`'none'` か、`RANKING_API_URL` のオリジンちょうど一つ**のどちらかに限る。
+`RANKING_API_URL` が空なら `'none'` のまま。検査はこの対応を突き合わせる。
+外部リンク（`<a href="https://...">`、Buy Me a Coffee）は通信ではなく遷移なので許す。`src=` の外部参照は引き続き禁止。
 
 ## 画面
 

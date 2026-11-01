@@ -122,6 +122,8 @@ async function call(method, path, { body, token } = {}) {
 export async function register({ nickname, consent }) {
   if (consent !== true) throw new RankingError('同意が無いので登録しません');
   if (typeof nickname !== 'string' || nickname.trim() === '') throw new RankingError('ニックネームを入れてください');
+  // 二重に登録すると手元の token が上書きされ、先の登録の記録をこの端末から消せなくなる
+  if (loadPlayer()) throw new RankingError('この端末はもう参加しています');
 
   const data = await call('POST', '/players', {
     body: { nickname, consent: true, consentVersion: CONSENT_VERSION },

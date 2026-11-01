@@ -178,6 +178,15 @@ export function validateScore(body) {
   if (kpm > HUMAN_MAX_KPM) throw bad('ありえない記録です（速さ）');
   if (money > maxMoneyOf(course)) throw bad('ありえない記録です（金額）');
 
+  // 値どうしの突き合わせ。上の三つは一つずつ上限と比べるだけなので、
+  // 「金額だけ上限ぴったり・速さ 1・時間 1ms」のような矛盾した組を通してしまう。
+  // ゲームは時間切れでしか終わらない（途中でやめた回は送らない）ので、時間は制限時間を下回らない
+  if (durationMs < COURSE_LIMITS[course].timeMs - DURATION_SLACK_MS) throw bad('ありえない記録です（時間が短い）');
+  // 取った金額は「正しく打った字数 ×（一字の単価＋ぴったりの上乗せ）」を超えない。
+  // 字数は kpm と時間から戻せる。送る側で時間を丸めるので一字ぶんの余裕を持たせる
+  const kanaTyped = Math.ceil((kpm * durationMs) / 60_000 + 1);
+  if (money > kanaTyped * (COURSE_LIMITS[course].yenPerKana + PERFECT_BONUS)) throw bad('ありえない記録です（速さと金額が合わない）');
+
   return { course, money, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
 }
 

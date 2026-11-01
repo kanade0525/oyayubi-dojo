@@ -31,6 +31,9 @@ sam deploy --guided --parameter-overrides \
 - `TokenPepper` … token のハッシュに混ぜる秘密（32 字以上）。**変えると全員の登録が通らなくなる**ので、
   一度決めたらパスワード管理に控えておく。`samconfig.toml` には書かない
 
+`--guided` は最後に「設定を samconfig.toml に保存するか」を聞く。**n と答える。**
+y にすると本番の AllowedOrigin（と SAM の版によっては TokenPepper）が、コミットされるファイルに書き戻される。
+
 `samconfig.toml` と `.env.example` の値はダミー。`CHANGE_ME` のままではデプロイで弾かれる。
 
 ## デプロイ後

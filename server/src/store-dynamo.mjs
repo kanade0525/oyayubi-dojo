@@ -26,6 +26,7 @@ import {
   PutCommand,
   QueryCommand,
   TransactWriteCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { HttpError, boardSortKey } from './core.mjs';
 
@@ -90,7 +91,8 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
               ConditionCheck: {
                 TableName: tableName,
                 Key: { PK: pk(playerId), SK: 'PROFILE' },
-                ConditionExpression: 'attribute_exists(PK)',
+                // 消している最中（deleting）のプロフィールには書かせない。下の deletePlayer を参照
+                ConditionExpression: 'attribute_exists(PK) AND attribute_not_exists(deleting)',
               },
             },
             {
@@ -156,6 +158,23 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
     },
 
     async deletePlayer(playerId) {
+      // まず消している最中の印を付ける。これが無いと、自己ベストを消してからプロフィールを消すまでの
+      // 間に届いた送信が条件（プロフィールが在る）を通って自己ベストを書き戻し、その直後に
+      // プロフィールが消えて、本人の手の届かない記録が順位表に残る。
+      // 印はプロフィールに付けるので、途中で落ちても token は通り、もう一度「消す」を押せる
+      try {
+        await db.send(new UpdateCommand({
+          TableName: tableName,
+          Key: { PK: pk(playerId), SK: 'PROFILE' },
+          UpdateExpression: 'SET deleting = :t',
+          ConditionExpression: 'attribute_exists(PK)',
+          ExpressionAttributeValues: { ':t': true },
+        }));
+      } catch (err) {
+        if (err.name !== 'ConditionalCheckFailedException') throw err;
+        // プロフィールがもう無い。消し残しの自己ベストがあれば下で拾って消す
+      }
+
       const keys = [];
       let ExclusiveStartKey;
       do {

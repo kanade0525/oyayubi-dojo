@@ -223,8 +223,23 @@ describe('自己ベスト', () => {
       assert.equal((await req('POST', '/scores', { token, body: broken })).status, 400, JSON.stringify(broken));
     }
     assert.equal(store.bests.size, 0);
-    // 上限ちょうどは通る
-    assert.equal((await req('POST', '/scores', { token, body: score(max) })).status, 200);
+    // 上限ちょうどは、速さと時間がそれに見合っていれば通る（毎分 600 かな・延長込みの最長時間）
+    assert.equal((await req('POST', '/scores', { token, body: score(max, { kpm: 600, durationMs: core.maxDurationMsOf('otegaru') }) })).status, 200);
+  });
+
+  test('値どうしが合わない組は 400（どれも単独では上限の内側）', async () => {
+    const { req, register, score, store } = setup();
+    const { token } = await register('a');
+    const max = maxMoneyOf('otegaru');
+    // 金額だけ上限ちょうど・速さ 1・時間 1ms
+    assert.equal((await req('POST', '/scores', { token, body: score(max, { kpm: 1, accuracy: 0.5, durationMs: 1 }) })).status, 400);
+    // 制限時間より短い（ゲームは時間切れでしか終わらない）
+    assert.equal((await req('POST', '/scores', { token, body: score(100, { durationMs: 30_000 }) })).status, 400);
+    // 毎分 120 かな × 60 秒 ≒ 121 字 × (30 + 20) 円 = 6,050 円 を超える
+    assert.equal((await req('POST', '/scores', { token, body: score(6_100) })).status, 400);
+    assert.equal(store.bests.size, 0);
+    // 境目の内側は通る
+    assert.equal((await req('POST', '/scores', { token, body: score(6_050) })).status, 200);
   });
 
   test('上限は時間の長いコースほど高い', () => {

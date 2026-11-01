@@ -278,6 +278,8 @@ function handle(events, t) {
 function finishGame(t) {
   summary = game.summary();
   bestInfo = saveBest(course.id, summary);
+  // 前の回の「送りました」やエラーを持ち越さない。持ち越すと次の結果が送れなくなる
+  submitState = { busy: false, msg: '', kind: '' };
   nicola?.reset();
   screen = 'over';
   sound.finish({ best: bestInfo.isBest });
@@ -384,10 +386,13 @@ function soonNote() {
 
 async function sendSummary() {
   if (!summary || submitState.busy) return;
+  const sent = summary;
   submitState = { busy: true, msg: '送っています…', kind: '' };
   paintSubmit();
   try {
-    const r = await submitScore(summary);
+    const r = await submitScore(sent);
+    // 返事を待つ間に次の回が終わっていたら、古い返事で新しい結果の表示を書き換えない
+    if (summary !== sent) return;
     submitState = {
       busy: false,
       kind: 'ok',
@@ -396,6 +401,7 @@ async function sendSummary() {
         : `送りました。自己ベストは ${yen(r?.best ?? 0)}円で、いま ${r?.rank ?? '—'} 位です`,
     };
   } catch (err) {
+    if (summary !== sent) return;
     submitState = { busy: false, kind: 'error', msg: `送れませんでした：${err.message}` };
   }
   paintSubmit();
@@ -487,7 +493,8 @@ el.rankPeriodTabs.addEventListener('click', (e) => {
 });
 
 el.btnRankBack.addEventListener('click', () => {
-  if (backFromRanking === 'result' && summary) show('result');
+  // ランキング画面で参加・削除をしていれば送信欄の前提が変わっている。描き直してから戻る
+  if (backFromRanking === 'result' && summary) { paintSubmit(); show('result'); }
   else abortToTitle();
 });
 el.btnRegister.addEventListener('click', () => openConsent('ranking'));
@@ -511,6 +518,12 @@ el.btnForget.addEventListener('click', async () => {
 let consentFrom = 'ranking';
 
 function openConsent(from) {
+  // 参加済みなら同意画面は出さない（二重登録すると先の記録をこの端末から消せなくなる）
+  if (currentPlayer()) {
+    if (from === 'result' && summary) { paintSubmit(); show('result'); }
+    else openRanking(backFromRanking);
+    return;
+  }
   consentFrom = from;
   el.consentVersion.textContent = CONSENT_VERSION;
   el.consentError.textContent = '';
@@ -527,7 +540,7 @@ function syncConsent() {
 el.nickname.addEventListener('input', syncConsent);
 el.consentCheck.addEventListener('change', syncConsent);
 el.btnConsentCancel.addEventListener('click', () => {
-  if (consentFrom === 'result') show('result');
+  if (consentFrom === 'result') { paintSubmit(); show('result'); }
   else openRanking(backFromRanking);
 });
 el.btnConsent.addEventListener('click', async () => {

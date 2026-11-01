@@ -20,6 +20,7 @@ import { createNicola } from '../nicola.js';
 import { loadLayout, thumbSideOf } from '../layout.js';
 import { loadSettings } from '../storage.js';
 import { createSound } from '../sound.js';
+import { createSfx, loadSfxOn, saveSfxOn } from './sfx.js';
 import { COURSES } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
@@ -52,6 +53,7 @@ const thumbKeys = {
   right: settings.thumbKeys?.right ?? layout.thumbKeys.right,
 };
 const sound = createSound({ volume: settings.soundVolume ?? 0.4, kind: settings.sound ?? 'off' });
+const sfx = createSfx({ on: loadSfxOn() });
 
 const canvas = $('canvas');
 const renderer = createRenderer(canvas);
@@ -68,6 +70,7 @@ const el = {
   courseList: $('courseList'),
   thumbNames: $('thumbNames'),
   soundNote: $('soundNote'),
+  btnSfx: $('btnSfx'),
   resultCourse: $('resultCourse'),
   resultMoney: $('resultMoney'),
   resultBalance: $('resultBalance'),
@@ -175,6 +178,7 @@ function paintTitle() {
       );
       btn.addEventListener('click', () => {
         sound.prime();
+        sfx.prime();
         startCountdown(c);
       });
       return btn;
@@ -185,12 +189,31 @@ function paintTitle() {
   const nameOf = (codes) => NAME[codes[0]] ?? codes[0];
   el.thumbNames.textContent = `左 ${nameOf(thumbKeys.left)} ／ 右 ${nameOf(thumbKeys.right)}`;
 
+  paintSfx();
   el.soundNote.replaceChildren(
     ...(settings.sound && settings.sound !== 'off'
       ? ['打鍵音は練習の設定（', h('b', {}, settings.sound), '）で鳴ります。']
       : ['打鍵音はいま無音です。', h('a', { class: 'link', href: 'index.html#/setup' }, '設定'), 'で音色を選ぶと、ズレが耳でも分かります。']),
   );
 }
+
+function paintSfx() {
+  const b = el.btnSfx;
+  if (!sfx.available) {
+    b.disabled = true;
+    b.textContent = '効果音：この環境では鳴りません';
+    return;
+  }
+  b.setAttribute('aria-pressed', String(sfx.enabled));
+  b.textContent = sfx.enabled ? '効果音：オン' : '効果音：オフ';
+}
+
+el.btnSfx.addEventListener('click', () => {
+  sfx.setEnabled(!sfx.enabled);
+  saveSfxOn(sfx.enabled);
+  paintSfx();
+  if (sfx.enabled) sfx.take();   // 切り替えた結果がその場で耳で分かるように
+});
 
 // ---------------------------------------------------------------- 遊ぶ
 
@@ -201,9 +224,11 @@ let countdownEnd = 0;
 let curT = 0;           // いま処理している入力の時刻。onOutput には時刻が付かないので預けておく
 let imeUntil = 0;
 let lastResult = null;  // 直前の nicola の出力（音にズレを渡すため）
-let lastChime = -1e9;
 let summary = null;
 let bestInfo = null;
+let perfectPlates = new Set(); // ぴったりを一打でも含んだ皿。取ったときの音を変える
+let lastCount = 0;              // カウントダウンで最後に鳴らした数
+let lastTick = 0;               // 残り時間の刻みで最後に鳴らした秒
 
 // タイトル・結果の後ろで流しておく皿。誰も打たない «見本» のレーン
 let attract = null;
@@ -236,12 +261,16 @@ function startCountdown(c) {
   game = createGame({ course: c, words: WORDS, rng: Math.random });
   nicola = buildNicola();
   countdownEnd = performance.now() + 3000;
+  perfectPlates = new Set();
+  lastCount = 0;
+  lastTick = 0;
   show('countdown');
   // ボタンに残ったフォーカスで、スペースや Enter が «もう一度押した» にならないように
   document.activeElement?.blur?.();
 }
 
 function startPlay(t) {
+  sfx.count(0);
   game.start(t);
   show('play');
 }
@@ -260,16 +289,17 @@ function handle(events, t) {
     } else if (e.type === 'miss') {
       if (e.misfire) sound.misfire();
       else sound.miss();
+    } else if (e.type === 'perfect') {
+      perfectPlates.add(e.plateId);
     } else if (e.type === 'clear') {
-      // 皿を取った音。sound.js の祝いの音は鳴り終わるまで次を後ろへ回すので、
-      // 速く取り続けると音がどんどん遅れていく。間が詰まったときは短い一音に替える
-      if (t - lastChime > 1100) {
-        sound.earned();
-        lastChime = t;
-      } else {
-        sound.shifted({ tier: 'perfect', offsetMs: 0 });
-      }
+      // 皿を取った音は sfx.js が受け持つ（打鍵音の設定が無音でも鳴る）
+      sfx.take({ perfect: perfectPlates.has(e.plateId) });
+    } else if (e.type === 'lost') {
+      sfx.lost();
+    } else if (e.type === 'combo') {
+      sfx.combo();
     } else if (e.type === 'over') {
+      sfx.end();
       finishGame(t);
     }
   }
@@ -600,6 +630,7 @@ window.addEventListener('keydown', (e) => {
     if (i >= 0 && !e.repeat && COURSES[i]) {
       e.preventDefault();
       sound.prime();
+      sfx.prime();
       startCountdown(COURSES[i]);
     }
     return;
@@ -646,7 +677,7 @@ window.addEventListener('keyup', (e) => {
 // これが無いと、戻ってきたときに押しっぱなし扱いのキーが残る
 window.addEventListener('blur', () => { nicola?.reset(); });
 
-el.btnAgain.addEventListener('click', () => { sound.prime(); startCountdown(course); });
+el.btnAgain.addEventListener('click', () => { sound.prime(); sfx.prime(); startCountdown(course); });
 el.btnCourses.addEventListener('click', abortToTitle);
 el.btnRankingFromTitle.addEventListener('click', () => openRanking('title'));
 el.btnRankingFromResult.addEventListener('click', () => openRanking('result'));
@@ -654,12 +685,23 @@ el.btnRankingFromResult.addEventListener('click', () => openRanking('result'));
 // ---------------------------------------------------------------- 毎フレーム
 
 function frame(t) {
+  if (screen === 'countdown') {
+    const n = Math.ceil((countdownEnd - t) / 1000);
+    if (n > 0 && n !== lastCount) {
+      lastCount = n;
+      sfx.count(n);
+    }
+  }
   if (screen === 'countdown' && t >= countdownEnd) startPlay(countdownEnd);
 
   if (screen === 'play') {
     curT = t;
     nicola.tick(t);                       // タイムアウトはここでだけ起きる
     if (screen === 'play') handle(game.tick(t), t);
+    // 残り 10 秒からは一秒ごとに刻む。延長で秒が戻ったら、また 10 秒を切ったときから刻む
+    const sec = Math.ceil(game.state.remainingMs / 1000);
+    if (screen === 'play' && sec <= 10 && sec > 0 && sec !== lastTick) sfx.tick(sec);
+    lastTick = sec;
   }
   if (imeUntil && t > imeUntil) {
     imeUntil = 0;

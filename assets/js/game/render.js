@@ -24,8 +24,9 @@
 import { keyFor } from './engine.js';
 
 // app.css の --ui と同じ並び。system-ui を先頭にすると Windows・Linux で書体がばらつく
+// 数字も同じ書体で描く。等幅の欧文書体は端末の画面のような字面になり、隣の「円」「秒」と書体が二つ並ぶ。
+// 太さは 700 まで。ヒラギノ角ゴの W8・W9 は欧文の字幅が広く、数字だけ別の書体に見える
 const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo, "Noto Sans CJK JP", "Noto Sans JP", sans-serif';
-const MONO = 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 /** 読み取る配色トークン */
 const TOKENS = [
@@ -412,7 +413,7 @@ export function createRenderer(canvas) {
     ctx.fillStyle = rgba(C['fg-dim']);
     ctx.font = `600 ${Math.round(11.5 * g.u)}px ${FONT}`;
     ctx.fillText('のこり', pad, Math.round(24 * g.u));
-    ctx.font = `700 ${Math.round(30 * g.u)}px ${MONO}`;
+    ctx.font = `700 ${Math.round(30 * g.u)}px ${FONT}`;
     ctx.fillStyle = flash ? rgba(C.perfect) : low ? rgba(C.off, 0.75 + 0.25 * Math.sin(now / 90)) : rgba(C.fg);
     const tText = sec.toFixed(1);
     ctx.fillText(tText, pad, g.hud - Math.round(16 * g.u));
@@ -431,7 +432,7 @@ export function createRenderer(canvas) {
     // コンボ（中央）
     ctx.textAlign = 'center';
     if (state.combo >= 2) {
-      ctx.font = `800 ${Math.round(28 * g.u)}px ${MONO}`;
+      ctx.font = `700 ${Math.round(28 * g.u)}px ${FONT}`;
       ctx.fillStyle = rgba(C.tone);
       ctx.fillText(String(state.combo), W / 2, g.hud - Math.round(26 * g.u));
       ctx.font = `600 ${Math.round(11.5 * g.u)}px ${FONT}`;
@@ -457,11 +458,11 @@ export function createRenderer(canvas) {
     const my = g.hud - Math.round(13 * g.u);
     ctx.translate(right, my);
     ctx.scale(pulse, pulse);
-    ctx.font = `800 ${Math.round(30 * g.u)}px ${MONO}`;
+    ctx.font = `700 ${Math.round(30 * g.u)}px ${FONT}`;
     ctx.fillStyle = bal >= 0 ? rgba(C.perfect) : rgba(C.fg);
     const mText = yen(state.money);
     const yW = (() => { ctx.font = `600 ${Math.round(14 * g.u)}px ${FONT}`; return ctx.measureText('円').width; })();
-    ctx.font = `800 ${Math.round(30 * g.u)}px ${MONO}`;
+    ctx.font = `700 ${Math.round(30 * g.u)}px ${FONT}`;
     ctx.fillText(mText, -yW - 4, 0);
     ctx.font = `600 ${Math.round(14 * g.u)}px ${FONT}`;
     ctx.fillStyle = rgba(C['fg-mid']);
@@ -586,7 +587,7 @@ export function createRenderer(canvas) {
       ctx.fillText(k, x, y);
       x += ctx.measureText(k).width + 6;
       ctx.fillStyle = rgba(col);
-      ctx.font = `700 ${Math.round(15 * g.u)}px ${MONO}`;
+      ctx.font = `700 ${Math.round(15 * g.u)}px ${FONT}`;
       ctx.fillText(v, x, y);
       x += ctx.measureText(v).width + Math.round(20 * g.u);
     }
@@ -677,7 +678,7 @@ export function createRenderer(canvas) {
         ctx.globalAlpha = 1 - k ** 2;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        ctx.font = `800 ${f.size}px ${FONT}`;
+        ctx.font = `700 ${f.size}px ${FONT}`;
         ctx.lineWidth = 4;
         ctx.strokeStyle = rgba(C.bg, 0.85);
         const y = f.y - easeOut(k) * f.rise;
@@ -717,7 +718,7 @@ export function createRenderer(canvas) {
     ctx.globalAlpha = Math.min(1, 0.3 + frac * 1.2);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `900 ${Math.round(120 * g.u)}px ${MONO}`;
+    ctx.font = `700 ${Math.round(120 * g.u)}px ${FONT}`;
     ctx.fillStyle = rgba(C.tone);
     ctx.fillText(shown > 0 ? String(shown) : 'はじめ', 0, 0);
     ctx.restore();

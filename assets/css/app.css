@@ -57,8 +57,10 @@
      system-ui は先頭に置かない。Windows では Meiryo UI や Yu Gothic UI に、
      Linux では欧文書体に化けて、和文の組みが環境ごとにばらばらになる。
 
-     本文はゴシック、看板と画面名だけ明朝にする。明朝は「道場の看板」の役で、
-     打つ字・数値・ボタンには使わない（細い横画が小さい字で潰れる）。
+     本文も見出しも数字もゴシック。明朝は「道場の看板」一か所だけに使う。
+     数字は等幅の欧文書体にしない。大きく出すと端末の画面のような字面になり、隣の「円」「秒」と
+     書体が二つ並ぶ。桁の揺れは tabular-nums（数字だけ同じ幅）で止める。
+     --mono はキーの名前・保存キーなど «コードそのもの» を見せる所にだけ使う。
      Windows は BIZ UD を先に当てる。Yu Gothic の Regular は画面で細く薄く出る */
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --ui: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
@@ -139,17 +141,23 @@ body {
    何も指していない光は飾りでしかなく、どの画面も同じ «それらしい» 顔になるのでやめた。
    地は一色。面の区別は罫と札の地色で付ける */
 
-/* 看板・画面名・札の名前。明朝で組み、約物を詰める（palt）。
+/* 明朝は看板（「親指シフト タイピング道場」）だけ。画面名や札の名前まで明朝にすると、
+   ゴシックの本文・数字と三種類の書体が並び、どの書体が何の役か読めなくなった。
+   看板以外の見出しはゴシックの太字で組み、約物だけ詰める（palt）。
    本文には palt を掛けない。長い文で字間が揺れると読む速さが落ちる */
 .nav__brand,
-.hero__title,
+.hero__title {
+  font-family: var(--head);
+  font-feature-settings: "palt";
+}
+
 .hero__creed,
 .page__title,
 .pick__name,
 .mine__rank b,
 .rank__name,
 .finish__title {
-  font-family: var(--head);
+  font-weight: 700;
   font-feature-settings: "palt";
 }
 
@@ -303,7 +311,8 @@ kbd {
 }
 
 .nav__streak b {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 14px;
   color: var(--tone);
 }
@@ -422,7 +431,8 @@ kbd {
 
 .card__count {
   margin-left: auto;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   font-weight: 400;
   color: var(--fg-dim);
@@ -609,7 +619,8 @@ kbd {
 
 .tally dd {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 17px;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
@@ -680,7 +691,8 @@ kbd {
 }
 
 .field__out {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--tone);
   font-variant-numeric: tabular-nums;
@@ -1048,7 +1060,8 @@ a.pick__one:hover {
 /* いまの状態を一行。«第一課 · ホームポジション» «弱点集中・総ざらい…» など。
    ここが空のままだと、二択がただの飾りになる */
 .pick__state {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-style: normal;
   font-size: 11px;
   line-height: 1.7;
@@ -1287,7 +1300,8 @@ a.pick__one:hover .pick__go {
 }
 
 .course__progText {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--fg-dim);
   font-variant-numeric: tabular-nums;
@@ -1372,7 +1386,8 @@ a.pick__one:hover .pick__go {
   margin-top: 11px;
   padding-top: 10px;
   border-top: 1px solid var(--line-soft);
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--fg-dim);
 }
@@ -1553,7 +1568,8 @@ a.pick__one:hover .pick__go {
   display: flex;
   align-items: baseline;
   gap: 16px;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
 }
 
 .stat b {
@@ -1895,7 +1911,8 @@ a.pick__one:hover .pick__go {
 }
 
 .meter__value {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 15px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -2397,7 +2414,8 @@ a.pick__one:hover .pick__go {
 
 .finish__eyebrow {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   letter-spacing: 0.12em;
   color: var(--fg-dim);
@@ -2419,7 +2437,8 @@ a.pick__one:hover .pick__go {
 }
 
 .finish__hero b {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 46px;
   font-weight: 700;
   line-height: 1;
@@ -2428,7 +2447,8 @@ a.pick__one:hover .pick__go {
 }
 
 .finish__hero small {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--fg-dim);
 }
@@ -2468,7 +2488,8 @@ a.pick__one:hover .pick__go {
 }
 
 .finish__offset b {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 22px;
   color: var(--tone);
   font-variant-numeric: tabular-nums;
@@ -2494,7 +2515,8 @@ a.pick__one:hover .pick__go {
 
 .finish__grid dd {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
@@ -2572,7 +2594,8 @@ a.pick__one:hover .pick__go {
 }
 
 .rank__score {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 12.5px;
   color: var(--fg-mid);
 }
@@ -2595,7 +2618,8 @@ a.pick__one:hover .pick__go {
 
 .rank__next {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   color: var(--fg-dim);
 }
@@ -2819,7 +2843,8 @@ a.pick__one:hover .pick__go {
 
 .input--num {
   width: 6.5em;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2931,7 +2956,8 @@ a.pick__one:hover .pick__go {
 .skew[data-tier="off"] .skew__mark { background: var(--off); }
 
 .skew__val {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   text-align: right;
   color: var(--fg-mid);
@@ -3002,7 +3028,8 @@ a.pick__one:hover .pick__go {
 }
 
 .weak__num {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   text-align: right;
   color: var(--misfire);
@@ -3019,7 +3046,8 @@ a.pick__one:hover .pick__go {
 }
 
 .romaji__unit {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11.5px;
   color: var(--fg-dim);
 }
@@ -3072,7 +3100,8 @@ a.pick__one:hover .pick__go {
 /* «今回は交差シフトを多めに» のような、その場の出題の説明。
    同じボタンでも中身が毎回違うので、何が出るのかをここで先に言う */
 .mode__meta {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-style: normal;
   font-size: 11px;
   color: var(--tone);
@@ -3170,7 +3199,8 @@ a.pick__one:hover .pick__go {
 
 /* 数値は等幅で。札を縦に並べたとき、字数と割合が桁で揃って比べられる */
 .material__meta {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--fg-dim);
   font-variant-numeric: tabular-nums;
@@ -3219,7 +3249,6 @@ a.pick__one:hover .pick__go {
 
 .material.is-done .material__name::before {
   content: "✓ ";
-  font-family: var(--mono);
 }
 
 /* 名前で選ぶほうの一行。札の一覧より下に、静かに置く */
@@ -3289,7 +3318,8 @@ a.pick__one:hover .pick__go {
 }
 
 .romaji__cpm {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   text-align: right;
   color: var(--fg-mid);
@@ -3405,7 +3435,8 @@ a.pick__one:hover .pick__go {
 }
 
 .notice__eyebrow {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   letter-spacing: 0.12em;
   color: var(--fg-dim);

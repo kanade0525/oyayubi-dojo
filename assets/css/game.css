@@ -112,15 +112,15 @@
   color: var(--tone);
 }
 
-/* 看板。練習画面の見出しより一段太く、店の看板の明朝で組む（app.css の --head）。
+/* 看板。練習画面の見出しより一段太いゴシックで組む。明朝は道場の看板だけに使う（app.css の --head の注記）。
    光らせない。のれんの朱を一本、無地で添える。赤から金へのグラデーションは
    何の色でもなかったのでやめた */
 .g-title__head {
   margin: -4px 0 0;
-  font-family: var(--head);
+  font-family: var(--ui);
   font-feature-settings: "palt";
   font-size: clamp(40px, 6vw, 58px);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.1em;
   line-height: 1.1;
   color: var(--fg);
@@ -137,10 +137,10 @@
 
 .g-sheet__head {
   margin: 0;
-  font-family: var(--head);
+  font-family: var(--ui);
   font-feature-settings: "palt";
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
 }
 
@@ -222,9 +222,10 @@
 }
 
 .g-course__price {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--tone);
 }
 
@@ -249,7 +250,8 @@
 }
 
 .g-course__best b {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   color: var(--fg);
 }
 
@@ -288,9 +290,10 @@
 }
 
 .g-result__money b {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: clamp(44px, 7vw, 64px);
-  font-weight: 900;
+  font-weight: 700;
   line-height: 1;
   color: var(--fg);
 }
@@ -360,9 +363,10 @@
 
 .g-tally dd {
   margin: 0;
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--fg);
 }
 
@@ -513,7 +517,8 @@
 }
 
 .g-board .r {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   font-weight: 800;
   color: var(--fg-mid);
 }
@@ -532,7 +537,8 @@
 .g-board .m,
 .g-board .k,
 .g-board .a {
-  font-family: var(--mono);
+  font-family: var(--ui);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 

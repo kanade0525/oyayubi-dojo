@@ -35,30 +35,47 @@
   })();
 </script>
 </head>
-<body>
+<body data-area="gate">
 
 <header class="nav" id="nav">
-  <a class="nav__brand" href="#/">親指シフト<span>タイピング道場</span></a>
+  <!-- 場所ごとに «別のサイト» に見せる（2026-11-02）。
+       覚える・鍛える・腕試しは来る人がまるで違う。共通のナビに三つを並べると、
+       どこに居ても «全部入りの一つのサイト» に見え、上級者は入門の看板を見て帰ってしまう。
+       body[data-area] を app.js が付け替え、看板（銘）・帯の色・ナビの中身を CSS で場所ごとに切り替える。
+       ナビにはその場所で使うものだけを出し、ほかの場所へは右の «ほかの入口» から控えめに移る。
+       配列表と設定は場所を持たない共通の道具なので、どの場所からも開ける（開いても場所は変えない） -->
+  <a class="nav__brand" href="#/">
+    <span class="nav__site" data-site="gate">親指シフト</span>
+    <span class="nav__site" data-site="learn">親指シフト入門</span>
+    <span class="nav__site" data-site="train">親指シフト道場</span>
+  </a>
 
-  <!-- 入口は «そこで何をするか» を動詞で言う。
-       前の三つ（覚える・鍛える・腕試し）は、来る人がまるで違う。まだ打てない人、
-       打てるが速く正確にしたい人、腕前を試して遊びたい人。だから三つは別の画面にし、
-       ナビの左に同じ重さで並べる。記録・配列表・設定はどの三つから来ても使う «共通の道具» なので、
-       仕切りを挟んで右に置く。語を足さずに «種類が違う» を出したいので、言葉ではなく罫で分ける。
-       この並びは game.html のナビと揃えること。 -->
-  <nav class="nav__links" aria-label="画面">
-    <a href="#/learn" data-nav="/learn">覚える</a>
-    <a href="#/train" data-nav="/train">鍛える</a>
-    <!-- 腕試しは回転ずし（game.html）。別のページ -->
+  <nav class="nav__links" data-for="gate" aria-label="入口">
+    <a href="#/learn">覚える</a>
+    <a href="#/train">鍛える</a>
     <a href="game.html">腕試し</a>
     <i class="nav__sep" aria-hidden="true"></i>
-    <a class="is-tool" href="#/record" data-nav="/record">記録</a>
+    <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
+    <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
+  </nav>
+  <nav class="nav__links" data-for="learn" aria-label="親指シフト入門">
+    <a href="#/learn" data-nav="/learn">七つの課</a>
+    <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
+    <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
+  </nav>
+  <nav class="nav__links" data-for="train" aria-label="親指シフト道場">
+    <a href="#/train" data-nav="/train">稽古</a>
+    <a href="#/record" data-nav="/record">記録</a>
     <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
   </nav>
 
+  <!-- ほかの場所へ。目立たせない（ここに来た人の用事ではないので） -->
+  <p class="nav__others" data-for="learn"><span>ほかの入口</span><a href="#/train">鍛える</a><a href="game.html">腕試し</a></p>
+  <p class="nav__others" data-for="train"><span>ほかの入口</span><a href="#/learn">覚える</a><a href="game.html">腕試し</a></p>
+
   <!-- 連続日数。毎日開く動機はここ一点に集める -->
-  <a class="nav__streak" href="#/record" title="連続で練習した日数">
+  <a class="nav__streak" data-for="train" href="#/record" title="連続で練習した日数">
     <b id="navStreak">0</b><span>日連続</span>
   </a>
 
@@ -274,66 +291,39 @@
      一覧は #/learn に出して、ここには «目的ごとの入口三つ» と «自分の数字» だけを置く。
      配列表と設定はナビの右（共通の道具）から入る。玄関に札を並べ直すと、また入口が五つに見える。 -->
 <section class="screen screen--home" id="screenHome" hidden>
-  <div class="page">
-    <header class="hero">
-      <h1 class="hero__title">親指シフト<span>タイピング道場</span></h1>
-      <!-- 頭の二行は «親指シフトとは何か» を説明しない。以前は初心者向けの説明から入っていて、
-           もう打てる人が «初心者のサイトだ» と読んでその場で離れていた（2026-11-02 の指摘）。
-           来る人の大半は配列を知っている前提で、ここにしか無いもの（親指の時刻のズレを測る）を先に言う -->
-      <p class="hero__creed">親指のクセを、ミリ秒で測る。</p>
-      <p class="hero__lead">
-        文字キーと親指キーを押した時刻の差を 1 打ごとに測り、<b>親指が早いのか遅いのか</b>、<b>どのキーで落としているのか</b>を出します。配列を一から覚える人にも、何年も打っている人にも、次に直すところが数字で分かります。
-      </p>
+  <!-- 門。三つの場所への扉を同じ重さで並べるだけの画面。
+       親指シフトの説明は置かない。説明から入ると «初心者向けのサイト» と読まれ、
+       もう打てる人がその場で離れる（2026-11-02 の指摘）。
+       扉はそれぞれの場所の色と名前で描き、どれか一つだけを目立たせない（主ボタンを置かない） -->
+  <div class="page gate">
+    <h1 class="gate__title">親指シフト</h1>
 
-      <!-- 入口は三つ。«何をしに来たか» で選ぶ。
-           以前は «打ったことはありますか？» と一問聞いてから、覚える／鍛えるの二つの並びを変えていた。
-           だが来る人の違いは «初めてかどうか» の 1 ビットではなく目的そのもので、
-           腕試し（回転ずし）はその問いの外にあった。問いをやめ、目的ごとの三つの札を同じ重さで並べる。
-           各札の一行目（.pick__who）が «誰のための入口か» を名指しする。名前（覚える等）だけでは
-           自分がどれか分からなかった、が出発点なので、人の側の言葉で言う。 -->
-      <div class="pick" id="homePick">
-        <div class="pick__one" id="pickLearn">
-          <span class="pick__who">はじめての人</span>
-          <b class="pick__name">覚える</b>
-          <span class="pick__note"><b>まだ打てない字</b>を、配列の順に一つずつ覚えます。単独打鍵から濁音・交差シフトまで、七つの課・46題。</span>
-          <button type="button" class="btn btn--primary" id="btnStart">▶ つづきから</button>
-          <em class="pick__state" id="startSub">第一課 · ホームポジション</em>
-          <a class="link pick__more" href="#/learn">七つの課をぜんぶ見る →</a>
-        </div>
-
-        <a class="pick__one" href="#/train" id="pickTrain">
-          <span class="pick__who">もう打てる人</span>
-          <b class="pick__name">鍛える</b>
-          <span class="pick__note"><b>もう打てる字</b>を、速く正確にします。落としている面とズレの大きいキーを集めて、毎回組み直して出します。</span>
-          <!-- 札そのものが <a> なので、中に button は置かない（入れ子になる） -->
-          <span class="pick__go">弱いところから打つ →</span>
-          <em class="pick__state" id="pickTrainState">弱点集中・総ざらい・速度・実文・自由入力</em>
-        </a>
-
-        <a class="pick__one" href="game.html" id="pickPlay">
-          <span class="pick__who">腕前を試したい人</span>
-          <b class="pick__name">腕試し</b>
-          <span class="pick__note">流れてくる皿の単語を、時間内に打って食べる<b>回転ずし</b>。同時打鍵がぴったりなら皿の値段が上がります。</span>
-          <span class="pick__go">回転ずしで遊ぶ →</span>
-          <em class="pick__state">お手軽 60秒・おすすめ 90秒・高級 120秒</em>
-        </a>
-      </div>
-
-      <!-- 記録への入口。«ふりかえる» という札は置かない。
-           札に書いた動詞より、自分の数字そのもののほうが強い入口になる。
-           «白帯 / 5日連続 / 平均ズレ -8ms» は、それ自体がもう «ふりかえり» で、
-           押せばもっと見られる、という関係が形から読める -->
-      <a class="mine" href="#/record">
-        <span class="mine__rank"><b id="homeRank">白帯</b><small>段位</small></span>
-        <dl class="tally" id="homeTally">
-          <div><dt>連続</dt><dd id="homeStreak">0日</dd></div>
-          <div><dt>総打鍵</dt><dd id="homeKeys">0</dd></div>
-          <div><dt>平均ズレ</dt><dd id="homeOffset">—</dd></div>
-          <div><dt>ぴったり率</dt><dd id="homePerfect">—</dd></div>
-        </dl>
-        <span class="mine__go">記録を見る（ズレの分布・苦手な面・練習した日・実績）→</span>
+    <div class="doors" id="gateDoors">
+      <a class="door" data-area="learn" href="#/learn">
+        <span class="door__site">親指シフト入門</span>
+        <b class="door__name">覚える</b>
+        <span class="door__who">配列をこれから覚える人へ</span>
+        <span class="door__note">七つの課・46題を順に。単独打鍵から、濁音・小書きの交差シフトまで。</span>
+        <em class="door__state" id="doorLearnState"></em>
+        <span class="door__go">入門へ →</span>
       </a>
-    </header>
+      <a class="door" data-area="train" href="#/train">
+        <span class="door__site">親指シフト道場</span>
+        <b class="door__name">鍛える</b>
+        <span class="door__who">もう打てる人へ</span>
+        <span class="door__note">面ごとの取りこぼしと親指の早い・遅いを 1 打ごとに測り、落としているところだけを出題。段位・記録・実績もここ。</span>
+        <em class="door__state" id="doorTrainState"></em>
+        <span class="door__go">道場へ →</span>
+      </a>
+      <a class="door" data-area="game" href="game.html">
+        <span class="door__site">回転ずし</span>
+        <b class="door__name">腕試し</b>
+        <span class="door__who">腕前を試したい人へ</span>
+        <span class="door__note">流れてくる皿の単語を時間内に打って取る。同時打鍵がぴったりなら皿の値段が上がる。</span>
+        <em class="door__state">お手軽 60秒・おすすめ 90秒・高級 120秒</em>
+        <span class="door__go">店へ →</span>
+      </a>
+    </div>
 
     <footer class="page__foot">
       <p class="note">
@@ -353,10 +343,17 @@
      ここへ来るのは «全体のどこに居るか» を見たいときだけでよい。 -->
 <section class="screen screen--learn" id="screenLearn" hidden>
   <div class="page">
-    <h1 class="page__title">覚える</h1>
-    <p class="page__lead">
-      <b>まだ打てない字</b>を打てるようにする場所です。七つの課・46題を、決まった順に積みます。前の課をある程度打つと次が開きます。順番そのものに意味があるので、飛ばさないほうが結局速い。
-    </p>
+    <header class="area-head">
+      <p class="area-head__site">親指シフト入門</p>
+      <h1 class="page__title">覚える</h1>
+      <p class="page__lead">
+        <b>まだ打てない字</b>を打てるようにする場所です。七つの課・46題を、決まった順に積みます。前の課をある程度打つと次が開きます。順番そのものに意味があるので、飛ばさないほうが結局速い。
+      </p>
+      <p class="area-head__acts">
+        <button type="button" class="btn btn--primary" id="btnStart">▶ つづきから</button>
+        <em class="area-head__state" id="startSub"></em>
+      </p>
+    </header>
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
@@ -581,14 +578,18 @@
      配線を切ってまで綴りを揃える利は無い。 -->
 <section class="screen screen--train" id="screenTrain" hidden>
   <div class="page">
-    <h1 class="page__title">鍛える</h1>
-    <p class="page__lead">
-      <b>もう打てる字</b>を、速く正確にする場所です。決まった順番はありません。課題を順に消化するのではなく、<b>いま弱いところ</b>を狙って、出題はそのつど組み直します。まだ打てない字を覚えるのは <a class="link" href="#/learn">覚える</a> の仕事です。
-    </p>
+    <header class="area-head">
+      <p class="area-head__site">親指シフト道場</p>
+      <h1 class="page__title">鍛える</h1>
+      <!-- 読むのは «もう打てる人»。配列や同時打鍵の説明はしない -->
+      <p class="page__lead">
+        面ごとの取りこぼしと、親指の早い・遅いを 1 打ごとに測ります。出題は決まった順ではなく、<b>いま落としているところ</b>を集めてそのつど組み直します。
+      </p>
+    </header>
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。弱点は記録で読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__body">文字キーと親指キーを押した時刻の差を測るので、画面上のソフトキーボードでは打てません。パソコンか、外付けキーボードをつないだ端末で。記録は読めます。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
@@ -682,6 +683,7 @@
      内側の id は元のまま。画面の名前は変えたが中身は変えていない。 -->
 <section class="screen screen--record" id="screenRecord" hidden>
   <div class="page page--narrowish">
+    <p class="area-head__site">親指シフト道場</p>
     <h1 class="page__title">記録</h1>
     <p class="page__lead">
       <b>覚える</b>と<b>鍛える</b>のどちらで打った結果も、ここに貯まります。測るための画面はありません。

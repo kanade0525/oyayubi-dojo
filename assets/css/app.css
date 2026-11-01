@@ -139,15 +139,12 @@ body {
 /* 看板と見出しは本文と同じゴシックの太字で組み、約物だけ詰める（palt）。
    本文には palt を掛けない。長い文で字間が揺れると読む速さが落ちる */
 .nav__brand,
-.hero__title {
+.door__name {
   font-weight: 700;
   font-feature-settings: "palt";
 }
 
-.hero__creed,
 .page__title,
-.pick__name,
-.mine__rank b,
 .rank__name,
 .finish__title {
   font-weight: 700;
@@ -183,8 +180,7 @@ a {
 
 /* 日本語を文節で折る。効かないブラウザでも普通に折れるだけ */
 .page__lead,
-.hero__lead,
-.hero__creed,
+.door__note,
 .note,
 .warn p,
 .meter__advice {
@@ -408,8 +404,7 @@ kbd {
 }
 
 .note b,
-.page__lead b,
-.hero__lead b {
+.page__lead b {
   color: var(--fg);
   font-weight: 600;
 }
@@ -883,213 +878,203 @@ kbd {
   color: var(--fg-mid);
 }
 
-/* ---------------------------------------------------------------- #/ 玄関 と #/learn 覚える */
+/* ---------------------------------------------------------------- 場所（入門・道場・回転ずし・門）
+   覚える・鍛える・腕試しは来る人がまるで違うので、«別のサイト» に見せる。
+   変えるのは看板（銘）・ヘッダーの帯・見出しのアクセント・ナビの中身だけ。
+   本文の色は配色（data-tone）のまま。場所の色は字の色には使わない（大きな看板と帯と札の縁だけ）。
+   色は配色 4 種のどれとも同じ色相にならないよう、山吹・朱・浅葱から取った */
+body { --area: var(--tone); }
+body[data-area="learn"],
+.door[data-area="learn"] { --area: #f0c35a; }
+body[data-area="train"],
+.door[data-area="train"] { --area: #ff8a70; }
+body[data-area="game"],
+.door[data-area="game"] { --area: #5fd0d0; }
 
-.hero {
-  display: grid;
-  gap: 0;
-  padding: 26px 0 8px;
+/* ヘッダーの上端に場所の色の帯。看板（銘）もその色 */
+.nav {
+  border-top: 3px solid var(--area);
+  background: color-mix(in srgb, var(--area) 6%, color-mix(in srgb, var(--bg) 88%, transparent));
 }
 
-/* 看板。光らせず、大きさと太さだけで立たせる。
-   «親指シフト» が何の道場かを言う語なので大きく、«タイピング道場» は添え書きの大きさ */
-.hero__title {
-  margin: 0;
-  font-size: clamp(30px, 5.4vw, 52px);
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: 0.04em;
+.nav__brand { color: var(--area); }
+
+/* 場所に合わない看板・ナビは出さない */
+.nav__site,
+[data-for] { display: none; }
+body[data-area="gate"] [data-site="gate"],
+body[data-area="learn"] [data-site="learn"],
+body[data-area="train"] [data-site="train"] { display: inline; }
+body[data-area="gate"] .nav__links[data-for="gate"],
+body[data-area="learn"] .nav__links[data-for="learn"],
+body[data-area="train"] .nav__links[data-for="train"] { display: flex; }
+body[data-area="learn"] .nav__others[data-for="learn"],
+body[data-area="train"] .nav__others[data-for="train"],
+body[data-area="game"] .nav__others[data-for="game"] { display: flex; }
+body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
+
+.nav__links a[aria-current="page"] {
   color: var(--fg);
+  background: color-mix(in srgb, var(--area) 16%, transparent);
+  box-shadow: inset 0 -2px 0 var(--area);
 }
 
-.hero__title span {
-  display: block;
-  margin-top: 4px;
-  font-size: 0.4em;
-  font-weight: 400;
-  letter-spacing: 0.3em;
+/* ほかの場所への出口。ここに来た人の用事ではないので小さく、右の端に */
+.nav__others {
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 0 auto;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.nav__others span { margin-right: 6px; }
+
+/* ナビの中のボタン（回転ずしのランキング）。見た目はナビのリンクと同じ */
+.nav__btn {
+  padding: 6px 11px;
+  border: 0;
+  border-radius: var(--r-s);
+  background: transparent;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.nav__btn:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--area) 12%, transparent);
+}
+
+.nav__others a {
+  padding: 4px 8px;
+  border-radius: var(--r-s);
   color: var(--fg-mid);
 }
 
-/* 標語。看板の下に罫を一本引き、その下に置く。
-   左に色の帯を立てる «引用» の形は、ここと振り分けの一問と違いの一行の三か所で
-   繰り返していて、どれが大事なのかが分からなくなっていた */
-.hero__creed {
-  max-width: 34rem;
-  margin: 22px 0 0;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-  font-size: 19px;
-  line-height: 1.8;
-  letter-spacing: 0.06em;
-  color: var(--tone);
+.nav__others a:hover {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
 }
 
-.hero__lead {
-  max-width: 38rem;
+.nav__others + .nav__streak { margin-left: 0; }
+
+/* 場所の頭。看板の名前を小さく上に置き、見出しの下に場所の色の短い線 */
+.area-head__site {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--area);
+}
+
+/* 場所の中の主ボタンは場所の色。配色（data-tone）の青のままだと、どの場所も同じ店に見える */
+body[data-area="learn"] .btn--primary,
+body[data-area="train"] .btn--primary {
+  background: var(--area);
+  border-color: var(--area);
+  color: #14110a;
+}
+
+.area-head__acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
   margin: 18px 0 0;
-  font-size: 13.5px;
-  line-height: 2.05;
+}
+
+.area-head__state {
+  font-style: normal;
+  font-size: 12.5px;
   color: var(--fg-mid);
 }
 
-/* --- 三つの入口 ---
-   覚える / 鍛える / 腕試し。この画面でいちばん大事なのはここ。
+/* ---------------------------------------------------------------- #/ 門 */
 
-   来る人の目的がまるで違う三つなので、同じ重さで横に並べる。«おすすめ» の印は付けない。
-   以前は一問（打ったことがあるか）で覚える／鍛えるの並びを変えていたが、
-   腕試しがその問いの外にあり、問いそのものが入口の前の関門に見えた。
-   記録は四つ目に並べず、下の «自分の数字»（.mine）とナビから入る。
+.gate__title {
+  margin: 8px 0 22px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--fg-mid);
+}
 
-   auto-fit をやめて明示的に 3 列にしてある。auto-fit のままだと、
-   幅によっては «3 列目だけ下に落ちる» 形になり、三択が三択に見えない。
-   900px 以下では縦に積む（下の @media）。 */
-
-.pick {
+.doors {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin: 26px 0 0;
+  gap: 16px;
 }
 
-.pick__one {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+/* 扉一枚。場所の色で上端の帯・看板・縁を描く。三枚は同じ大きさ・同じ重さ */
+.door {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto auto;
   gap: 8px;
-  padding: 20px 20px 18px;
-  background: var(--panel);
-  border: 1px solid var(--line);
+  min-height: 340px;
+  padding: 26px 24px 22px;
+  border: 1px solid color-mix(in srgb, var(--area) 35%, var(--line));
+  border-top: 4px solid var(--area);
   border-radius: var(--r-m);
-  transition: border-color 0.16s, transform 0.16s;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--area) 10%, var(--panel)), var(--panel) 55%);
+  color: var(--fg);
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-/* a のときだけ枠の色で応える。以前は札ごと 2px 持ち上げていたが、
-   動きで «押せる» を言うのは飾りで、文字を読んでいる最中に札が揺れる */
-a.pick__one:hover {
-  border-color: var(--tone);
+.door:hover,
+.door:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--area);
 }
 
-/* 誰のための入口か。札の名前より先に読ませる一行 */
-.pick__who {
+.door__site {
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--tone);
+  letter-spacing: 0.12em;
+  color: var(--area);
 }
 
-.pick__name {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+.door__name {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.door__who {
+  font-size: 14px;
+  font-weight: 700;
   color: var(--fg);
 }
 
-.pick__note {
-  flex: 1;
-  font-size: 12.5px;
-  line-height: 1.9;
-  color: var(--fg-dim);
-  word-break: auto-phrase;
-}
-
-/* 札の中で «まだ打てない字 / もう打てる字 / 回転ずし» だけを起こす。
-   札どうしの違いは実質この一語なので、そこだけ地の色に上げる */
-.pick__note b {
-  color: var(--fg);
-  font-weight: 600;
-}
-
-/* いまの状態を一行。«第一課 · ホームポジション» «弱点集中・総ざらい…» など。
-   ここが空のままだと、二択がただの飾りになる */
-.pick__state {
-  font-family: var(--ui);
-  font-variant-numeric: tabular-nums;
-  font-style: normal;
-  font-size: 11px;
-  line-height: 1.7;
-  color: var(--fg-dim);
-  word-break: auto-phrase;
-}
-
-.pick__one.is-open .pick__state {
-  color: var(--perfect);
-}
-
-.pick__one.is-locked .pick__state {
-  color: var(--off);
-}
-
-.pick__one .btn {
-  margin-top: 2px;
-}
-
-/* «つづきから» の下に置く、一覧への抜け道。
-   主な用は続きを打つことなので、一覧はここまで下げてよい */
-.pick__more {
-  font-size: 12px;
-}
-
-/* 札ごと <a> の側に置く «押せる» の印。
-   .btn を名乗らせていないのは、これがボタンではなく «札が押せる» ことの印だから。
-   実際に押される的は札の全面で、ここだけを狙わせたいわけではない */
-.pick__go {
-  margin-top: 2px;
-  padding: 9px 0 0;
+.door__note {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--tone);
+  line-height: 1.8;
+  color: var(--fg-mid);
 }
 
-a.pick__one:hover .pick__go {
-  color: var(--fg);
-}
-
-.mine {
-  display: block;
-  margin: 26px 0 0;
-  padding: 16px 18px 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  transition: border-color 0.16s;
-}
-
-.mine:hover {
-  border-color: var(--tone);
-}
-
-.mine__rank {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  margin-bottom: 10px;
-}
-
-.mine__rank b {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--tone);
-}
-
-.mine__rank small {
-  font-size: 10.5px;
-  color: var(--fg-dim);
-}
-
-.mine .tally {
-  padding-bottom: 12px;
-}
-
-.mine__go {
-  display: block;
+.door__state {
+  font-style: normal;
   font-size: 12px;
   color: var(--fg-mid);
 }
 
-.mine:hover .mine__go {
-  color: var(--tone);
+.door__go {
+  justify-self: start;
+  padding: 7px 14px;
+  border: 1px solid var(--area);
+  border-radius: var(--r-s);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.door:hover .door__go { background: color-mix(in srgb, var(--area) 18%, transparent); }
+
+@media (max-width: 900px) {
+  .doors { grid-template-columns: minmax(0, 1fr); }
+  .door { min-height: 0; }
 }
 
 /* --- コース札 ---
@@ -3621,11 +3606,6 @@ a.pick__one:hover .pick__go {
 /* ---------------------------------------------------------------- 画面が狭いとき */
 
 @media (max-width: 900px) {
-  /* 三つの入口を縦に積む。三列のままだと 1 枚 250px を切り、説明の一行が細かく割れる */
-  .pick {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .nav {
     gap: 10px;
     padding: 0 14px;

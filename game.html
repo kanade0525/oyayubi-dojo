@@ -32,21 +32,17 @@
   })();
 </script>
 </head>
-<body class="g-body">
+<body class="g-body" data-area="game">
 
 <header class="nav">
-  <a class="nav__brand" href="index.html">親指シフト<span>タイピング道場</span></a>
-  <!-- 並びと語は index.html のヘッダーと同じにする。ページを移ってナビが変わると、
-       «いまどこに居るか» より先に «何が消えたか» を探させてしまう -->
-  <nav class="nav__links" aria-label="画面">
-    <a href="index.html#/learn">覚える</a>
-    <a href="index.html#/train">鍛える</a>
-    <a href="game.html" aria-current="page">腕試し</a>
-    <i class="nav__sep" aria-hidden="true"></i>
-    <a class="is-tool" href="index.html#/record">記録</a>
-    <a class="is-tool" href="index.html#/layout">配列表</a>
-    <a class="is-tool" href="index.html#/setup">設定</a>
+  <!-- 回転ずしは «別の店»。看板・帯の色・ナビを店のものにする（app.css の body[data-area]）。
+       練習の場所（入門・道場）へは右の «ほかの入口» から -->
+  <a class="nav__brand" href="game.html">回転ずし</a>
+  <nav class="nav__links" aria-label="回転ずし">
+    <a href="game.html" aria-current="page">コースを選ぶ</a>
+    <button type="button" class="nav__btn" id="navRanking">ランキング</button>
   </nav>
+  <p class="nav__others" data-for="game"><span>ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
 </header>
 
 <main class="g-main">
@@ -55,10 +51,10 @@
        ゲームも親指キーと文字キーの押下時刻の差を測るので、タッチ画面では原理的に打てない -->
   <aside class="kbnote g-kbnote">
     <b class="kbnote__head">このゲームは物理キーボードで遊びます</b>
-    <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、この端末では皿を取れません。ランキングは見られます。</p>
+    <p class="kbnote__body">文字キーと親指キーを押した時刻の差を測るので、画面上のソフトキーボードでは皿を取れません。ランキングは見られます。</p>
     <p class="kbnote__acts">
       <a class="link" href="index.html#/layout">配列表を見る →</a>
-      <a class="link" href="index.html">練習に戻る →</a>
+      <a class="link" href="index.html">入口に戻る →</a>
     </p>
   </aside>
 

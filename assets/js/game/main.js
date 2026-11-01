@@ -680,6 +680,11 @@ window.addEventListener('blur', () => { nicola?.reset(); });
 el.btnAgain.addEventListener('click', () => { sound.prime(); sfx.prime(); startCountdown(course); });
 el.btnCourses.addEventListener('click', abortToTitle);
 el.btnRankingFromTitle.addEventListener('click', () => openRanking('title'));
+// ヘッダーのランキング。遊んでいる最中は押しても何もしない（一回をうっかり捨てさせない）
+document.getElementById('navRanking').addEventListener('click', () => {
+  if (screen === 'play' || screen === 'countdown' || screen === 'over') return;
+  openRanking(screen === 'result' ? 'result' : 'title');
+});
 el.btnRankingFromResult.addEventListener('click', () => openRanking('result'));
 
 // ---------------------------------------------------------------- 毎フレーム

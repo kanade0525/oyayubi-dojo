@@ -1009,7 +1009,7 @@ async function browserChecks(chromeBin) {
     // 分けたので一覧は #/learn へ移った。玄関だけ見ていると、
     // 一覧が壊れていても «玄関は出ている» で緑になる
     const DRAWN = [
-      ['#/', '#homePick .pick__one', '玄関の三つの入口'],
+      ['#/', '#doorLearnState:not(:empty)', '門の三つの扉'],
       ['#/learn', '#courseList > *', '課題の一覧'],
       ['#/train', '#drillTextList .material', '題材の一覧'],
       ['#/layout', '.board > *', '配列表'],

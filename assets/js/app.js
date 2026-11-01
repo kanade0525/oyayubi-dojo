@@ -43,7 +43,7 @@ const el = {
     layout: $('screenLayout'), setup: $('screenSetup'),
   },
   // 玄関の振り分け。門ではなく、二つの札の並び順を変えるだけの一問
-  pickTrainState: $('pickTrainState'),
+  doorLearnState: $('doorLearnState'), doorTrainState: $('doorTrainState'),
   noticeStack: $('noticeStack'), playBadge: $('playBadge'),
   // ローマ字の基準。記録画面に置く。
   // 記録が無い間は #romajiCard が隠れるので、入力欄は別の札に分けてある
@@ -78,8 +78,6 @@ const el = {
   setupMeter: $('setupMeter'), setupBoard: $('setupBoard'),
   // home
   btnStart: $('btnStart'), startSub: $('startSub'), courseList: $('courseList'),
-  homeRank: $('homeRank'), homeStreak: $('homeStreak'), homeKeys: $('homeKeys'),
-  homeOffset: $('homeOffset'), homePerfect: $('homePerfect'),
   // play
   playLesson: $('playLesson'), playNote: $('playNote'),
   statTime: $('statTime'), statCpm: $('statCpm'), statAcc: $('statAcc'),
@@ -832,40 +830,34 @@ function paintNav(stats = loadStats()) {
   el.navStreak.textContent = String(stats.streak ?? 0);
 }
 
+/** 門。三つの扉に «いまどこまで来たか» を一行ずつ添えるだけ */
 function paintHome() {
   const stats = loadStats();
-  const o = overview(stats);
-  const rep = offsetReport(stats);
   paintNav(stats);
-
-  // overview() に平均ズレは無い。左右をまとめた平均は offsetReport から作る
-  const mean = meanOfBoth(rep);
-  el.homeRank.textContent = stats.rank ?? RANKS[0].name;
-  el.homeStreak.textContent = `${stats.streak ?? 0}日`;
-  el.homeKeys.textContent = String(stats.keystrokes ?? 0);
-  el.homeOffset.textContent = fmtOffset(mean);
-  el.homePerfect.textContent = o?.perfectRate ? `${Math.round(o.perfectRate)}%` : '—';
-
-  // 「つづきから」は、まだクリアしていない最初の課題
-  const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0)) ?? LESSONS[0];
-  if (next && el.startSub && el.btnStart) {
-    el.startSub.textContent = next.title;
-    el.btnStart.onclick = () => { location.hash = `#/play/${next.id}`; };
+  const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0));
+  if (el.doorLearnState) {
+    el.doorLearnState.textContent = next
+      ? (stats.runs > 0 ? `つづき：${next.title}` : `第一課から：${next.title}`)
+      : '七つの課をすべて打ち終えています';
   }
-
-  if (el.pickTrainState) {
-    const weak = weakFaces(stats, { limit: 40 }).length;
-    el.pickTrainState.textContent = stats.runs > 0
-      ? `いま弱いのは ${weak} 面`
+  if (el.doorTrainState) {
+    el.doorTrainState.textContent = stats.runs > 0
+      ? `段位 ${stats.rank ?? RANKS[0].name} ・ いま弱いのは ${weakFaces(stats, { limit: 40 }).length} 面`
       : '弱点集中・総ざらい・速度・実文・自由入力';
   }
-
 }
 
 /** 課題の一覧。玄関から切り離して «おぼえる» の中へ移した */
 function paintLearn() {
   const stats = loadStats();
   paintNav(stats);
+
+  // 「つづきから」は、まだクリアしていない最初の課題（門から移した）
+  const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0)) ?? LESSONS[0];
+  if (next && el.startSub && el.btnStart) {
+    el.startSub.textContent = next.title;
+    el.btnStart.onclick = () => { location.hash = `#/play/${next.id}`; };
+  }
   if (!el.courseList) return;
 
   // unlockedOf は { course, theme, sound, items } を返す。course だけ見る
@@ -1472,6 +1464,22 @@ function updateFreeText() {
 
 // -- ルーティング -----------------------------------------------------------
 
+/**
+ * 場所（入門・道場・門）。看板・帯の色・ナビの中身は CSS が body[data-area] で切り替える。
+ * 配列表と設定は場所を持たない道具なので、開いても直前の場所のまま（入門から開いた配列表は入門の顔）。
+ * 課題の画面は、七つの課の題なら入門、その場で組んだ出題（鍛える・自由入力）なら道場
+ */
+const AREA_OF = { home: 'gate', learn: 'learn', train: 'train', record: 'train' };
+const AREA_TITLE = { gate: '親指シフト', learn: '親指シフト入門', train: '親指シフト道場' };
+let area = 'gate';
+
+function setArea(name, arg) {
+  if (AREA_OF[name]) area = AREA_OF[name];
+  else if (name === 'play') area = (pending ?? findLesson(arg))?.courseId ? 'learn' : 'train';
+  document.body.dataset.area = area;
+  document.title = AREA_TITLE[area];
+}
+
 function route() {
   const hash = location.hash.replace(/^#/, '') || '/';
   const [, head, arg] = hash.match(/^\/([^/]*)\/?(.*)$/) ?? [];
@@ -1491,6 +1499,7 @@ function route() {
   if (location.hash !== canonical) { location.replace(canonical); return; }
 
   screen = name;
+  setArea(name, arg);
   for (const [k, node] of Object.entries(el.screens)) {
     if (node) node.hidden = k !== name;
   }

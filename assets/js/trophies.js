@@ -415,6 +415,7 @@ export const TROPHIES = [
   {
     id: 'm-first',
     category: 'mastery',
+    tier: 'bronze',
     name: '初稽古',
     hint: '課題をひとつ打ち切る',
     check: (s) => s.runs >= 1,
@@ -422,6 +423,7 @@ export const TROPHIES = [
   {
     id: 'm-solo-half',
     category: 'mastery',
+    tier: 'bronze',
     name: '素面を半分',
     hint: '単独打鍵の面で15キー打つ',
     check: (s) => cov(s).solo >= 15,
@@ -429,6 +431,7 @@ export const TROPHIES = [
   {
     id: 'm-solo-all',
     category: 'mastery',
+    tier: 'silver',
     name: '全キーを正打',
     hint: `単独打鍵の面で${CHAR_KEY_COUNT}キーすべてを打つ`,
     check: (s) => cov(s).solo >= CHAR_KEY_COUNT,
@@ -436,6 +439,7 @@ export const TROPHIES = [
   {
     id: 'm-same-open',
     category: 'mastery',
+    tier: 'bronze',
     name: '別のかなの面を開く',
     hint: '同側シフト（別のかな）で10キー打つ',
     check: (s) => cov(s).same >= 10,
@@ -446,6 +450,7 @@ export const TROPHIES = [
     // 配列表や課題が教えていることの逆を、達成の瞬間に刷り込んでいた
     id: 'm-dakuten',
     category: 'mastery',
+    tier: 'silver',
     name: '濁音を制覇',
     hint: '交差シフト（濁音・半濁音）で20キー打つ',
     check: (s) => cov(s).cross >= 20,
@@ -453,6 +458,7 @@ export const TROPHIES = [
   {
     id: 'm-cross-open',
     category: 'mastery',
+    tier: 'bronze',
     name: '交差の面を開く',
     hint: '交差シフトで10キー打つ',
     check: (s) => cov(s).cross >= 10,
@@ -460,6 +466,7 @@ export const TROPHIES = [
   {
     id: 'm-kogaki',
     category: 'mastery',
+    tier: 'silver',
     name: '小書きを制覇',
     hint: '交差シフト（小書き・拗音が住む面）で18キー打つ',
     check: (s) => cov(s).cross >= 18,
@@ -467,6 +474,7 @@ export const TROPHIES = [
   {
     id: 'm-cross100',
     category: 'mastery',
+    tier: 'bronze',
     name: '逆側シフト百本',
     hint: '交差シフトを100回成功させる',
     check: (s) => (s.shiftHits ? s.shiftHits.cross : 0) >= 100,
@@ -474,6 +482,7 @@ export const TROPHIES = [
   {
     id: 'm-cross1000',
     category: 'mastery',
+    tier: 'gold',
     name: '逆側シフト千本',
     hint: '交差シフトを1000回成功させる',
     check: (s) => (s.shiftHits ? s.shiftHits.cross : 0) >= 1000,
@@ -481,6 +490,7 @@ export const TROPHIES = [
   {
     id: 'm-three-faces',
     category: 'mastery',
+    tier: 'silver',
     name: '三面踏破',
     hint: '単独・同側・交差の三つの面すべてで18キー以上打つ',
     check: (s) => {
@@ -499,6 +509,7 @@ export const TROPHIES = [
   {
     id: 'm-keys10k',
     category: 'mastery',
+    tier: 'silver',
     name: '一万打',
     hint: '通算一万打鍵',
     check: (s) => s.keystrokes >= 10000,
@@ -506,6 +517,7 @@ export const TROPHIES = [
   {
     id: 'm-keys100k',
     category: 'mastery',
+    tier: 'gold',
     name: '十万打',
     hint: '通算十万打鍵',
     check: (s) => s.keystrokes >= 100000,
@@ -513,6 +525,7 @@ export const TROPHIES = [
   {
     id: 'm-hour10',
     category: 'mastery',
+    tier: 'gold',
     name: '十時間の稽古',
     hint: '通算10時間打つ',
     check: (s) => s.seconds >= 36000,
@@ -522,6 +535,7 @@ export const TROPHIES = [
   {
     id: 's-3',
     category: 'streak',
+    tier: 'bronze',
     name: '三日坊主を越える',
     hint: '3日つづけて打つ',
     check: (s) => s.streak >= 3,
@@ -529,6 +543,7 @@ export const TROPHIES = [
   {
     id: 's-7',
     category: 'streak',
+    tier: 'bronze',
     name: '一週間',
     hint: '7日つづけて打つ',
     check: (s) => s.streak >= 7,
@@ -536,6 +551,7 @@ export const TROPHIES = [
   {
     id: 's-14',
     category: 'streak',
+    tier: 'silver',
     name: '二週間',
     hint: '14日つづけて打つ',
     check: (s) => s.streak >= 14,
@@ -543,6 +559,7 @@ export const TROPHIES = [
   {
     id: 's-30',
     category: 'streak',
+    tier: 'gold',
     name: '一月精進',
     hint: '30日つづけて打つ',
     check: (s) => s.streak >= 30,
@@ -550,6 +567,7 @@ export const TROPHIES = [
   {
     id: 's-100',
     category: 'streak',
+    tier: 'gold',
     name: '百日行',
     hint: '100日つづけて打つ',
     check: (s) => s.streak >= 100,
@@ -557,6 +575,7 @@ export const TROPHIES = [
   {
     id: 's-days50',
     category: 'streak',
+    tier: 'gold',
     name: '五十日',
     hint: '通算50日打つ（連続でなくてよい）',
     check: (s) => s.days.length >= 50,
@@ -564,6 +583,7 @@ export const TROPHIES = [
   {
     id: 's-return',
     category: 'streak',
+    tier: 'silver',
     name: '出戻り',
     hint: '7日以上あけてから戻ってきて、また3日つづける',
     // 一度途切れた人がまた積み上げ始めた瞬間を拾う。移行期は必ず一度は離れるので、
@@ -580,6 +600,7 @@ export const TROPHIES = [
   {
     id: 'a-nomisfire100',
     category: 'accuracy',
+    tier: 'bronze',
     name: 'シフト不発ゼロ・百打',
     hint: 'シフト不発ひとつも無しで100打鍵する（通算300字から）',
     check: (s) => s.best.noMisfireKeys >= 100 && kanaDone(s) >= TROPHY_MIN_KANA.start,
@@ -587,6 +608,7 @@ export const TROPHIES = [
   {
     id: 'a-nomisfire500',
     category: 'accuracy',
+    tier: 'silver',
     name: 'シフト不発ゼロ・五百打',
     hint: 'シフト不発ひとつも無しで500打鍵する',
     check: (s) => s.best.noMisfireKeys >= 500,
@@ -594,6 +616,7 @@ export const TROPHIES = [
   {
     id: 'a-noface100',
     category: 'accuracy',
+    tier: 'bronze',
     name: '面を間違えない',
     hint: '誤シフト面ゼロで100打鍵する（通算300字から）',
     check: (s) => s.best.noWrongFaceKeys >= 100 && kanaDone(s) >= TROPHY_MIN_KANA.start,
@@ -601,6 +624,7 @@ export const TROPHIES = [
   {
     id: 'a-perfect1',
     category: 'accuracy',
+    tier: 'silver',
     name: '無傷',
     hint: '50文字以上の課題を正確率100%で打ち切る（通算300字から）',
     // 「一度出せばよい」型。ここは積み上げを要求する所ではない。
@@ -613,6 +637,7 @@ export const TROPHIES = [
   {
     id: 'a-perfect10',
     category: 'accuracy',
+    tier: 'gold',
     name: '無傷を十度',
     hint: '正確率100%で10回打ち切る',
     check: (s) => s.perfectRuns >= 10,
@@ -620,6 +645,7 @@ export const TROPHIES = [
   {
     id: 'a-acc98',
     category: 'accuracy',
+    tier: 'silver',
     name: '狙いを外さない',
     hint: '正確率98%以上で打ち切る（通算1000字から）',
     // 一本の正確率は文字数が少ないほど跳ねる（50文字ならミス1つで98%）。
@@ -630,6 +656,7 @@ export const TROPHIES = [
   {
     id: 'a-clean-long',
     category: 'accuracy',
+    tier: 'gold',
     name: '長丁場を無傷で',
     hint: '300文字以上を正確率100%で打ち切る',
     check: (s) => s.best.perfectRunKana >= 300,
@@ -648,6 +675,7 @@ export const TROPHIES = [
   {
     id: 'v-cpm100',
     category: 'speed',
+    tier: 'bronze',
     name: '毎分百字',
     hint: 'CPM 100 に届く（通算300字から）',
     check: (s) => s.best.cpm >= 100 && kanaDone(s) >= TROPHY_MIN_KANA.start,
@@ -655,6 +683,7 @@ export const TROPHIES = [
   {
     id: 'v-cpm200',
     category: 'speed',
+    tier: 'gold',
     name: '毎分二百字',
     hint: 'CPM 200 に届く（通算2500字から）',
     check: (s) => s.best.cpm >= 200 && kanaDone(s) >= TROPHY_MIN_KANA.week,
@@ -662,6 +691,7 @@ export const TROPHIES = [
   {
     id: 'v-cpm300',
     category: 'speed',
+    tier: 'gold',
     name: '毎分三百字',
     hint: 'CPM 300 に届く（通算6000字から）',
     check: (s) => s.best.cpm >= 300 && kanaDone(s) >= TROPHY_MIN_KANA.month,
@@ -669,6 +699,7 @@ export const TROPHIES = [
   {
     id: 'v-fast-clean',
     category: 'speed',
+    tier: 'gold',
     name: '速くて正確',
     hint: 'CPM 200 以上を正確率98%以上で出す（通算4500字から）',
     // 別々の一本の自己ベストではなく、同じ一本で両立させる。
@@ -679,6 +710,7 @@ export const TROPHIES = [
   {
     id: 'v-beat-romaji',
     category: 'speed',
+    tier: 'silver',
     name: 'ローマ字を追い抜く',
     hint: '移行前のローマ字入力の速さを超える（通算1000字から）',
     // ここは移行者に「もう戻らなくていい」と言う実績なので、
@@ -688,6 +720,7 @@ export const TROPHIES = [
   {
     id: 'v-romaji-x1_5',
     category: 'speed',
+    tier: 'gold',
     name: 'ローマ字の一・五倍',
     hint: '移行前のローマ字入力の1.5倍の速さを出す（通算1000字から）',
     check: (s) => !!(s.romaji && s.romaji.cpm > 0 && s.best.cpm >= s.romaji.cpm * 1.5 && kanaDone(s) >= TROPHY_MIN_KANA.day),
@@ -707,6 +740,7 @@ export const TROPHIES = [
   {
     id: 't-first',
     category: 'timing',
+    tier: 'bronze',
     name: 'はじめてのぴったり',
     hint: 'ぴったり判定（±15ms）を1回出す',
     check: (s) => s.timing.perfect >= 1,
@@ -714,6 +748,7 @@ export const TROPHIES = [
   {
     id: 't-perfect50',
     category: 'timing',
+    tier: 'bronze',
     name: 'ぴったり五十',
     hint: 'ぴったり判定を通算50回出す',
     check: (s) => s.timing.perfect >= 50,
@@ -721,6 +756,7 @@ export const TROPHIES = [
   {
     id: 't-perfect500',
     category: 'timing',
+    tier: 'gold',
     name: 'ぴったり五百',
     hint: 'ぴったり判定を通算500回出す',
     check: (s) => s.timing.perfect >= 500,
@@ -728,6 +764,7 @@ export const TROPHIES = [
   {
     id: 't-all-perfect',
     category: 'timing',
+    tier: 'gold',
     name: '寸分違わず',
     hint: '1課題の同時打鍵を30回以上、すべてぴったりで打ち切る（通算2500回から）',
     // 20回では、同時打鍵の多い課題を一本打てば機械速度でその場で取れていた。
@@ -738,6 +775,7 @@ export const TROPHIES = [
   {
     id: 't-rate80',
     category: 'timing',
+    tier: 'silver',
     name: 'ぴったり八割',
     hint: '1課題でぴったり率80%以上（同時打鍵20回以上・通算400回から）',
     check: (s) => s.best.perfectRate >= 80 && shiftsDone(s) >= TROPHY_MIN_SHIFTS.day,
@@ -745,6 +783,7 @@ export const TROPHIES = [
   {
     id: 't-mean10',
     category: 'timing',
+    tier: 'silver',
     name: '十ミリ秒の指',
     hint: '1課題のズレ平均を±10ms以内に収める（20回以上・通算400回から）',
     check: (s) => s.best.meanAbsOffset != null && s.best.meanAbsOffset <= 10 && shiftsDone(s) >= TROPHY_MIN_SHIFTS.day,
@@ -752,6 +791,7 @@ export const TROPHIES = [
   {
     id: 't-mean5',
     category: 'timing',
+    tier: 'gold',
     name: '五ミリ秒の指',
     hint: '1課題のズレ平均を±5ms以内に収める（20回以上・通算2500回から）',
     // ±5ms は perfect の窓（±15ms）の三分の一。狙って出せる幅ではなく、
@@ -761,6 +801,7 @@ export const TROPHIES = [
   {
     id: 't-steady',
     category: 'timing',
+    tier: 'gold',
     name: 'ぶれない親指',
     hint: '1課題のズレのばらつき（標準偏差）を15ms以内に収める（30回以上・通算1000回から）',
     // 平均が0でも「早すぎ・遅すぎが半々」なら直っていない。ばらつきを別に見る。
@@ -769,6 +810,7 @@ export const TROPHIES = [
   {
     id: 't-both-hands',
     category: 'timing',
+    tier: 'silver',
     name: '左右そろい踏み',
     hint: '1課題で左右どちらの親指もズレ平均±10ms以内（各10回以上・通算400回から）',
     check: (s) => s.best.bothHandsMeanAbs != null && s.best.bothHandsMeanAbs <= 10 && shiftsDone(s) >= TROPHY_MIN_SHIFTS.day,
@@ -776,6 +818,7 @@ export const TROPHIES = [
   {
     id: 't-symmetric',
     category: 'timing',
+    tier: 'gold',
     name: '左右対称',
     hint: '1課題で左右の親指のズレ平均の差を5ms以内にする（各10回以上・通算1000回から）',
     // 片方の親指だけ遅い人は多い。左右差は本人には自覚しにくいので実績にする。
@@ -786,6 +829,7 @@ export const TROPHIES = [
   {
     id: 't-fixed-drift',
     category: 'timing',
+    tier: 'silver',
     name: '癖を直した',
     hint: 'ズレ平均が±20msを超えた課題を5回経てから、±10ms以内を出す',
     // 最初から揃っている人には出ない。「直した」人だけの実績。
@@ -794,6 +838,7 @@ export const TROPHIES = [
   {
     id: 't-perfect-streak',
     category: 'timing',
+    tier: 'silver',
     name: 'ぴったり十連',
     hint: 'ぴったり判定を10回続けて出す（通算150回から）',
     // タイミング系で最初に届く一段。下限も一番低く置く。
@@ -802,15 +847,78 @@ export const TROPHIES = [
   {
     id: 't-perfect-streak30',
     category: 'timing',
+    tier: 'gold',
     name: 'ぴったり三十連',
     hint: 'ぴったり判定を30回続けて出す（通算2500回から）',
     check: (s) => s.best.perfectStreak >= 30 && shiftsDone(s) >= TROPHY_MIN_SHIFTS.month,
   },
+  // ------------------------------------------------ 皆伝（白金）
+  // ゲームの «プラチナトロフィー» にあたる一つ。ほかを全部取ったときだけ開く。
+  // check はほかの実績の取得状況だけを見る。同じ回で最後の一つと一緒に取れるよう、
+  // newlyEarned が «この回で取ったもの» も足して判定する
+  {
+    id: 'x-all',
+    category: 'crown',
+    tier: 'platinum',
+    name: '親指の極み',
+    hint: 'ほかの実績をすべて取る',
+    check: (s) => TROPHIES.every((t) => t.id === 'x-all' || !!(s.earned && s.earned[t.id])),
+  },
 ];
+
+/**
+ * メダルの格。ゲームの実績と同じく、取りやすいものから銅・銀・金、全部を取った印が白金。
+ * 格は «どれだけ稽古を積めば届くか» で付けた。一日で届くものが銅、一週間ほどが銀、
+ * 月単位の稽古か、狙っても簡単には出ない精度が要るものが金
+ */
+export const TIERS = [
+  { id: 'bronze', name: '銅' },
+  { id: 'silver', name: '銀' },
+  { id: 'gold', name: '金' },
+  { id: 'platinum', name: '白金' },
+];
+
+/**
+ * 数で届く実績の «いまどこまで来たか»。[いま, 目標] を返す。
+ * 一回の出来で決まるもの（ズレ平均・正確率など）は進み具合が無いので null。
+ * 途中が見えると «あと 38 打» が次に打つ理由になる（ゲームの実績の進捗バーと同じ）
+ */
+const PROGRESS = {
+  'm-solo-half': (s) => [cov(s).solo, 15],
+  'm-solo-all': (s) => [cov(s).solo, CHAR_KEY_COUNT],
+  'm-same-open': (s) => [cov(s).same, 10],
+  'm-dakuten': (s) => [cov(s).cross, 20],
+  'm-cross-open': (s) => [cov(s).cross, 10],
+  'm-kogaki': (s) => [cov(s).cross, 18],
+  'm-cross100': (s) => [s.shiftHits?.cross ?? 0, 100],
+  'm-cross1000': (s) => [s.shiftHits?.cross ?? 0, 1000],
+  'm-keys10k': (s) => [s.keystrokes ?? 0, 10000],
+  'm-keys100k': (s) => [s.keystrokes ?? 0, 100000],
+  'm-hour10': (s) => [Math.floor((s.seconds ?? 0) / 3600), 10],
+  's-3': (s) => [s.streak ?? 0, 3],
+  's-7': (s) => [s.streak ?? 0, 7],
+  's-14': (s) => [s.streak ?? 0, 14],
+  's-30': (s) => [s.streak ?? 0, 30],
+  's-100': (s) => [s.streak ?? 0, 100],
+  's-days50': (s) => [s.days?.length ?? 0, 50],
+  'a-perfect10': (s) => [s.perfectRuns ?? 0, 10],
+  't-perfect50': (s) => [s.timing?.perfect ?? 0, 50],
+  't-perfect500': (s) => [s.timing?.perfect ?? 0, 500],
+  'x-all': (s) => [TROPHIES.filter((t) => t.id !== 'x-all' && s.earned && s.earned[t.id]).length, TROPHIES.length - 1],
+};
+
+/** @returns {{now:number, goal:number} | null} いまの値は目標で頭打ちにする */
+export function progressOf(trophy, stats) {
+  const f = PROGRESS[trophy.id];
+  if (!f) return null;
+  const [now, goal] = f(stats);
+  return { now: Math.min(goal, Math.max(0, Math.floor(now))), goal };
+}
 
 /** まだ取っていないもののうち、条件を満たしたものを返す */
 export function newlyEarned(stats) {
-  return TROPHIES.filter((t) => {
+  const found = TROPHIES.filter((t) => {
+    if (t.id === 'x-all') return false;
     if (stats.earned && stats.earned[t.id]) return false;
     try {
       return !!t.check(stats);
@@ -819,6 +927,14 @@ export function newlyEarned(stats) {
       return false;
     }
   });
+  // 白金は «この回で取ったもの» も取ったことにして判定する。でないと最後の一つの次の回まで開かない
+  const crown = TROPHIES.find((t) => t.id === 'x-all');
+  if (!(stats.earned && stats.earned[crown.id])) {
+    const earned = { ...(stats.earned ?? {}) };
+    for (const t of found) earned[t.id] = true;
+    if (crown.check({ ...stats, earned })) found.push(crown);
+  }
+  return found;
 }
 
 /** 系統ごとに束ねた実績。マイページの一覧用 */

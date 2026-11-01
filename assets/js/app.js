@@ -20,13 +20,14 @@ import {
 } from './storage.js';
 import { saveRomajiBaseline, clearRomajiBaseline } from './storage.js';
 import {
-  RANKS, rankOf, nextRankGap, TROPHIES, trophiesByCategory, dayKey,
+  RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
   cpmOf, accuracyOf, unlockedOf, UNLOCKS, romajiComparison,
 } from './trophies.js';
 import { COURSES, LESSONS, findLesson, nextLesson, lessonsOf } from './lessons.js';
 import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './drill.js';
 import { renderIso } from './iso.js';
 import { svg } from './viz.js';
+import { medal } from './medal.js';
 import { renderTrend, renderOffsetHist, renderCalendar } from './charts.js';
 import { createSound } from './sound.js';
 
@@ -175,7 +176,7 @@ function meanOfBoth(rep) {
 
 // 実績の系統。trophies.js は英語の id で分けているので、見出しはこちらで日本語にする
 const CATEGORY_NAME = {
-  mastery: '習得', streak: '継続', accuracy: '精度', speed: '速度', timing: 'タイミング',
+  mastery: '習得', streak: '継続', accuracy: '精度', speed: '速度', timing: 'タイミング', crown: '皆伝',
 };
 
 // -- 設定 -------------------------------------------------------------------
@@ -548,7 +549,9 @@ function finishRun() {
     el.finishEarned.replaceChildren(...earned.map(t => {
       const d = document.createElement('span');
       d.className = 'finish__badge';
-      d.textContent = typeof t === 'string' ? t : (t.name ?? '');
+      const tr = typeof t === 'string' ? TROPHIES.find(x => x.name === t) : t;
+      if (tr?.tier) d.append(medal(tr, { got: true, size: 's' }));
+      d.append(typeof t === 'string' ? t : (t.name ?? ''));
       return d;
     }));
   } else {
@@ -562,11 +565,17 @@ function finishRun() {
   // 節目は右下の通知にも積む。トーストはプレイ画面の中にしか出せない。
   // ただし一本で十枚出ることがあり、積み上がると画面を覆う（実際に覆っていた）。
   // 三つを越えたらまとめて一枚にする
-  const earnedList = (earned ?? []).map(t => (typeof t === 'string' ? { name: t, hint: '' } : { name: t.name, hint: t.hint ?? '' }));
+  const earnedList = (earned ?? []).map(t => (typeof t === 'string' ? TROPHIES.find(x => x.name === t) ?? { name: t, hint: '' } : t));
   if (earnedList.length > 3) {
-    notice({ eyebrow: '実績', name: `${earnedList.length}個を取得`, hint: earnedList.map(t => t.name).join('・') });
+    // まとめた一枚には、いちばん格の高いメダルを付ける
+    const order = TIERS.map(x => x.id);
+    const top = [...earnedList].filter(t => t.tier).sort((a, b) => order.indexOf(b.tier) - order.indexOf(a.tier))[0];
+    notice({ eyebrow: '実績解除', name: `${earnedList.length}個を解除`, hint: earnedList.map(t => t.name).join('・'), kind: 'trophy', trophy: top });
   } else {
-    for (const t of earnedList) notice({ eyebrow: '実績', name: t.name, hint: t.hint });
+    for (const t of earnedList) {
+      const tierName = TIERS.find(x => x.id === t.tier)?.name;
+      notice({ eyebrow: tierName ? `実績解除 ・ ${tierName}` : '実績解除', name: t.name, hint: t.hint ?? '', kind: 'trophy', trophy: t.tier ? t : null });
+    }
   }
 
   const recs = records ?? [];
@@ -635,7 +644,7 @@ function clearResume() {
 }
 
 /** 右下に積む通知。消えるまでの面倒もここで見る */
-function notice({ eyebrow, name, hint = '', kind = 'rank' }) {
+function notice({ eyebrow, name, hint = '', kind = 'rank', trophy = null }) {
   if (!el.noticeStack || !name) return;
   const d = document.createElement('div');
   d.className = `notice notice--${kind}`;
@@ -643,6 +652,11 @@ function notice({ eyebrow, name, hint = '', kind = 'rank' }) {
   const n = document.createElement('b'); n.className = 'notice__name'; n.textContent = name;
   d.append(e, n);
   if (hint) { const h = document.createElement('span'); h.className = 'notice__hint'; h.textContent = hint; d.append(h); }
+  if (trophy) {
+    // 実績はメダルを左に。ゲームの «実績解除» の通知の形
+    d.dataset.tier = trophy.tier;
+    d.prepend(medal(trophy, { got: true, size: 's' }));
+  }
   el.noticeStack.append(d);
   setTimeout(() => {
     d.classList.add('is-going');
@@ -972,26 +986,127 @@ function paintMypage() {
   }));
 }
 
+let trophyFilter = 'all'; // 'all' | 'got' | 'locked'
+
+/**
+ * 実績の一覧。ゲームの実績画面の形にしてある。
+ *   上に «何個中何個・何％» と格ごとの数、その下に系統ごとの札。
+ *   札は左にメダル、右に名前・条件・取った日（取っていなければ進み具合のバー）。
+ */
 function paintTrophies(stats) {
   const got = stats.earned ?? {};
-  el.trophyCount.textContent = `${Object.keys(got).length} / ${TROPHIES.length}`;
-  const groups = trophiesByCategory();
-  const nodes = [];
-  for (const [cat, list] of Object.entries(groups)) {
+  const total = TROPHIES.length;
+  const have = TROPHIES.filter(t => got[t.id]).length;
+  el.trophyCount.textContent = `${have} / ${total}`;
+
+  const pct = Math.round((have / total) * 100);
+  const bar = document.createElement('span');
+  bar.className = 'ach-sum__bar';
+  const fill = document.createElement('i');
+  fill.style.width = `${pct}%`;
+  bar.append(fill);
+  bar.setAttribute('role', 'img');
+  bar.setAttribute('aria-label', `取得率 ${pct}%`);
+
+  const big = document.createElement('p');
+  big.className = 'ach-sum__big';
+  const bn = document.createElement('b'); bn.textContent = String(have);
+  const bt = document.createElement('span'); bt.textContent = ` / ${total} 解除`;
+  const bp = document.createElement('em'); bp.textContent = `${pct}%`;
+  big.append(bn, bt, bp);
+
+  const tiers = document.createElement('ul');
+  tiers.className = 'ach-sum__tiers';
+  for (const tier of TIERS) {
+    const all = TROPHIES.filter(t => t.tier === tier.id);
+    const n = all.filter(t => got[t.id]).length;
+    const li = document.createElement('li');
+    li.append(medal({ category: 'crown', tier: tier.id }, { got: n > 0, size: 's' }));
+    const lab = document.createElement('span');
+    lab.textContent = `${tier.name} ${n} / ${all.length}`;
+    li.append(lab);
+    tiers.append(li);
+  }
+
+  const seg = document.createElement('div');
+  seg.className = 'ach-filter';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', '絞り込み');
+  for (const [id, label] of [['all', 'すべて'], ['got', '取得済み'], ['locked', '未取得']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(trophyFilter === id));
+    b.addEventListener('click', () => { trophyFilter = id; paintTrophies(stats); });
+    seg.append(b);
+  }
+
+  const sum = document.createElement('div');
+  sum.className = 'ach-sum';
+  sum.append(big, bar, tiers, seg);
+
+  const nodes = [sum];
+  for (const [cat, list] of Object.entries(trophiesByCategory())) {
+    const shown = list.filter(t => trophyFilter === 'all' || (trophyFilter === 'got') === !!got[t.id]);
+    if (!shown.length) continue;
     const h = document.createElement('h3');
     h.className = 'trophies__cat';
-    h.textContent = CATEGORY_NAME[cat] ?? cat;
+    h.textContent = `${CATEGORY_NAME[cat] ?? cat}　${list.filter(t => got[t.id]).length} / ${list.length}`;
     nodes.push(h);
-    for (const t of list) {
-      const d = document.createElement('div');
-      d.className = 'trophy' + (got[t.id] ? ' is-got' : '');
-      const b = document.createElement('b'); b.textContent = t.name;
-      const s = document.createElement('small'); s.textContent = got[t.id] ? got[t.id] : (t.hint ?? '');
-      d.append(b, s);
-      nodes.push(d);
-    }
+    for (const t of shown) nodes.push(trophyCard(t, got[t.id], stats));
+  }
+  if (nodes.length === 1) {
+    const p = document.createElement('p');
+    p.className = 'trophies__none';
+    p.textContent = trophyFilter === 'got' ? 'まだ一つも取っていません。課題を一つ打ち切ると «初稽古» が開きます。' : 'すべて取りました。';
+    nodes.push(p);
   }
   el.trophies.replaceChildren(...nodes);
+}
+
+function trophyCard(t, when, stats) {
+  const tierName = TIERS.find(x => x.id === t.tier)?.name ?? '';
+  const d = document.createElement('div');
+  d.className = 'ach' + (when ? ' is-got' : '');
+  d.dataset.tier = t.tier;
+  const body = document.createElement('div');
+  body.className = 'ach__body';
+  const name = document.createElement('b');
+  name.className = 'ach__name';
+  name.textContent = t.name;
+  const chip = document.createElement('span');
+  chip.className = 'ach__tier';
+  chip.textContent = tierName;
+  const head = document.createElement('span');
+  head.className = 'ach__head';
+  head.append(name, chip);
+  const hint = document.createElement('span');
+  hint.className = 'ach__hint';
+  hint.textContent = t.hint ?? '';
+  body.append(head, hint);
+  if (when) {
+    const at = document.createElement('span');
+    at.className = 'ach__at';
+    at.textContent = `${String(when).slice(0, 10).replaceAll('-', '/')} に解除`;
+    body.append(at);
+  } else {
+    const p = progressOf(t, stats);
+    if (p) {
+      const row = document.createElement('span');
+      row.className = 'ach__prog';
+      const track = document.createElement('span');
+      track.className = 'ach__track';
+      const f = document.createElement('i');
+      f.style.width = `${Math.round((p.now / p.goal) * 100)}%`;
+      track.append(f);
+      const num = document.createElement('span');
+      num.textContent = `${p.now.toLocaleString('ja-JP')} / ${p.goal.toLocaleString('ja-JP')}`;
+      row.append(track, num);
+      body.append(row);
+    }
+  }
+  d.append(medal(t, { got: !!when }), body);
+  return d;
 }
 
 function paintRecords(stats) {

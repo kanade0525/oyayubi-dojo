@@ -2586,61 +2586,296 @@ a.pick__one:hover .pick__go {
 
 .trophies {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 8px;
 }
 
-/* 系統の見出し。定義が無く grid の1セル扱いだったので、列の途中にばらばらに散っていた。
-   行を丸ごと使わせて、札の群れを本当に区切る */
+/* 系統の見出し。行を丸ごと使わせて、札の群れを区切る */
 .trophies__cat {
   grid-column: 1 / -1;
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: .08em;
-  color: var(--fg-dim);
+  color: var(--fg-mid);
   border-bottom: 1px solid var(--line);
   padding-bottom: 5px;
 }
 
-.trophies__cat:first-child { margin-top: 0; }
+.trophies__none {
+  grid-column: 1 / -1;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--fg-mid);
+}
 
-.trophy {
+/* ---------------------------------------------------------------- メダル（medal.js）
+   ゲームの実績と同じく、格で金属の色を変える。金属の色は配色（data-tone）に関わらず固定。
+   面は上から光が当たる形（明るい→暗い）、縁に一段明るい輪。取っていないものは暗い円に絵の影と錠前 */
+.medal {
+  --m-hi: #f2c7a0;
+  --m-mid: #c07a45;
+  --m-lo: #7a4520;
+  --m-ink: #3d200c;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.55), transparent 42%),
+    linear-gradient(160deg, var(--m-hi), var(--m-mid) 55%, var(--m-lo));
+  box-shadow:
+    inset 0 0 0 3px color-mix(in srgb, var(--m-hi) 70%, #fff),
+    inset 0 0 0 5px var(--m-lo),
+    0 4px 12px rgb(0 0 0 / 0.45);
+  color: var(--m-ink);
+}
+
+.medal[data-tier="silver"] { --m-hi: #f4f6f9; --m-mid: #b9c0ca; --m-lo: #707987; --m-ink: #2c323b; }
+.medal[data-tier="gold"] { --m-hi: #fff0b0; --m-mid: #e2b23a; --m-lo: #92650f; --m-ink: #4a3204; }
+.medal[data-tier="platinum"] { --m-hi: #ffffff; --m-mid: #bfe3f2; --m-lo: #6f97b8; --m-ink: #1d3346; }
+
+/* 白金だけは虹色の照りを一枚重ねる。«特別な一つ» が並びの中で分かるように */
+.medal[data-tier="platinum"][data-got="1"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 200deg, rgb(255 180 220 / 0.35), rgb(180 220 255 / 0.35), rgb(200 255 210 / 0.3), rgb(255 230 170 / 0.35), rgb(255 180 220 / 0.35));
+  mix-blend-mode: overlay;
+}
+
+.medal__icon {
+  position: relative;
+  z-index: 1;
+  width: 52%;
+  height: 52%;
+  fill: currentColor;
+}
+
+/* 絵の «抜き»（的の白い輪・キーの天面）。金属の面の色で塗って穴に見せる */
+.medal__icon .medal__cut { fill: var(--m-mid); }
+
+.medal[data-got="0"] {
+  background: radial-gradient(circle at 35% 28%, rgb(255 255 255 / 0.06), transparent 50%), var(--sunken);
+  box-shadow: inset 0 0 0 2px var(--line), 0 2px 6px rgb(0 0 0 / 0.3);
+  color: var(--fg-dim);
+}
+
+.medal[data-got="0"] .medal__icon { opacity: 0.45; }
+.medal[data-got="0"] .medal__icon .medal__cut { fill: var(--sunken); }
+
+.medal__lock {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  box-shadow: 0 0 0 2px var(--line);
+  fill: var(--fg-mid);
+}
+
+.medal--s {
+  width: 30px;
+  height: 30px;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--m-hi) 70%, #fff),
+    inset 0 0 0 3px var(--m-lo),
+    0 2px 6px rgb(0 0 0 / 0.4);
+}
+
+.medal--s .medal__lock { display: none; }
+
+/* ---------------------------------------------------------------- 実績の札 */
+
+.ach {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-m);
+  background: var(--sunken);
+}
+
+.ach.is-got {
+  border-color: var(--line);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--ach-c) 12%, var(--panel)), var(--panel) 60%);
+}
+
+.ach { --ach-c: #c07a45; }
+.ach[data-tier="silver"] { --ach-c: #b9c0ca; }
+.ach[data-tier="gold"] { --ach-c: #e2b23a; }
+.ach[data-tier="platinum"] { --ach-c: #bfe3f2; }
+
+.ach__body {
+  flex: 1;
   display: grid;
   gap: 3px;
-  padding: 10px 12px;
-  border: 1px solid var(--line-soft);
+  min-width: 0;
+}
+
+.ach__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ach__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fg-mid);
+}
+
+.ach.is-got .ach__name { color: var(--fg); }
+
+.ach__tier {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--line);
   border-radius: var(--r-s);
-  background: color-mix(in srgb, var(--tone) 5%, transparent);
-}
-
-.trophy b {
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--fg-dim);
-}
-
-.trophy small {
   font-size: 10.5px;
   line-height: 1.6;
-  color: var(--fg-dim);
-  opacity: 0.75;
+  color: var(--fg-mid);
 }
 
-.trophy.is-got {
-  border-color: color-mix(in srgb, var(--tone) 45%, transparent);
+.ach.is-got .ach__tier {
+  border-color: color-mix(in srgb, var(--ach-c) 55%, var(--line));
+  color: var(--fg);
 }
 
-.trophy.is-got b {
+.ach__hint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-mid);
+}
+
+.ach__at {
+  font-size: 11px;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.ach__prog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.ach__track {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+
+.ach__track i,
+.ach-sum__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone);
+}
+
+/* ---------------------------------------------------------------- 実績の集計（一覧の頭） */
+
+.ach-sum {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--panel-2);
+}
+
+.ach-sum__big {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-mid);
+  font-size: 13px;
+}
+
+.ach-sum__big b {
+  font-size: 30px;
+  color: var(--fg);
+}
+
+.ach-sum__big em {
+  margin-left: 10px;
+  font-style: normal;
+  font-weight: 700;
   color: var(--tone);
 }
 
-.trophy.is-got small {
-  opacity: 1;
+.ach-sum__bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line-soft);
+  overflow: hidden;
 }
 
-.trophy--new {
-  animation: pop 0.4s ease-out;
+.ach-sum__tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--fg-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+.ach-sum__tiers li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.ach-filter {
+  justify-self: end;
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  overflow: hidden;
+}
+
+.ach-filter button {
+  padding: 5px 12px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--fg-mid);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ach-filter button:last-child { border-right: 0; }
+
+.ach-filter button[aria-pressed="true"] {
+  background: var(--tone);
+  color: var(--tone-ink);
+  font-weight: 700;
+}
+
+@media (max-width: 600px) {
+  .ach-sum { grid-template-columns: 1fr; }
+  .ach-filter { justify-self: start; }
 }
 
 .rec {
@@ -3352,6 +3587,25 @@ a.pick__one:hover .pick__go {
 .notice--best {
   border-left-color: var(--good);
 }
+
+/* 実績解除。メダルを左に置き、文は右に二段で。ゲームの «実績解除» の通知の形 */
+.notice--trophy {
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  align-items: center;
+  border-left-color: #e2b23a;
+}
+
+.notice--trophy .medal {
+  grid-row: 1 / span 3;
+  width: 44px;
+  height: 44px;
+}
+
+.notice--trophy .notice__name { color: var(--fg); }
+.notice--trophy[data-tier="bronze"] { border-left-color: #c07a45; }
+.notice--trophy[data-tier="silver"] { border-left-color: #b9c0ca; }
+.notice--trophy[data-tier="platinum"] { border-left-color: #bfe3f2; }
 
 .notice--best .notice__name {
   color: var(--good);

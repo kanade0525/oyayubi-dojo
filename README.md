@@ -134,6 +134,7 @@ assets/
     drill.js          適応出題
     storage.js        localStorage
     trophies.js       段位・実績・アンロック
+    medal.js          実績のメダル（格で金属の色、系統で中の絵）
     lessons.js        課題データ
     meter.js          タイミングメーター
     keyboard.js       3面キーボード図

@@ -883,8 +883,9 @@
      aria-live="polite" にしてあるので、読み上げは «いま打っている手が空いてから» 流れる。
 
      一枚の構造（CSS はこの形に付けてある）:
-       <div class="notice notice--trophy">
-         <span class="notice__eyebrow">実績</span>
+       <div class="notice notice--trophy" data-tier="gold">
+         <span class="medal medal--s">…</span>   （medal.js が作る）
+         <span class="notice__eyebrow">実績解除 ・ 金</span>
          <b class="notice__name">十日連続</b>
          <span class="notice__hint">10日つづけて打つ</span>
        </div>

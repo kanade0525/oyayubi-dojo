@@ -46,14 +46,33 @@
      7.0:1 を満たしたつもりになっていた。札の上でも 7.36:1 以上になる値にしてある */
   --fg-dim: #a0abbc;
 
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-  --ui: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
-  /* かなを大きく出すところ専用。等幅にすると仮名の字面が痩せる */
-  --kana: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  /* 書体。フォントファイルは配らず、OS に入っている和文書体を名前で順に当てる。
 
-  --r-s: 8px;
-  --r-m: 12px;
-  --r-l: 18px;
+     自前配信（assets/fonts/ に OFL の書体を置く）はやめた。理由は二つ。
+       - 自由入力の欄にはどんなかなでも貼れるし、画面の文言は数百種の漢字を使う。
+         使う字だけに絞っても数百 KB になり、文言を一つ直すたびに作り直しが要る。
+         ビルドステップ無しの流儀と相容れない
+       - 打鍵の画面で欲しいのは「字形が素早く読めること」で、そこは各 OS の
+         標準書体（ヒラギノ・BIZ UD・Noto）がもう十分に良い
+     system-ui は先頭に置かない。Windows では Meiryo UI や Yu Gothic UI に、
+     Linux では欧文書体に化けて、和文の組みが環境ごとにばらばらになる。
+
+     本文はゴシック、看板と画面名だけ明朝にする。明朝は「道場の看板」の役で、
+     打つ字・数値・ボタンには使わない（細い横画が小さい字で潰れる）。
+     Windows は BIZ UD を先に当てる。Yu Gothic の Regular は画面で細く薄く出る */
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --ui: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
+    "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+  --head: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "Noto Serif CJK JP", "Noto Serif JP", serif;
+  /* かなを大きく出すところ専用。等幅にすると仮名の字面が痩せる */
+  --kana: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDGothic", "Yu Gothic", "Noto Sans CJK JP",
+    "Noto Sans JP", sans-serif;
+
+  /* 角は小さく。大きな角丸の札が均等に並ぶと、どの画面も同じ «カードの束» に見える。
+     ここは道具なので、角は «手が切れない» 程度に落とす */
+  --r-s: 4px;
+  --r-m: 6px;
+  --r-l: 8px;
 }
 
 :root[data-tone="matcha"] {
@@ -112,18 +131,38 @@ body {
   color: var(--fg);
   font-family: var(--ui);
   -webkit-font-smoothing: antialiased;
+  /* 行頭禁則を厳しめに。«ー» や小書きのかなが行頭に来ると、打つ字を読み違える */
+  line-break: strict;
 }
 
-/* 上端のごく薄い燐光。ダーク一色だと画面が平たく見える */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 500px at 18% -14%, color-mix(in srgb, var(--tone) 10%, transparent), transparent 62%),
-    radial-gradient(700px 420px at 94% 4%, color-mix(in srgb, var(--same) 5%, transparent), transparent 64%);
+/* 以前は上端に主色の燐光（radial-gradient）を敷いていた。
+   何も指していない光は飾りでしかなく、どの画面も同じ «それらしい» 顔になるのでやめた。
+   地は一色。面の区別は罫と札の地色で付ける */
+
+/* 看板・画面名・札の名前。明朝で組み、約物を詰める（palt）。
+   本文には palt を掛けない。長い文で字間が揺れると読む速さが落ちる */
+.nav__brand,
+.hero__title,
+.hero__creed,
+.page__title,
+.pick__name,
+.mine__rank b,
+.rank__name,
+.finish__title {
+  font-family: var(--head);
+  font-feature-settings: "palt";
+}
+
+/* 短い札の文字（ボタン・見出し・ナビ）だけ約物を詰める */
+.nav__links a,
+.btn,
+.card__head,
+.courses__cat,
+.tool__name,
+.mode__name,
+.course__name,
+.material__name {
+  font-feature-settings: "palt";
 }
 
 .screen {
@@ -185,9 +224,9 @@ kbd {
 }
 
 .nav__brand {
-  font-size: 13.5px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   color: var(--tone);
   white-space: nowrap;
 }
@@ -330,9 +369,9 @@ kbd {
 
 .page__title {
   margin: 0;
-  font-size: clamp(22px, 3.4vw, 30px);
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: clamp(24px, 3.6vw, 32px);
+  font-weight: 600;
+  letter-spacing: 0.06em;
 }
 
 .page__lead {
@@ -363,7 +402,7 @@ kbd {
 
 .card {
   padding: 20px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
   display: grid;
@@ -474,10 +513,17 @@ kbd {
   background: color-mix(in srgb, var(--off) 7%, transparent);
 }
 
-.warn b {
+/* 見出しの b だけを段にする。«.warn b» と書いていた頃は、本文中の太字
+   （Lacaille・やまぶきR などの名前）まで一語ずつ改行されていた */
+.warn > b {
   display: block;
   font-size: 13px;
   color: var(--off);
+}
+
+.warn p b {
+  color: var(--fg);
+  font-weight: 600;
 }
 
 .warn p {
@@ -492,7 +538,7 @@ kbd {
   background: color-mix(in srgb, var(--misfire) 7%, transparent);
 }
 
-.warn--stop b {
+.warn--stop > b {
   color: var(--misfire);
 }
 
@@ -795,7 +841,7 @@ kbd {
 }
 
 .sound__lock::before {
-  content: "🔒 ";
+  content: "まだ選べません：";
 }
 
 .sound.is-locked .sound__lock,
@@ -826,31 +872,38 @@ kbd {
   padding: 26px 0 8px;
 }
 
+/* 看板。光らせず、明朝の字の形だけで立たせる。
+   «親指シフト» が何の道場かを言う語なので大きく、«タイピング道場» は添え書きの大きさ */
 .hero__title {
   margin: 0;
-  font-size: clamp(28px, 5.2vw, 50px);
-  font-weight: 700;
-  line-height: 1.15;
-  letter-spacing: 0.01em;
-  color: var(--tone);
-  text-shadow: 0 0 34px var(--glow);
+  font-size: clamp(30px, 5.4vw, 52px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: var(--fg);
 }
 
 .hero__title span {
   display: block;
-  font-size: 0.52em;
-  color: var(--fg);
-  text-shadow: none;
+  margin-top: 4px;
+  font-size: 0.4em;
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  color: var(--fg-mid);
 }
 
+/* 標語。看板の下に罫を一本引き、その下に置く。
+   左に色の帯を立てる «引用» の形は、ここと振り分けの一問と違いの一行の三か所で
+   繰り返していて、どれが大事なのかが分からなくなっていた */
 .hero__creed {
   max-width: 34rem;
-  margin: 20px 0 0;
-  padding-left: 15px;
-  border-left: 2px solid color-mix(in srgb, var(--tone) 55%, transparent);
-  font-size: 17px;
-  line-height: 1.9;
-  color: var(--fg);
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  font-size: 19px;
+  line-height: 1.8;
+  letter-spacing: 0.06em;
+  color: var(--tone);
 }
 
 .hero__lead {
@@ -865,15 +918,15 @@ kbd {
    «初めてか、打てるか» を一度だけ聞く。門ではないので、囲みは軽くする。
    warn（注意書き）と同じ強さにすると «答えないと進めない» に見えてしまう */
 
+/* 囲まない。上下の罫だけで «ここで一つ聞いている» を区切る。
+   札にすると下の «覚える／鍛える» の札と同じ重さに見え、門のように立ちはだかる */
 .ask {
   display: grid;
   gap: 8px;
   margin: 26px 0 0;
-  padding: 16px 18px 15px;
-  background: var(--panel);
-  border: 1px solid var(--line-soft);
-  border-left: 3px solid var(--tone);
-  border-radius: var(--r-m);
+  padding: 16px 0 17px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .ask__q {
@@ -946,15 +999,15 @@ kbd {
   align-items: flex-start;
   gap: 8px;
   padding: 20px 20px 18px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
   transition: border-color 0.16s, transform 0.16s;
 }
 
-/* a のときだけ札ごと持ち上げる。div（覚える）は中のボタンが押される所なので動かさない */
+/* a のときだけ枠の色で応える。以前は札ごと 2px 持ち上げていたが、
+   動きで «押せる» を言うのは飾りで、文字を読んでいる最中に札が揺れる */
 a.pick__one:hover {
-  transform: translateY(-2px);
   border-color: var(--tone);
 }
 
@@ -963,13 +1016,13 @@ a.pick__one:hover {
    付いていないほうも同じだけ押せるように見せておくこと */
 .pick__one--main {
   border-color: color-mix(in srgb, var(--tone) 55%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--tone) 18%, transparent);
+  border-top: 3px solid var(--tone);
 }
 
 .pick__name {
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   color: var(--fg);
 }
 
@@ -1041,8 +1094,6 @@ a.pick__one:hover .pick__go {
 .pick__diff {
   max-width: 44rem;
   margin: 14px 0 0;
-  padding-left: 13px;
-  border-left: 2px solid var(--line);
   font-size: 13px;
   line-height: 1.95;
   color: var(--fg-mid);
@@ -1058,7 +1109,7 @@ a.pick__one:hover .pick__go {
   display: block;
   margin: 26px 0 0;
   padding: 16px 18px 14px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
   transition: border-color 0.16s;
@@ -1076,8 +1127,8 @@ a.pick__one:hover .pick__go {
 }
 
 .mine__rank b {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   color: var(--tone);
 }
@@ -1182,16 +1233,14 @@ a.pick__one:hover .pick__go {
   flex-direction: column;
   gap: 7px;
   padding: 16px 16px 14px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
-  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+  transition: border-color 0.16s;
 }
 
 .course:hover {
-  transform: translateY(-2px);
   border-color: var(--tone);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
 }
 
 .course__name {
@@ -1245,15 +1294,9 @@ a.pick__one:hover .pick__go {
 }
 
 /* 解禁条件。閉じている札にだけ入れる。UNLOCKS の hint をそのまま出せばよい。
-
-   鍵の絵文字はここでは足さない。app.js が `🔒 ${hint}` の形で文字列ごと入れており、
-   ::before と二重になって «🔒 🔒 単独打鍵の面で20キー打つ» と出ていた。
-   飾りは CSS 側が持つほうが筋は良いので、app.js が絵文字を落とすなら
-   下の 2 行を戻すこと（.sound__lock は文言が HTML に静的に置いてあるので、
-   あちらは今も CSS 側が ::before で足している）。
-
-     .course__lock::before { content: "🔒 "; }
-*/
+   頭の「開く条件：」は CSS が持つ。以前は app.js が鍵の絵文字ごと文字列に入れていて、
+   ::before と二重になっていた。 */
+.course__lock::before { content: "開く条件："; }
 .course__lock {
   font-size: 11.5px;
   line-height: 1.7;
@@ -1302,16 +1345,14 @@ a.pick__one:hover .pick__go {
   font: inherit;
   color: inherit;
   cursor: pointer;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
-  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+  transition: border-color 0.16s;
 }
 
 .lesson:hover {
-  transform: translateY(-2px);
   border-color: var(--tone);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
 }
 
 .lesson__title {
@@ -2342,7 +2383,7 @@ a.pick__one:hover .pick__go {
   margin: auto;
   padding: 26px 24px 20px;
   text-align: center;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-l);
   box-shadow: 0 0 0 1px var(--glow), 0 30px 80px rgba(0, 0, 0, 0.8);
@@ -2364,8 +2405,9 @@ a.pick__one:hover .pick__go {
 
 .finish__title {
   margin: 7px 0 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .finish__hero {
@@ -2491,10 +2533,6 @@ a.pick__one:hover .pick__go {
   border-radius: var(--r-s);
 }
 
-.finish__badge::before {
-  content: "✦";
-  color: var(--tone);
-}
 
 .finish__buttons {
   display: flex;
@@ -2527,11 +2565,10 @@ a.pick__one:hover .pick__go {
 }
 
 .rank__name {
-  font-size: 30px;
-  font-weight: 700;
+  font-size: 32px;
+  font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--tone);
-  text-shadow: 0 0 22px var(--glow);
 }
 
 .rank__score {
@@ -3007,16 +3044,14 @@ a.pick__one:hover .pick__go {
   font: inherit;
   color: inherit;
   cursor: pointer;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
-  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s;
+  transition: border-color 0.16s;
 }
 
 .mode:hover {
-  transform: translateY(-2px);
   border-color: var(--tone);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
 }
 
 .mode__name {
@@ -3298,9 +3333,6 @@ a.pick__one:hover .pick__go {
   border-radius: var(--r-s);
 }
 
-.romaji__passed::before {
-  content: "🏁 ";
-}
 
 /* ---------------------------------------------------------------- 通知
    実績が解けた瞬間の置き場所。body 直下・画面右下に固定する。
@@ -3350,7 +3382,7 @@ a.pick__one:hover .pick__go {
   gap: 3px;
   width: min(300px, calc(100vw - 36px));
   padding: 12px 15px;
-  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  background: var(--panel);
   border: 1px solid var(--line);
   border-left: 3px solid var(--tone);
   border-radius: var(--r-s);

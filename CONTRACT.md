@@ -318,6 +318,16 @@ export function createGame({ course, words, rng })   // rng: () => number（0 �
 }
 ```
 
+実装で足したもの（2026-11-02 追記。テストは契約の鍵だけを見て、足したものは許す）:
+
+- `export function keyFor(kana)` … 打ち方の案内（「ど」は 左親指 ＋ J）に使う
+- `state` に `missStreak` / `cleared` / `lost` / `misses` / `perfect` / `price`
+- `miss` イベントに `misfire`（不発なら true。画面で「親指が効いていません」と言い分ける）
+- `summary()` に `misfires` / `bonus`（ぴったりの上乗せの合計）/ `timeBonusMs`
+- `clear.value` はぴったりの上乗せを**含む**。上乗せは皿に積むので、取り逃せば一緒に流れる
+- 連続シフトで出た一打（`continued`）はズレを測れないので、ぴったりにもシフト打鍵の数にも入れない
+- 自己ベストは `oyayubi-dojo:gamebest:v1` にこの端末だけに残す（`storage.js` の `STORAGE_KEYS` には未登録）
+
 ### `assets/js/game/config.js`（コア）
 
 ```js
@@ -349,7 +359,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 | メソッド | パス | 中身 |
 | --- | --- | --- |
-| POST | `/players` | `{ nickname, consent: true, consentVersion }` → `{ playerId, token }` |
+| POST | `/players` | `{ nickname, consent: true, consentVersion }` → `{ playerId, nickname, token }`（nickname は正規化後） |
 | POST | `/scores` | `Authorization: Bearer <token>`。summary を受けて自己ベストなら更新 |
 | GET | `/ranking?course=&period=` | 上位 50 件 |
 | DELETE | `/players/me` | `Authorization: Bearer <token>`。本人の全記録を消す |

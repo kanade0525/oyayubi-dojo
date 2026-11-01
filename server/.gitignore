@@ -1,0 +1,4 @@
+# sam build の出力
+.aws-sam/
+# 本番値を入れた手元の環境変数（見本は .env.example）
+.env

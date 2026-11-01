@@ -1,0 +1,700 @@
+/* 回転ずし（game.html）の見た目
+   ================================================================
+   このファイルは何か
+     ゲーム画面だけの CSS。配色トークン・ヘッダー・ボタン・断り書き（.kbnote）は
+     app.css のものをそのまま使い、ここにはゲームにしか無い部品だけを書く。
+
+   なぜこの方針か
+     - 色は app.css の data-tone のトークンから取る。ゲームだけ別の色を持つと、
+       配色を替えたときにゲームが浮く。canvas の中も render.js が同じトークンを読んでいる
+     - 練習画面は «静か»、ゲームは «派手»。ただし派手にするのは見出しと金額と演出だけで、
+       説明文の字の濃さは app.css と同じ基準（--fg-mid / --fg-dim）に揃え、読みやすさは落とさない
+     - 画面（タイトル・結果・ランキング・同意）は canvas の上に重ねる札。
+       後ろでレーンが流れ続けるので、どの画面にいても «回転ずし屋の中» に見える */
+
+.g-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.g-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 20px 24px;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+/* ---------------------------------------------------------------- 舞台 */
+
+.g-stage {
+  position: relative;
+  height: clamp(460px, calc(100vh - 150px), 640px);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.g-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 日本語入力の警告。札の上に重ねて、プレイ中でも必ず目に入る位置に出す */
+.g-ime {
+  position: absolute;
+  z-index: 5;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--off) 22%, var(--bg));
+  border: 1px solid var(--off);
+  border-radius: var(--r-s);
+}
+
+.g-ime b {
+  color: var(--off);
+}
+
+/* ---------------------------------------------------------------- 重ねる札 */
+
+.g-sheet {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 22px 16px;
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.g-card {
+  width: min(680px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 26px 28px;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  /* 影は一段だけ。後ろでレーンが流れているので、札が浮いて見える程度で足りる */
+  box-shadow: 0 12px 32px -16px #000;
+}
+
+.g-card--wide {
+  width: min(760px, 100%);
+}
+
+.g-eyebrow {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--tone);
+}
+
+/* 看板。練習画面の見出しより一段太く、店の看板の明朝で組む（app.css の --head）。
+   光らせない。のれんの朱を一本、無地で添える。赤から金へのグラデーションは
+   何の色でもなかったのでやめた */
+.g-title__head {
+  margin: -4px 0 0;
+  font-family: var(--head);
+  font-feature-settings: "palt";
+  font-size: clamp(40px, 6vw, 58px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  color: var(--fg);
+}
+
+.g-title__head::after {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 3px;
+  margin-top: 14px;
+  background: #c8433a;
+}
+
+.g-sheet__head {
+  margin: 0;
+  font-family: var(--head);
+  font-feature-settings: "palt";
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.g-lead {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.95;
+  color: var(--fg-mid);
+  word-break: auto-phrase;
+}
+
+.g-lead b {
+  color: var(--fg);
+}
+
+.g-lead b.g-perfect {
+  color: var(--perfect);
+}
+
+/* ---------------------------------------------------------------- コース */
+
+.g-courses {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.g-course {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 14px 14px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--tone) 6%, var(--bg));
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  cursor: pointer;
+  transition: border-color 0.14s, background 0.14s;
+}
+
+.g-course:hover,
+.g-course:focus-visible {
+  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 13%, var(--bg));
+}
+
+/* 皿の色の縁。コースの格を皿の色で言う（白→赤→金）。canvas の皿と同じ色 */
+.g-course::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 14px;
+  right: 14px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--plate, #d9d4c8);
+}
+
+.g-course[data-course="otegaru"] { --plate: #3d78c9; }
+.g-course[data-course="osusume"] { --plate: #c8433a; }
+.g-course[data-course="koukyu"] { --plate: #d4a83c; }
+
+.g-course__key {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.g-course__name {
+  font-size: 17px;
+  font-weight: 700;
+  font-feature-settings: "palt";
+}
+
+.g-course__price {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--tone);
+}
+
+.g-course__price small {
+  margin-left: 2px;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-mid);
+}
+
+.g-course__meta {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg-mid);
+}
+
+.g-course__best {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.g-course__best b {
+  font-family: var(--mono);
+  color: var(--fg);
+}
+
+.g-notes {
+  margin: 0;
+  padding: 12px 14px 12px 30px;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--fg-mid);
+  background: var(--sunken);
+  border-radius: var(--r-s);
+}
+
+.g-notes b {
+  color: var(--fg);
+}
+
+.g-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------- 結果 */
+
+.g-result__money {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-weight: 700;
+}
+
+.g-result__money b {
+  font-family: var(--mono);
+  font-size: clamp(44px, 7vw, 64px);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--fg);
+}
+
+.g-result__money span {
+  font-size: 16px;
+  color: var(--fg-mid);
+}
+
+.g-result.is-gain .g-result__money b {
+  color: var(--perfect);
+}
+
+.g-result__balance {
+  margin: -4px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.g-result__balance .is-gain {
+  color: var(--perfect);
+}
+
+.g-result__balance .is-loss {
+  color: var(--off);
+}
+
+.g-result__balance small {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-mid);
+}
+
+.g-result__best {
+  justify-self: start;
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--tone-ink);
+  background: var(--tone);
+  border-radius: 999px;
+}
+
+.g-tally {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 14px;
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.g-tally div {
+  display: grid;
+  gap: 3px;
+}
+
+.g-tally dt {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.g-tally dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--fg);
+}
+
+.g-tally dd small {
+  margin-left: 3px;
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-mid);
+}
+
+.g-tally .is-perfect dd {
+  color: var(--perfect);
+}
+
+/* ---------------------------------------------------------------- ランキングへ送る */
+
+.g-submit {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--sunken);
+  border-radius: var(--r-s);
+}
+
+.g-submit:empty {
+  display: none;
+}
+
+.g-submit p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--fg-mid);
+}
+
+.g-submit b {
+  color: var(--fg);
+}
+
+.g-status {
+  margin: 0;
+  min-height: 1.6em;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--fg-mid);
+}
+
+.g-status:empty {
+  min-height: 0;
+}
+
+.g-status--error,
+.g-status.is-error {
+  color: var(--misfire);
+}
+
+.g-status.is-ok {
+  color: var(--perfect);
+}
+
+/* 準備中。隠さず、何が無いのかを言う */
+.g-soon {
+  padding: 14px 16px;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--fg-mid);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-s);
+}
+
+.g-soon b {
+  display: block;
+  font-size: 15px;
+  color: var(--fg);
+}
+
+/* ---------------------------------------------------------------- タブ */
+
+.g-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.g-tabs button {
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-mid);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  cursor: pointer;
+}
+
+.g-tabs button:hover {
+  color: var(--fg);
+  border-color: var(--tone);
+}
+
+.g-tabs button[aria-selected="true"] {
+  color: var(--tone-ink);
+  background: var(--tone);
+  border-color: var(--tone);
+}
+
+.g-tabs--small button {
+  padding: 5px 11px;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------- 順位表 */
+
+.g-board {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 340px;
+  overflow: auto;
+}
+
+.g-board li {
+  display: grid;
+  grid-template-columns: 3em 1fr 7.5em 5.5em 4.5em;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  border-radius: var(--r-s);
+}
+
+.g-board li:nth-child(odd) {
+  background: color-mix(in srgb, var(--tone) 5%, transparent);
+}
+
+.g-board li.is-head {
+  font-size: 11px;
+  color: var(--fg-dim);
+  background: transparent;
+}
+
+.g-board li.is-me {
+  outline: 1px solid var(--tone);
+}
+
+.g-board .r {
+  font-family: var(--mono);
+  font-weight: 800;
+  color: var(--fg-mid);
+}
+
+.g-board li:nth-child(2) .r { color: #d4a83c; }
+.g-board li:nth-child(3) .r { color: #c9ccd3; }
+.g-board li:nth-child(4) .r { color: #c98a5a; }
+
+.g-board .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.g-board .m,
+.g-board .k,
+.g-board .a {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.g-board .m {
+  font-weight: 800;
+  color: var(--fg);
+}
+
+.g-board .k,
+.g-board .a {
+  color: var(--fg-mid);
+}
+
+.g-me {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+
+/* ---------------------------------------------------------------- 同意 */
+
+.g-consent__body {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--fg-mid);
+  background: var(--sunken);
+  border-radius: var(--r-s);
+}
+
+.g-consent__body p {
+  margin: 0;
+  word-break: auto-phrase;
+}
+
+.g-consent__body b {
+  color: var(--fg);
+}
+
+.g-consent__ver {
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+
+.g-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--fg-mid);
+}
+
+.g-field input {
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+}
+
+.g-field input:focus {
+  outline: 2px solid var(--tone);
+  outline-offset: 1px;
+}
+
+.g-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.g-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--tone);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- 支援・足元 */
+
+.g-support {
+  margin: 0;
+  font-size: 13px;
+}
+
+.g-support a {
+  color: var(--tone);
+  border-bottom: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+}
+
+.g-foot {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--fg-dim);
+}
+
+.g-foot p {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- 狭い画面 */
+
+@media (max-width: 700px) {
+  .g-main {
+    padding: 12px 10px 20px;
+  }
+
+  .g-kbnote {
+    margin: 0;
+  }
+
+  /* 舞台の中で札をスクロールさせると、指でのスクロールが二重になって迷う。
+     狭い画面では札をふつうに縦へ流し、canvas はその後ろに敷くだけにする */
+  .g-stage {
+    height: auto;
+    min-height: 560px;
+  }
+
+  .g-sheet {
+    position: relative;
+    inset: auto;
+    min-height: 560px;
+    overflow: visible;
+    padding: 14px 10px;
+  }
+
+  .g-card {
+    padding: 20px 16px;
+  }
+
+  .g-courses {
+    grid-template-columns: 1fr;
+  }
+
+  .g-tally {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .g-board li {
+    grid-template-columns: 2.4em 1fr 6.5em;
+  }
+
+  .g-board .k,
+  .g-board .a {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .g-course {
+    transition: none;
+  }
+}

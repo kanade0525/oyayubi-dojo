@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>キー実測 — 親指シフトタイピング道場</title>
+<title>キー実測｜親指シフトタイピング道場</title>
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <!--
   このページは何か。
 
@@ -37,7 +38,10 @@
   body {
     margin: 0; padding: 24px;
     background: var(--bg); color: var(--fg);
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    /* 本体（assets/css/app.css の --ui）と同じ並び。このページは単体で動かすので値を写してある */
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
+      "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
+    line-break: strict;
     line-height: 1.7;
   }
   .wrap { max-width: 1000px; margin: 0 auto; }
@@ -45,7 +49,7 @@
   .lead { color: var(--dim); margin: 0 0 20px; font-size: .9rem; }
   .panel {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+    border-radius: 6px; padding: 16px; margin-bottom: 16px;
   }
   .panel h2 { font-size: .95rem; margin: 0 0 12px; color: var(--tone); }
   .steps { margin: 0; padding-left: 1.2em; font-size: .9rem; }
@@ -59,7 +63,7 @@
   th { color: var(--dim); font-weight: 500; font-size: .8rem; }
   td.mono, th.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
-  .card { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }
   .card.seen { border-color: var(--ok); }
   .card.partial { border-color: var(--warn); }
   .card .name { font-weight: 600; font-size: .9rem; }
@@ -69,7 +73,7 @@
   .log-wrap { max-height: 340px; overflow-y: auto; }
   tr.down td { background: rgba(110, 168, 254, .07); }
   button {
-    background: var(--tone); color: #08121f; border: 0; border-radius: 7px;
+    background: var(--tone); color: #08121f; border: 0; border-radius: 4px;
     padding: 9px 16px; font-size: .88rem; font-weight: 600; cursor: pointer;
     font-family: inherit;
   }
@@ -78,12 +82,12 @@
   .note { font-size: .82rem; color: var(--dim); margin-top: 10px; }
   .alarm {
     display: none; border: 1px solid var(--ng); background: rgba(248, 81, 73, .1);
-    border-radius: 8px; padding: 10px 12px; margin-bottom: 16px; font-size: .88rem;
+    border-radius: 6px; padding: 10px 12px; margin-bottom: 16px; font-size: .88rem;
   }
   .alarm.on { display: block; }
   textarea {
     width: 100%; height: 160px; background: #0b0f14; color: var(--fg);
-    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+    border: 1px solid var(--line); border-radius: 6px; padding: 10px;
     font-family: ui-monospace, Menlo, monospace; font-size: .78rem;
   }
 </style>
@@ -111,7 +115,7 @@
       <li>「結果をコピー」を押して、内容をそのまま貼って渡してください</li>
     </ol>
     <p class="note">
-      Chrome・Safari・Firefox の三つで同じことをすると、どのブラウザを勧めるべきかが決まります。
+      結果はブラウザによって違うことがあります。取れないキーがあれば、別のブラウザでも試してください。
     </p>
   </div>
 

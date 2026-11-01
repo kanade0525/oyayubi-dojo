@@ -466,7 +466,7 @@ function onOutput(result) {
     // 6 回続けて外したら送る。ただし «勝手に進んだ» と感じる人もいるので、
     // 設定で止められる。off のときは打てるまでその字に留まり、打ち方の名指しは出続ける
     if (run.stuck.n >= 6 && willSkip) {
-      toast('この字は飛ばします。あとでマイページの苦手な面に出ます');
+      toast('この字は飛ばします。記録の「苦手な面」に出ます');
       run.index++;
       run.stuck = null;
       el.cue?.classList.remove('is-stuck');
@@ -915,7 +915,7 @@ function paintLearn() {
       const lock = document.createElement('span');
       lock.className = 'course__lock';
       const u = UNLOCKS.find(x => x.kind === 'course' && x.target === c.id);
-      lock.textContent = `🔒 ${u?.hint ?? 'まだ開いていません'}`;
+      lock.textContent = u?.hint ?? 'まだ開いていません';
       a.append(lock);
     }
     return a;
@@ -1141,7 +1141,7 @@ function paintRomajiState(stats) {
   if (el.checkRomajiState) el.checkRomajiState.textContent = has ? `${Math.round(stats.romaji.cpm)} cpm` : '未記録';
   if (el.checkRomajiStatus) {
     el.checkRomajiStatus.textContent = has
-      ? '記録済みです。マイページで比較が見られます。'
+      ? '記録済みです。上の札でいまの速さと比べられます。'
       : 'ローマ字入力のときの速度を入れておくと、追い抜くまでの見通しが出ます。';
   }
 }

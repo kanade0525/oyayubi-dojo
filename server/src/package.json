@@ -1,0 +1,7 @@
+{
+  "name": "oyayubi-dojo-ranking",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "sam build が package.json（name と version）を要るので置いている。依存は足さない（@aws-sdk は実行環境同梱）"
+}

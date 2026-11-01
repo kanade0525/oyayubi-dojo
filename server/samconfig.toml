@@ -1,0 +1,17 @@
+# sam deploy の既定値。ここにあるのは全部ダミー（example.invalid / CHANGE_ME）。
+# 本番の値はこのファイルに書かず、deploy のときに --parameter-overrides で渡す（README 参照）。
+# TokenPepper は 32 字未満を template が弾くので、CHANGE_ME のままではデプロイできない（わざと）。
+version = 0.1
+
+[default.global.parameters]
+stack_name = "oyayubi-dojo-ranking"
+
+[default.build.parameters]
+cached = true
+
+[default.deploy.parameters]
+region = "ap-northeast-1"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+parameter_overrides = "TableName=\"oyayubi-dojo-ranking\" AllowedOrigin=\"https://example.invalid\" TokenPepper=\"CHANGE_ME\""

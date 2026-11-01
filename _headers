@@ -9,12 +9,12 @@
 #   配列表を JSON ではなく JS モジュール（assets/data/nicola.js）にしてあるのは、
 #   これを 'self' に緩めずに済ませるため。fetch を一つも使わない作りにしてある。
 #
-# script-src のハッシュは、index.html の <head> にあるインラインスクリプト（配色の
-# 先当て）のもの。module は遅れて走るので、これが無いと一瞬だけ既定色が見えてちらつく。
+# script-src のハッシュは、index.html と game.html の <head> にあるインラインスクリプト（配色の
+# 先当て。二つは同じ中身なのでハッシュも一つ）と、keycheck.html の本体のもの。module は遅れて走るので、これが無いと一瞬だけ既定色が見えてちらつく。
 # ハッシュは tools/check.mjs が毎回実測して照合する。中身を変えたら値も変わる。
 
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Yy/NY3A2yymfViJZxHj7EXGqLaMDSgZ1F4C2LM21Do4='; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-Yy/NY3A2yymfViJZxHj7EXGqLaMDSgZ1F4C2LM21Do4=' 'sha256-Ekix2pPJzNeayS+qWsD41b2c5ZuiKYpRrk80YFbb/lI='; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Referrer-Policy: no-referrer
   X-Content-Type-Options: nosniff
   Permissions-Policy: geolocation=(), camera=(), microphone=(), usb=(), payment=(), interest-cohort=()

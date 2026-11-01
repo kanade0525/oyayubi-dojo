@@ -3,13 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>親指シフトタイピング道場 — 同時打鍵のズレが、ミリ秒で見える</title>
-<meta name="description" content="親指シフト（NICOLA配列）の練習。文字キーと親指キーの押下時間差をミリ秒で測り、1打ごとに判定として返します。">
+<title>親指シフトタイピング道場</title>
+<meta name="description" content="親指シフト（NICOLA配列）の練習サイト。文字キーと親指キーを押した時刻の差を1打ごとに測り、親指が早いか遅いかを出します。">
 <meta name="color-scheme" content="dark">
-<!-- 外部への発信は一切しない。フォントもアイコンも埋め込みか system-ui。
+<!-- 外部への発信は一切しない。フォントは OS の和文書体を名前で当てるだけ（app.css の冒頭）、
+     アイコンは自前の SVG / PNG。
      配列表も fetch せず JS モジュールとして import しているので connect-src は
      'none' で締められる。CSP は配信側のヘッダ（_headers）で当てる。 -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230b0e14'/%3E%3Crect x='6' y='19' width='20' height='6' rx='3' fill='%237aa2f7'/%3E%3Crect x='9' y='7' width='5' height='8' rx='2.5' fill='%23f4a3c0'/%3E%3Crect x='18' y='7' width='5' height='8' rx='2.5' fill='%23e7ecf3'/%3E%3C/svg%3E">
+<!-- アイコンは弓道の霞的。«道場» の看板で、的の真ん中を狙う «ぴったり» とも重なる。
+     キーボードの絵は 16px に縮めると何の形か読めなくなるのでやめた。
+     的の輪の比率は実寸（近的・直径36cm）どおり。中身は assets/img/favicon.svg の注記 -->
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="stylesheet" href="assets/css/app.css">
 <script>
   // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
@@ -46,6 +51,8 @@
     <a href="#/learn" data-nav="/learn">覚える</a>
     <a href="#/train" data-nav="/train">鍛える</a>
     <a href="#/record" data-nav="/record">記録</a>
+    <!-- ゲームは別ページ（game.html）。練習の流れには入れず、入口だけ置く -->
+    <a href="game.html">回転ずし</a>
     <i class="nav__sep" aria-hidden="true"></i>
     <a class="is-tool" href="#/layout" data-nav="/layout">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup">設定</a>
@@ -79,9 +86,7 @@
          同じものを #/train・#/play にも置いてある -->
     <aside class="kbnote">
       <b class="kbnote__head">この画面は物理キーボードで使います</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
-        画面上のソフトキーボードでは押した時刻の差が取れないため、設定も試し打ちもできません。
-        パソコンで開くか、外付けキーボードをつないでください。</p>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、設定も試し打ちもできません。パソコンで開くか、外付けキーボードをつないでください。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
@@ -92,18 +97,13 @@
          数値がおかしい原因の大半がこの二つなので、設定の一番上に置く -->
     <div class="warn warn--stop" id="setupWarnIme">
       <b>日本語入力（IME）は OFF にしてください</b>
-      <p>IME が ON だと、このページに届く前に OS が文字を作ってしまい、押下の時間差が測れません。
-        <kbd>英数</kbd> / <kbd>半角/全角</kbd> で直接入力に切り替えてください。</p>
+      <p>IME が ON だと、このページに届く前に OS が文字を作ってしまい、押下の時間差が測れません。<kbd>英数</kbd> / <kbd>半角/全角</kbd> で直接入力に切り替えてください。</p>
     </div>
 
     <div class="warn" id="setupWarnEmu">
       <b>親指シフトのエミュレータは、一旦止めてください</b>
-      <p>macOS なら <b>Lacaille</b> や <b>Karabiner の NICOLA 設定</b>、Windows なら
-        <b>やまぶきR</b>・<b>DvorakJ</b> です。これらが動いていると、キーが二重に届いたり、
-        押下の時刻が書き換わったりします。とくに Karabiner の
-        <code>simultaneous</code> は最初のキーを一旦飲み込んでから出し直すので、
-        押下の時間差そのものが失われます。この道場は自前で同時打鍵を判定するので、
-        練習中は止めておくのが確実です。</p>
+      <p>macOS なら <b>Lacaille</b> や <b>Karabiner の NICOLA 設定</b>、Windows なら<b>やまぶきR</b>・<b>DvorakJ</b> です。これらが動いていると、キーが二重に届いたり、押下の時刻が書き換わったりします。とくに Karabiner の
+        <code>simultaneous</code> は最初のキーを一旦飲み込んでから出し直すので、押下の時間差そのものが失われます。この道場は自前で同時打鍵を判定するので、練習中は止めておくのが確実です。</p>
     </div>
 
     <div class="card">
@@ -121,14 +121,11 @@
         </div>
       </div>
       <p class="note">
-        既定は、macOS の JIS キーボードで実測した <kbd>英数</kbd>（<code>Lang2</code>・スペースの左）と
-        <kbd>かな</kbd>（<code>Lang1</code>・スペースの右）です。
-        ちょうど親指の下にあり、押下も解放も取れて、IME に横取りされないことを確認しています。
+        既定は、macOS の JIS キーボードで実測した <kbd>英数</kbd>（<code>Lang2</code>・スペースの左）と<kbd>かな</kbd>（<code>Lang1</code>・スペースの右）です。ちょうど親指の下にあり、押下も解放も取れて、IME に横取りされないことを確認しています。
         Safari では <kbd>かな</kbd> が <code>KanaMode</code> として届きます。
       </p>
       <p class="note">
-        <kbd>Space</kbd> は親指キーには使いません。文字キー側で使う可能性があるためです。
-        別のキーを親指に割り当てたいときは、上のボタンから覚えさせてください。
+        <kbd>Space</kbd> は親指キーには使いません。文字キー側で使う可能性があるためです。別のキーを親指に割り当てたいときは、上のボタンから覚えさせてください。
       </p>
     </div>
 
@@ -153,8 +150,7 @@
         <span class="opt__text">
           <b class="opt__name">親指を先に離しても同時打鍵と認める</b>
           <span class="opt__note">
-            規格どおりだと、親指の押下時間が「先行ぶんの2倍」以下のときに不発になります。
-            親指を短く弾く打ち方だとここに当たります。<b>迷ったら on のまま。</b>
+            規格どおりだと、親指の押下時間が「先行ぶんの2倍」以下のときに不発になります。親指を短く弾く打ち方だとここに当たります。<b>迷ったら on のまま。</b>
           </span>
         </span>
       </label>
@@ -164,18 +160,13 @@
         <span class="opt__text">
           <b class="opt__name">連続シフト（親指を押したまま続けて打つ）</b>
           <span class="opt__note">
-            NICOLA 規格には無い打ち方ですが、Lacaille・やまぶきR などのエミュレータでは
-            使えます。off のままだと 2 文字目から単独打鍵になります。
-            この道場は「一打ごとに親指を離す」を教える作りなので、既定は off です。
+            NICOLA 規格には無い打ち方ですが、Lacaille・やまぶきR などのエミュレータでは使えます。off のままだと 2 文字目から単独打鍵になります。この道場は「一打ごとに親指を離す」を教える作りなので、既定は off です。
           </span>
         </span>
       </label>
 
       <p class="note">
-        文字キーを先に押したとき、親指と<b>どれだけ重なっていれば</b>同時打鍵と認めるか。
-        既定は 80ms（NICOLA 規格の考え方に合わせています）。
-        <b>数字を大きくするほど厳しくなります</b>（重なりがそれ未満だと別々の打鍵とみなす）。
-        通らないときは<b>詰めて</b>ください。
+        文字キーを先に押したとき、親指と<b>どれだけ重なっていれば</b>同時打鍵と認めるか。既定は 80ms（NICOLA 規格の考え方に合わせています）。<b>数字を大きくするほど厳しくなります</b>（重なりがそれ未満だと別々の打鍵とみなす）。通らないときは<b>詰めて</b>ください。
       </p>
       <div class="field">
         <label class="field__label" for="tauRange">重なりの下限</label>
@@ -194,10 +185,8 @@
         <span class="opt__text">
           <b class="opt__name">打てない字を飛ばす</b>
           <span class="opt__note">
-            同じ字を 6 回続けて外したとき、その字を飛ばして先へ進みます
-            （飛ばした字はマイページの「いまの弱点」に出ます）。
-            <b>off にすると、打てるまでその字で止まります。</b>
-            そのとき打ち方の名指しは 3 回外すごとに出し直します。
+            同じ字を 6 回続けて外したとき、その字を飛ばして先へ進みます（飛ばした字は、鍛えるの「いまの弱点」に出ます）。
+            <b>off にすると、打てるまでその字で止まります。</b>そのとき打ち方の名指しは 3 回外すごとに出し直します。
           </span>
         </span>
       </label>
@@ -220,10 +209,7 @@
     <div class="card" id="soundCard">
       <h2 class="card__head">4. 打鍵音</h2>
       <p class="note">
-        判定は音でも返します。<b>親指が先行していれば低い音から高い音へ</b>、
-        <b>遅れていれば高い音から低い音へ</b>鳴り、ぴったり合うと二つが融けて<b>一つの音</b>に聞こえます。
-        画面を見ていなくても、耳だけで «早いのか遅いのか» が分かります。
-        既定は無音です。下の「5. 試し打ち」でそのまま確かめられます。
+        判定は音でも返します。<b>親指が先行していれば低い音から高い音へ</b>、<b>遅れていれば高い音から低い音へ</b>鳴り、ぴったり合うと二つが融けて<b>一つの音</b>に聞こえます。画面を見ていなくても、耳だけで早いか遅いかが分かります。既定は無音です。下の「5. 試し打ち」で確かめられます。
       </p>
 
       <fieldset class="sounds" id="soundKinds">
@@ -257,15 +243,14 @@
         </label>
       </fieldset>
 
-      <p class="note">選ぶとその場で一度鳴ります。🔒 の付いた音色は、書いてある条件を満たすと選べるようになります。</p>
+      <p class="note">選ぶとその場で一度鳴ります。まだ選べない音色には、選べるようになる条件を書いてあります。</p>
 
       <div class="field">
         <label class="field__label" for="soundVolume">音量</label>
         <input type="range" id="soundVolume" min="0" max="100" step="5" value="40">
         <output class="field__out" id="soundVolumeOut" for="soundVolume">40</output>
       </div>
-      <p class="note">動かすと、その音量で一打だけ鳴ります。0 にすると鳴りません（無音と同じ扱いです）。
-        単独打鍵はいちばん小さく、同時打鍵は少し大きく、課題を打ち切ったときだけはっきり鳴ります。</p>
+      <p class="note">動かすと、その音量で一打だけ鳴ります。0 にすると鳴りません（無音と同じ扱いです）。単独打鍵はいちばん小さく、同時打鍵は少し大きく、課題を打ち切ったときだけはっきり鳴ります。</p>
     </div>
 
     <div class="card">
@@ -294,10 +279,7 @@
       <h1 class="hero__title">親指シフト<span>タイピング道場</span></h1>
       <p class="hero__creed">速さより先に、ズレを直す。</p>
       <p class="hero__lead">
-        親指シフトは、文字キーと親指キーを<b>同時に</b>押して入力します。
-        この道場は、その二つの押下が何ミリ秒ずれたかを 1 打ごとに測り、
-        <b>先行しているのか、遅れているのか</b>を返します。
-        向きが分かれば直せます。速さは後から付いてきます。
+        親指シフトは、文字キーと親指キーを<b>同時に</b>押して打ちます。ここでは二つのキーを押した時刻の差を 1 打ごとに測り、<b>親指が早いのか遅いのか</b>を出します。早すぎる人と遅すぎる人では、直し方が逆になるからです。
       </p>
 
       <!-- 振り分け。«腕試し» という専用の入口を廃した代わりがここ。
@@ -321,7 +303,7 @@
                false … その逆（.pick には順番を入れ替える .is-flip を付ける） -->
       <div class="ask" id="firstAsk">
         <b class="ask__q">親指シフトで打ったことはありますか？</b>
-        <p class="ask__note">下の二つの<b>並び方が変わるだけ</b>です。どちらもいま押せますし、あとから変えられます。</p>
+        <p class="ask__note">答えで変わるのは、下の二つの<b>並び順だけ</b>です。あとで変えられます。</p>
         <p class="ask__acts">
           <button type="button" class="btn btn--primary" id="btnFirstNew">はじめて</button>
           <button type="button" class="btn" id="btnFirstUsed">打ったことがある</button>
@@ -340,7 +322,7 @@
       <div class="pick" id="homePick">
         <div class="pick__one pick__one--main" id="pickLearn">
           <b class="pick__name">覚える</b>
-          <span class="pick__note">配列を順に。<b>まだ打てない字</b>を打てるようにします。単独打鍵から濁音・交差シフトまで、七つの課・46題を決まった道筋で。</span>
+          <span class="pick__note"><b>まだ打てない字</b>を、配列の順に覚えます。単独打鍵から濁音・交差シフトまで、七つの課・46題。</span>
           <button type="button" class="btn btn--primary" id="btnStart">▶ つづきから</button>
           <em class="pick__state" id="startSub">第一課 · ホームポジション</em>
           <a class="link pick__more" href="#/learn">七つの課をぜんぶ見る →</a>
@@ -348,7 +330,7 @@
 
         <a class="pick__one" href="#/train" id="pickTrain">
           <b class="pick__name">鍛える</b>
-          <span class="pick__note">順番はありません。<b>もう打てる字</b>を速く正確にします。落としている面とズレの大きいキーだけを、そのつど組んで出します。</span>
+          <span class="pick__note"><b>もう打てる字</b>を、速く正確にします。落としている面とズレの大きいキーを集めて、毎回組み直して出します。</span>
           <!-- 押せることを形で出す。隣の «覚える» には «つづきから» のボタンがあるので、
                こちら側に何も無いと «説明の札» に見えて、押されなくなる。
                札そのものが <a> なので、中に button は置かない（入れ子になる） -->
@@ -361,8 +343,7 @@
            «利用者が違いを説明できない» が今回の出発点だったので、
            言葉の選び直しだけで済ませない。名前に頼らず、地の文で名指しする -->
       <p class="pick__diff">
-        <b>違いはひとつだけ。</b>覚えるは<b>まだ打てない字</b>を、鍛えるは<b>もう打てる字</b>を扱います。
-        どちらで打っても、測り方も記録の貯まる先も同じです。
+        <b>違いはひとつだけ。</b>覚えるは<b>まだ打てない字</b>を、鍛えるは<b>もう打てる字</b>を扱います。どちらで打っても、測り方も記録の貯まる先も同じです。
       </p>
 
       <!-- 記録への入口。«ふりかえる» という札は置かない。
@@ -377,7 +358,7 @@
           <div><dt>平均ズレ</dt><dd id="homeOffset">—</dd></div>
           <div><dt>ぴったり率</dt><dd id="homePerfect">—</dd></div>
         </dl>
-        <span class="mine__go">記録をぜんぶ見る（実績・ヒートマップ・カレンダー・ズレの分布）→</span>
+        <span class="mine__go">記録を見る（ズレの分布・苦手な面・練習した日・実績）→</span>
       </a>
     </header>
 
@@ -387,11 +368,11 @@
     <div class="tools">
       <a class="tool" href="#/layout">
         <b class="tool__name">配列表</b>
-        <span class="tool__note">どのキーにどのかながあるか。覚えるためではなく、いつでも引くための表です。</span>
+        <span class="tool__note">どのキーを、どの親指と押すと何のかなになるか。打ちながら引くための表です。</span>
       </a>
       <a class="tool" href="#/setup">
         <b class="tool__name">設定</b>
-        <span class="tool__note">親指キーの割り当て、同時打鍵とみなす幅、打鍵音。最初に一度だけ通してください。</span>
+        <span class="tool__note">親指キーの割り当て、同時打鍵の判定の緩さ、打鍵音。はじめに一度通してください。</span>
       </a>
     </div>
 
@@ -415,15 +396,12 @@
   <div class="page">
     <h1 class="page__title">覚える</h1>
     <p class="page__lead">
-      <b>まだ打てない字</b>を打てるようにする場所です。七つの課・46題を、決まった順に積みます。
-      前の課をある程度打つと次が開きます。順番そのものに意味があるので、飛ばさないほうが結局速い。
+      <b>まだ打てない字</b>を打てるようにする場所です。七つの課・46題を、決まった順に積みます。前の課をある程度打つと次が開きます。順番そのものに意味があるので、飛ばさないほうが結局速い。
     </p>
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
-        画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。
-        下の一覧は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。下の一覧は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
@@ -451,8 +429,7 @@
 
     <footer class="page__foot">
       <p class="note">
-        ここを一周し終えたら <a class="link" href="#/train">鍛える</a> へ。
-        覚えた字を速く正確にするのはそちらの仕事です。一周する前に行っても構いません。
+        ここを一周し終えたら <a class="link" href="#/train">鍛える</a> へ。覚えた字を速く正確にするのはそちらの仕事です。一周する前に行っても構いません。
       </p>
     </footer>
   </div>
@@ -522,9 +499,7 @@
 
     <aside class="kbnote kbnote--play">
       <b class="kbnote__head">この画面は物理キーボードで打ちます</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
-        画面上のソフトキーボードでは押した時刻の差が取れないため、この一本は進みません。
-        パソコンで開くか、外付けキーボードをつないでください。</p>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、この一本は進みません。パソコンで開くか、外付けキーボードをつないでください。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
@@ -649,16 +624,12 @@
   <div class="page">
     <h1 class="page__title">鍛える</h1>
     <p class="page__lead">
-      <b>もう打てる字</b>を、速く正確にする場所です。決まった順番はありません。
-      課題を順に消化するのではなく、<b>いま弱いところ</b>を狙って、出題はそのつど組み直します。
-      まだ打てない字を覚えるのは <a class="link" href="#/learn">覚える</a> の仕事です。
+      <b>もう打てる字</b>を、速く正確にする場所です。決まった順番はありません。課題を順に消化するのではなく、<b>いま弱いところ</b>を狙って、出題はそのつど組み直します。まだ打てない字を覚えるのは <a class="link" href="#/learn">覚える</a> の仕事です。
     </p>
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
-      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。
-        画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。
-        下の弱点は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
+      <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、ここでは打てません。下の弱点は読めます。打つのはパソコンか、外付けキーボードをつないだ端末で。</p>
       <p class="kbnote__acts">
         <a class="link" href="#/layout">配列表を見る →</a>
         <a class="link" href="#/record">記録を見る →</a>
@@ -779,8 +750,7 @@
   <div class="page page--narrowish">
     <h1 class="page__title">記録</h1>
     <p class="page__lead">
-      打った結果はぜんぶここに貯まります。<b>覚える</b>で打っても<b>鍛える</b>で打っても、行き先は同じです。
-      測るための専用の画面はありません。打てば、そのまま記録になります。
+      <b>覚える</b>と<b>鍛える</b>のどちらで打った結果も、ここに貯まります。測るための画面はありません。
     </p>
 
     <div class="card card--rank">
@@ -843,9 +813,7 @@
     <div class="card" id="romajiSetCard">
       <h2 class="card__head">ローマ字時代の速さを入れる<span class="card__count" id="checkRomajiState">未記録</span></h2>
       <p class="note">
-        移行前の速さを一度だけ入れておくと、上の札に <b>いまが何割か</b> と
-        <b>この伸びならあと何日で追い抜くか</b> が出ます。
-        単位は親指シフト側と同じ CPM（1分あたりの確定かな数）です。
+        移行前の速さを一度だけ入れておくと、上の札に <b>いまが何割か</b> と<b>この伸びならあと何日で追い抜くか</b> が出ます。単位は親指シフト側と同じ CPM（1分あたりの確定かな数）です。
       </p>
 
       <div class="romaji__set">
@@ -858,17 +826,14 @@
 
       <p class="note" id="checkRomajiStatus">まだ記録がありません。</p>
       <p class="note">
-        分からなければ、ふだん使っているローマ字入力の練習で測った値をそのまま入れてください。
-        この道場では測れません。親指シフト側は日本語入力（IME）を OFF にして打つので、
-        同じ画面でローマ字を測ると設定が行き来して、どちらの数字も当てにならなくなります。
+        分からなければ、ふだん使っているローマ字入力の練習で測った値をそのまま入れてください。この道場では測れません。親指シフト側は日本語入力（IME）を OFF にして打つので、同じ画面でローマ字を測ると設定が行き来して、どちらの数字も当てにならなくなります。
       </p>
     </div>
 
     <!-- 平均のズレ。ここが本アプリで一番見てほしい数字 -->
     <div class="card">
       <h2 class="card__head">同時打鍵のクセ</h2>
-      <p class="note">左右それぞれの親指について、文字キーとの時間差の分布です。
-        山が中心から左に寄っていれば親指が早すぎ、右に寄っていれば遅すぎです。</p>
+      <p class="note">左右それぞれの親指について、文字キーとの時間差の分布です。山が中心から左に寄っていれば親指が早すぎ、右に寄っていれば遅すぎです。</p>
       <div class="hist" id="histLeft" data-side="left"></div>
       <div class="hist" id="histRight" data-side="right"></div>
     </div>
@@ -904,7 +869,7 @@
 
     <div class="card">
       <h2 class="card__head">データ</h2>
-      <p class="note">記録はこの端末の <code>localStorage</code> の中だけにあります。隠さず書いておきます。</p>
+      <p class="note">記録はこの端末の <code>localStorage</code> にだけあります。使っている鍵は次のとおりです。</p>
       <ul class="data__keys" id="dataKeys"></ul>
       <p class="data__row">
         <button type="button" class="btn" id="btnExport">書き出す</button>
@@ -936,14 +901,11 @@
 
     <p class="note">
       色は「左シフトか右シフトか」ではなく、<b>同じ側の親指か、逆側か</b>で分けています。
-      NICOLA には「逆側の親指なら主に濁音・半濁音、同じ側の親指なら別のかな」という規則があるので、
-      その規則がそのまま目に入るようにしてあります。左右のどちらの親指かは、面の置かれた位置で分かります。
+      NICOLA には「逆側の親指なら主に濁音・半濁音、同じ側の親指なら別のかな」という規則があるので、その規則がそのまま目に入るようにしてあります。左右のどちらの親指かは、面の置かれた位置で分かります。
     </p>
 
     <p class="note">
-      たとえば左手の <b>し</b> は、<b>右</b>親指と打てば <b>じ</b>（交差＝濁音）、
-      <b>左</b>親指と打てば <b>あ</b>（同側＝別のかな）になります。
-      左手のキーは右の面が、右手のキーは左の面が濁音側です。
+      たとえば左手の <b>し</b> は、<b>右</b>親指と打てば <b>じ</b>（交差＝濁音）、<b>左</b>親指と打てば <b>あ</b>（同側＝別のかな）になります。左手のキーは右の面が、右手のキーは左の面が濁音側です。
     </p>
   </div>
 </section>

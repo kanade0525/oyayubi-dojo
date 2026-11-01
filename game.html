@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>回転ずし｜親指シフトタイピング道場</title>
+<meta name="description" content="流れてくる皿の単語を親指シフト（NICOLA配列）で打って取るゲーム。同時打鍵がぴったりなら皿の値段が上がります。">
+<meta name="color-scheme" content="dark">
+<!-- アイコンはサイト全体で一つ（弓道の霞的）。ゲームはサイトの中の一部屋なので看板を分けない -->
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/game.css">
+<!-- 配色の先当て。index.html と一字も違わない中身にしてある。
+     中身が同じならハッシュも同じなので、_headers の script-src は一つのハッシュのまま両方に効く。
+     変えるときは index.html と同時に、同じ文字列に直すこと。
+     これが無いと、module（main.js）が走るまでの一瞬だけ既定色（藍）が見える -->
+<script>
+  // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
+  // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
+  // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
+  (function () {
+    var ok = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
+    var t = 'midnight';
+    try {
+      var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
+      if (ok[s.tone]) t = s.tone;
+    } catch (e) {
+      /* 読めなくても既定色で動く。ここで転ぶと画面が出ない */
+    }
+    document.documentElement.dataset.tone = t;
+  })();
+</script>
+</head>
+<body class="g-body">
+
+<header class="nav">
+  <a class="nav__brand" href="index.html">親指シフト<span>タイピング道場</span></a>
+  <!-- 並びと語は index.html のヘッダーと同じにする。ページを移ってナビが変わると、
+       «いまどこに居るか» より先に «何が消えたか» を探させてしまう -->
+  <nav class="nav__links" aria-label="画面">
+    <a href="index.html#/learn">覚える</a>
+    <a href="index.html#/train">鍛える</a>
+    <a href="index.html#/record">記録</a>
+    <a href="game.html" aria-current="page">回転ずし</a>
+    <i class="nav__sep" aria-hidden="true"></i>
+    <a class="is-tool" href="index.html#/layout">配列表</a>
+    <a class="is-tool" href="index.html#/setup">設定</a>
+  </nav>
+</header>
+
+<main class="g-main">
+
+  <!-- 狭い画面だけに出る断り書き（app.css の .kbnote をそのまま使う。出し入れは @media だけ）。
+       ゲームも親指キーと文字キーの押下時刻の差を測るので、タッチ画面では原理的に打てない -->
+  <aside class="kbnote g-kbnote">
+    <b class="kbnote__head">このゲームは物理キーボードで遊びます</b>
+    <p class="kbnote__body">親指シフトは、文字キーと親指キー（<kbd>英数</kbd>／<kbd>かな</kbd>）を<b>同時に</b>押して入力します。画面上のソフトキーボードでは押した時刻の差が取れないため、この端末では皿を取れません。ランキングは見られます。</p>
+    <p class="kbnote__acts">
+      <a class="link" href="index.html#/layout">配列表を見る →</a>
+      <a class="link" href="index.html">練習に戻る →</a>
+    </p>
+  </aside>
+
+  <div class="g-stage" id="stage">
+    <canvas class="g-canvas" id="canvas" aria-label="回転ずしのレーン"></canvas>
+
+    <!-- 日本語入力がオンのまま打たれたとき。黙って何も起きないのがいちばん困る -->
+    <p class="g-ime" id="imeWarn" role="alert" hidden>日本語入力がオンです。<b>英数</b>に切り替えてください（親指キーの<kbd>英数</kbd>でも切り替わります）</p>
+
+    <!-- ============================================================ タイトル -->
+    <section class="g-sheet g-title" id="scTitle" aria-labelledby="titleHead">
+      <div class="g-card">
+        <p class="g-eyebrow">親指シフトで食べる</p>
+        <h1 class="g-title__head" id="titleHead">回転ずし</h1>
+        <p class="g-lead">流れてくる皿の単語を打ち切ると、その皿が取れます。<b>時間内にコースの値段より多く食べれば得</b>です。親指の同時打鍵が<b class="g-perfect">ぴったり</b>（±15ms）なら、皿の値段が上がります。</p>
+
+        <div class="g-courses" id="courseList" role="list"><!-- main.js が courses.js から作る --></div>
+
+        <ul class="g-notes">
+          <li>日本語入力は<b>オフ（英数）</b>にしてから始めてください。</li>
+          <li>親指キーは <span id="thumbNames">左 英数 ／ 右 かな</span>。変えるときは <a class="link" href="index.html#/setup">設定</a> で。</li>
+          <li>打てるのは<b>先頭の皿</b>（▼の印）だけ。ミスせず続けると残り時間が延びます。<kbd>Esc</kbd> で中断。</li>
+          <li id="soundNote">打鍵音は練習の設定に従います。</li>
+        </ul>
+
+        <div class="g-row">
+          <button type="button" class="btn" id="btnRankingFromTitle">ランキングを見る</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ 結果 -->
+    <section class="g-sheet g-result" id="scResult" aria-labelledby="resultHead" hidden>
+      <div class="g-card">
+        <p class="g-eyebrow" id="resultCourse">お手軽コース</p>
+        <h2 class="g-result__money" id="resultHead"><b id="resultMoney">0</b><span>円ぶん食べました</span></h2>
+        <p class="g-result__balance" id="resultBalance"></p>
+        <p class="g-result__best" id="resultBest" hidden>自己ベスト更新</p>
+
+        <dl class="g-tally" id="resultTally"><!-- main.js が埋める --></dl>
+
+        <div class="g-row">
+          <button type="button" class="btn btn--primary btn--big" id="btnAgain">もう一度（Enter）</button>
+          <button type="button" class="btn" id="btnCourses">コースを選ぶ</button>
+          <button type="button" class="btn btn--quiet" id="btnRankingFromResult">ランキングを見る</button>
+        </div>
+
+        <!-- ランキングへの送信。準備中・未登録・登録済みの三通りを出し分ける -->
+        <div class="g-submit" id="submitBox"></div>
+
+        <p class="g-support" data-support hidden></p>
+      </div>
+    </section>
+
+    <!-- ============================================================ ランキング -->
+    <section class="g-sheet g-ranking" id="scRanking" aria-labelledby="rankingHead" hidden>
+      <div class="g-card g-card--wide">
+        <h2 class="g-sheet__head" id="rankingHead">ランキング</h2>
+        <div class="g-tabs" role="tablist" aria-label="コース" id="rankCourseTabs"></div>
+        <div class="g-tabs g-tabs--small" role="tablist" aria-label="期間" id="rankPeriodTabs">
+          <button type="button" role="tab" data-period="all" aria-selected="true">これまで</button>
+          <button type="button" role="tab" data-period="month" aria-selected="false">今月</button>
+        </div>
+        <p class="g-status" id="rankStatus" role="status"></p>
+        <ol class="g-board" id="rankList"></ol>
+        <div class="g-row">
+          <button type="button" class="btn" id="btnRankBack">戻る</button>
+          <button type="button" class="btn btn--quiet" id="btnRegister" hidden>ランキングに参加する</button>
+          <button type="button" class="btn btn--danger" id="btnForget" hidden>自分の記録を消す</button>
+        </div>
+        <p class="g-me" id="rankMe"></p>
+      </div>
+    </section>
+
+    <!-- ============================================================ 参加の同意 -->
+    <section class="g-sheet g-consent" id="scConsent" aria-labelledby="consentHead" hidden>
+      <div class="g-card">
+        <h2 class="g-sheet__head" id="consentHead">ランキングに参加する</h2>
+        <div class="g-consent__body">
+          <p><b>送るもの</b>：ここで決めるニックネームと、ゲームの結果（コース・金額・毎分の打鍵数・正確さ・遊んだ時間）だけです。メールアドレスや本名は聞きません。練習の記録（覚える・鍛える）は送りません。</p>
+          <p><b>残る場所</b>：このサイトのランキング用サーバー（AWS 上のデータベース）に、ニックネームと自己ベストが残り、ランキングとして誰でも見られます。この端末には、本人であることを示す合言葉を保存します。</p>
+          <p><b>消し方</b>：ランキング画面の「自分の記録を消す」で、サーバーの記録とこの端末の登録をまとめて消せます。この端末の保存を先に消してしまうと、サーバーの記録をこちらから消せなくなります。</p>
+          <p class="g-consent__ver">同意文の版：<span id="consentVersion"></span></p>
+        </div>
+        <label class="g-field">
+          <span>ニックネーム（12字まで。本名は避けてください）</span>
+          <input type="text" id="nickname" maxlength="12" autocomplete="off" spellcheck="false">
+        </label>
+        <label class="g-check">
+          <input type="checkbox" id="consentCheck">
+          <span>上の内容を読み、同意します</span>
+        </label>
+        <p class="g-status g-status--error" id="consentError" role="alert"></p>
+        <div class="g-row">
+          <button type="button" class="btn btn--primary" id="btnConsent" disabled>同意して参加する</button>
+          <button type="button" class="btn btn--quiet" id="btnConsentCancel">やめる</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="g-foot">
+    <p>打つのは札に出るかなです。漢字は読むための目印です。記録はこの端末の中だけに残ります（ランキングに参加した場合を除く）。</p>
+    <p class="g-support" data-support hidden></p>
+  </footer>
+</main>
+
+<script type="module" src="assets/js/game/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+# 回転ずしのランキング API。HTTP API → Lambda → DynamoDB（1 テーブル）。
+#
+# 方針
+# ・依存パッケージは足さない。@aws-sdk は nodejs22.x の実行環境に同梱のものを使う
+# ・CORS は AllowedOrigin ちょうど一つだけ。ワイルドカードにしない
+# ・スロットリングを低めに置く。個人の練習サイトのランキングなので、毎秒数件で足りる。
+#   低くしておけば、叩かれたときの請求額にも上限がかかる
+# ・DynamoDB はオンデマンド課金＋PITR。消えたら戻せないのはランキングでも困る
+# ・TokenPepper は NoEcho。32 字未満（ダミーの CHANGE_ME を含む）はデプロイ時点で弾く
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: oyayubi-dojo 回転ずしランキング
+
+Parameters:
+  TableName:
+    Type: String
+    Default: oyayubi-dojo-ranking
+    AllowedPattern: '^[A-Za-z0-9_.-]{3,255}$'
+  AllowedOrigin:
+    Type: String
+    Description: 遊び場のオリジン（例 https://<ユーザー名>.github.io）。末尾スラッシュ無し
+    AllowedPattern: '^https://[^/]+$'
+  TokenPepper:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: token のハッシュに混ぜる秘密。32 字以上の乱数（openssl rand -base64 48 など）
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref TableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      AttributeDefinitions:
+        - { AttributeName: PK, AttributeType: S }
+        - { AttributeName: SK, AttributeType: S }
+        - { AttributeName: GSI1PK, AttributeType: S }
+        - { AttributeName: GSI1SK, AttributeType: S }
+      KeySchema:
+        - { AttributeName: PK, KeyType: HASH }
+        - { AttributeName: SK, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - { AttributeName: GSI1PK, KeyType: HASH }
+            - { AttributeName: GSI1SK, KeyType: RANGE }
+          # 順位表に出す分だけ写す。token のハッシュは PROFILE にしか無く、GSI には載らない
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [playerId, nickname, course, period, money, kpm, accuracy, at]
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Ref AllowedOrigin]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
+        AllowHeaders: [content-type, authorization]
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 5
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: index.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          TOKEN_PEPPER: !Ref TokenPepper
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      LoggingConfig:
+        LogGroup: !Ref ApiLogGroup
+      Events:
+        PostPlayers:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /players }
+        PostScores:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: POST, Path: /scores }
+        GetRanking:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: GET, Path: /ranking }
+        DeleteMe:
+          Type: HttpApi
+          Properties: { ApiId: !Ref HttpApi, Method: DELETE, Path: /players/me }
+
+  # ログを無期限に溜めない
+  ApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 14
+
+Outputs:
+  ApiUrl:
+    Description: assets/js/game/config.js の RANKING_API_URL に入れる値
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}'

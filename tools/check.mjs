@@ -65,15 +65,25 @@ for (const [path, who] of owners) {
   if (!has(path)) todo(`${path}（担当: ${who}）`);
 }
 
-// 逆方向。ディスクにあって表に無いものは、誰の持ち物か分からない
-const LISTED_DIRS = ['assets/js', 'assets/css', 'assets/data'];
+// 逆方向。ディスクにあって表に無いものは、誰の持ち物か分からない。
+//
+// 中は再帰で歩き、ファイル単位で照合する。以前は一段しか見ていなかったので、
+// assets/js/game のようなサブディレクトリが「ディレクトリ名そのもの」で照合され、
+// 中のファイルは全部表に載っているのに「担当表に無い」と落ちていた。
+// 逆に、ディレクトリ名で照合すると中に紛れ込んだ持ち主不明のファイルを見逃す。
+// server/ は `server/` の丸預けで覆われる（下の covered の末尾スラッシュの扱い）。
+const LISTED_DIRS = ['assets/js', 'assets/css', 'assets/data', 'docs', 'server'];
 const strayCandidates = [];
-for (const dir of LISTED_DIRS) {
-  if (!has(dir)) continue;
+const walkRel = (dir) => {
   for (const name of readdirSync(join(ROOT, dir))) {
-    if (name.startsWith('.')) continue;
-    strayCandidates.push(`${dir}/${name}`);
+    if (name.startsWith('.') || name === 'node_modules') continue;
+    const rel = `${dir}/${name}`;
+    if (statSync(join(ROOT, rel)).isDirectory()) walkRel(rel);
+    else strayCandidates.push(rel);
   }
+};
+for (const dir of LISTED_DIRS) {
+  if (has(dir)) walkRel(dir);
 }
 if (has('.')) {
   for (const name of readdirSync(ROOT)) {
@@ -444,29 +454,157 @@ const sources = [
   ...readdirSync(ROOT).filter((n) => n.endsWith('.html')).map((n) => join(ROOT, n)),
 ].filter((p) => /\.(js|html|css)$/.test(p));
 
-for (const p of sources) {
-  const at = `流儀 ${relative(ROOT, p)}`;
-  const src = readFileSync(p, 'utf8');
+/**
+ * 一つのファイルの流儀の所見を返す。下の「流儀の検査の検査」で壊した入力を食わせるため、
+ * ファイルを読む所と判定を分けてある。
+ *
+ * 外部参照の線引き（CONTRACT.md の CSP の節）:
+ *   - `<a href="https://...">` は許す。通信ではなく遷移で、Buy Me a Coffee の支援リンクに要る
+ *   - それ以外のタグの src= / href=（<script src> / <img src> / <link href> など）は禁止。
+ *     読み込んだ時点でブラウザが外へ取りに行く
+ *   - JS の import（静的・動的・from）で外部 URL を指すのは禁止
+ *   - JS 中の文字列の URL（config.js の SUPPORT_URL / RANKING_API_URL）は対象外。
+ *     値を入れても `src=` / `import` の形にはならないので、下の正規表現は拾わない。
+ *     それを当てにせず、検査の検査で config.js と同じ書き方の入力が素通りすることを確かめている
+ *   - `//cdn.example/x.js` のようなスキームの無い書き方も外部参照として拾う
+ */
+function styleFindings(rel, src) {
+  const out = [];
+  const isHtml = rel.endsWith('.html');
+  const isJs = rel.endsWith('.js');
 
   // innerHTML を使わない（CSP 整合と XSS 配慮）
-  if (/\.innerHTML\s*=/.test(src)) ng(at, 'innerHTML への代入がある。textContent / replaceChildren を使う');
+  if (/\.innerHTML\s*=/.test(src)) out.push('innerHTML への代入がある。textContent / replaceChildren を使う');
 
   // CDN を引かない。connect-src 'none' の下では黙って死ぬ
-  for (const m of src.matchAll(/(?:src|href)=["']https?:\/\/([^"'/]+)/g)) {
-    ng(at, `外部ホスト ${m[1]} を参照している（依存パッケージゼロ・CDN 無しの約束）`);
+  const EXT = String.raw`(?:https?:)?\/\/([^"'\s/>]+)`;
+  if (isHtml) {
+    // タグごとに見る。<a> の href だけが遷移で、残りは全部「読み込み」
+    for (const tag of src.matchAll(/<([a-zA-Z][\w-]*)\b[^>]*>/g)) {
+      const name = tag[1].toLowerCase();
+      for (const m of tag[0].matchAll(new RegExp(String.raw`\s(src|href)\s*=\s*["']?${EXT}`, 'gi'))) {
+        if (name === 'a' && m[1].toLowerCase() === 'href') continue;
+        out.push(`<${name} ${m[1]}> で外部ホスト ${m[2]} を参照している（依存パッケージゼロ・CDN 無しの約束）`);
+      }
+    }
+  } else {
+    // CSS や JS の中でも src= で外を指すのは読み込み
+    for (const m of src.matchAll(new RegExp(String.raw`\bsrc\s*=\s*["'\`]${EXT}`, 'g'))) {
+      out.push(`src= で外部ホスト ${m[1]} を参照している（依存パッケージゼロ・CDN 無しの約束）`);
+    }
   }
-  if (/\bimport\s*\(?\s*["']https?:\/\//.test(src)) ng(at, '外部 URL から import している');
+  if (isJs || isHtml) {
+    // import 'https://…' / import('https://…') / import x from 'https://…' / export … from 'https://…'
+    if (new RegExp(String.raw`(?:\bimport\s*\(?|\bfrom)\s*["'\`]${EXT}`).test(src)) out.push('外部 URL から import している');
+  }
 
   // localStorage は全アクセスを try/catch。記録できなくても遊べることが要件
   if (/localStorage/.test(src)) {
     for (const m of src.matchAll(/["'](oyayubi-dojo:[^"']*)["']/g)) {
-      if (!/^oyayubi-dojo:[\w-]+:v\d+$/.test(m[1])) ng(at, `保存キー "${m[1]}" が oyayubi-dojo:*:v1 の形でない`);
+      if (!/^oyayubi-dojo:[\w-]+:v\d+$/.test(m[1])) out.push(`保存キー "${m[1]}" が oyayubi-dojo:*:v1 の形でない`);
     }
-    if (!/try\s*\{/.test(src)) ng(at, 'localStorage を触るのに try/catch が一つも無い');
+    if (!/try\s*\{/.test(src)) out.push('localStorage を触るのに try/catch が一つも無い');
   }
 
   // 各ファイルの冒頭に「何か・なぜこの方針か」を置く
-  if (p.endsWith('.js') && !/^\s*(\/\*|\/\/)/.test(src)) ng(at, '冒頭に「何のファイルか」の説明が無い');
+  if (isJs && !/^\s*(\/\*|\/\/)/.test(src)) out.push('冒頭に「何のファイルか」の説明が無い');
+  return out;
+}
+
+// ---- 流儀の検査の検査。外部参照の線引きを変えたので、通すべきものと落とすべきものの両方を確かめる。
+//      「<a> を許す」を足したときに、ついでに <link> まで素通しになる、が一番ありそうな壊れ方
+{
+  const js = (body) => `// 説明\n${body}\n`;
+  const selfTests = [
+    // [名前, 仮のパス, 中身, 所見が出るべきか]
+    ['<a href> の外部リンク（支援リンク）', 'x.html', '<a class="support" href="https://buymeacoffee.com/someone" rel="noopener">支援</a>', false],
+    ['config.js の書き方で URL を入れた', 'x.js', js("export const RANKING_API_URL = 'https://abc.execute-api.ap-northeast-1.amazonaws.com';\nexport const SUPPORT_URL = 'https://buymeacoffee.com/someone';"), false],
+    ['JS で a.href に変数を入れる', 'x.js', js('link.href = SUPPORT_URL;'), false],
+    ['同じ場所の相対参照', 'x.html', '<script type="module" src="assets/js/game/main.js"></script><link rel="stylesheet" href="assets/css/game.css">', false],
+    ['<script src> の外部', 'x.html', '<script src="https://cdn.example.com/x.js"></script>', true],
+    ['<link href> の外部', 'x.html', '<link rel="stylesheet" href="https://fonts.example.com/x.css">', true],
+    ['<img src> のスキーム無し外部', 'x.html', '<img alt="" src="//cdn.example.com/x.png">', true],
+    ['<a> の隣の <link>', 'x.html', '<a href="https://ok.example.com/">ok</a><link href="https://ng.example.com/x.css" rel="stylesheet">', true],
+    ['JS の import from 外部', 'x.js', js("import { x } from 'https://cdn.example.com/x.js';"), true],
+    ['JS の動的 import 外部', 'x.js', js("await import('https://cdn.example.com/x.js');"), true],
+    ['JS の副作用 import 外部', 'x.js', js("import 'https://cdn.example.com/x.js';"), true],
+    ['JS で img.src に外部', 'x.js', js("img.src = 'https://cdn.example.com/x.png';"), true],
+    ['innerHTML への代入', 'x.js', js("el.innerHTML = '<b>x</b>';"), true],
+    ['localStorage を try 無しで', 'x.js', js("localStorage.getItem('oyayubi-dojo:player:v1');"), true],
+    ['保存キーの形が違う', 'x.js', js("try { localStorage.getItem('oyayubi-dojo-player'); localStorage.getItem('oyayubi-dojo:player'); } catch {}"), true],
+    ['冒頭の説明が無い', 'x.js', 'export const A = 1;\n', true],
+  ];
+  for (const [name, rel, src, shouldFind] of selfTests) {
+    const found = styleFindings(rel, src);
+    if (shouldFind && !found.length) ng('検算の検算', `流儀の検査が「${name}」を捕まえられていない（空振りしている）`);
+    if (!shouldFind && found.length) ng('検算の検算', `流儀の検査が「${name}」を誤って落とす: ${found.join(' / ')}`);
+  }
+}
+
+for (const p of sources) {
+  const rel = relative(ROOT, p);
+  for (const f of styleFindings(rel, readFileSync(p, 'utf8'))) ng(`流儀 ${rel}`, f);
+}
+
+// ---------------------------------------------------------------- 4.2 server/ に秘密が無いか
+//
+// server/ は Node 側のコードなので、画面の流儀（localStorage など）は当てない。
+// その代わり、AWS の鍵や秘密の実値が紛れ込んでいないかだけは見る。
+// 公開リポジトリに一度でも push した鍵は、消しても履歴に残る。手元で止めるしかない。
+//
+// AWS 公式ドキュメントの見本値（AKIAIOSFODNN7EXAMPLE 等、EXAMPLE を含むもの）は
+// 実在しない鍵なので許す。それ以外は «ダミーのつもり» でも落とす（見分けがつかない）。
+// 隠しファイル（.env / samconfig の写しなど）こそ紛れ込みやすいので、ここでは . 始まりも歩く。
+
+function secretFindings(src) {
+  const out = [];
+  for (const m of src.matchAll(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g)) {
+    if (!m[0].includes('EXAMPLE')) out.push(`AWS のアクセスキーらしき値 ${m[0].slice(0, 8)}…`);
+  }
+  for (const m of src.matchAll(/aws_?secret(?:_?access)?(?:_?key)?["']?\s*[:=]\s*["']?([A-Za-z0-9/+=]{30,})/gi)) {
+    if (!m[1].includes('EXAMPLE')) out.push('aws_secret_access_key に実値らしきものが入っている');
+  }
+  // 名前が鍵らしくなくても、40 字の AWS 秘密鍵の形で secret の近くに置かれていたら拾う
+  for (const m of src.matchAll(/secret[^\n]{0,40}?["']([A-Za-z0-9/+]{40})["']/gi)) {
+    if (!m[1].includes('EXAMPLE')) out.push('secret の近くに 40 字の秘密鍵らしき値がある');
+  }
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(src)) out.push('秘密鍵（PRIVATE KEY）が置かれている');
+  return [...new Set(out)];
+}
+
+{
+  // 検査の検査。本物の形の鍵は、このファイル自体が秘密扱いされないよう実行時に組み立てる
+  const fakeId = 'AK' + 'IA' + 'Q3ZJ7W2XK5N4R8TD';
+  const fakeSecret = 'wJ8r' + 'Xk2pQ9mZ7vL4nB6tH1sD3fG5jK0aYcE8uWqR';
+  const selfTests = [
+    ['アクセスキー', `const id = '${fakeId}';`, true],
+    ['aws_secret_access_key', `aws_secret_access_key = ${fakeSecret}`, true],
+    ['secret の近くの 40 字', `const awsSecret = '${fakeSecret}';`, true],
+    ['秘密鍵', '-----BEGIN RSA PRIVATE KEY-----', true],
+    ['AWS 公式の見本値', "const id = 'AKIAIOSFODNN7EXAMPLE'; aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", false],
+    ['環境変数名だけ', "const pepper = process.env.TOKEN_PEPPER; // TABLE_NAME / ALLOWED_ORIGIN", false],
+  ];
+  for (const [name, src, shouldFind] of selfTests) {
+    const found = secretFindings(src);
+    if (shouldFind && !found.length) ng('検算の検算', `秘密の検査が「${name}」を捕まえられていない`);
+    if (!shouldFind && found.length) ng('検算の検算', `秘密の検査が「${name}」を誤って落とす: ${found.join(' / ')}`);
+  }
+}
+
+if (has('server')) {
+  const walkAll = (dir, out = []) => {
+    for (const name of readdirSync(dir)) {
+      if (name === 'node_modules' || name === '.git') continue;
+      const p = join(dir, name);
+      if (statSync(p).isDirectory()) walkAll(p, out);
+      else out.push(p);
+    }
+    return out;
+  };
+  for (const p of walkAll(join(ROOT, 'server'))) {
+    if (statSync(p).size > 2_000_000) continue; // 生成物の巨大ファイルは見ない（秘密は手書きの小さいファイルに入る）
+    for (const f of secretFindings(readFileSync(p, 'utf8'))) ng(`秘密 ${relative(ROOT, p)}`, f);
+  }
 }
 
 // ---------------------------------------------------------------- 4.5 参照先の実在
@@ -488,6 +626,154 @@ for (const p of sources.filter((f) => f.endsWith('.js'))) {
   for (const m of src.matchAll(/(?:from|import)\s*\(?\s*['"](\.[^'"]+)['"]/g)) {
     if (!existsSync(resolve(dirname(p), m[1]))) {
       ng('参照', `${relative(ROOT, p)} の import "${m[1]}" が解決できない`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------- 4.6 ゲームの設定値と CSP
+//
+// ランキングは外への通信なので、connect-src はもう 'none' 固定ではない。
+// ただし緩めてよいのは「config.js の RANKING_API_URL のオリジンちょうど一つ」だけ。
+// 二つの値が別のファイルにあるので、片方だけ変えるのがいちばん起きやすい。
+//   - URL だけ入れて CSP を忘れる → 本番でランキングが黙って死ぬ（CSP 違反は画面に出ない）
+//   - CSP だけ緩めて URL が空      → 外へ出られる穴が、使われないまま開いている
+// どちらも落とす。値が空なのは失敗ではないが、黙って緑にはせず「未設定」として必ず出す。
+
+const notes = []; // 失敗ではないが、黙っていてはいけないこと。判定の所でまとめて出す
+const CONFIG_SRC = 'assets/js/game/config.js';
+let rankingApiUrl = null; // 読めなかったら null のまま（下で 'none' 前提にせず、検査不能として落とす）
+
+if (!has(CONFIG_SRC)) {
+  ng('設定', `${CONFIG_SRC} が無い。connect-src をどう置くべきか決められない`);
+} else {
+  try {
+    const cfg = await import(pathToFileURL(join(ROOT, CONFIG_SRC)).href);
+    for (const name of ['RANKING_API_URL', 'SUPPORT_URL']) {
+      const v = cfg[name];
+      if (typeof v !== 'string') {
+        ng('設定', `${CONFIG_SRC} が ${name} を文字列で export していない（${typeof v}）`);
+        continue;
+      }
+      if (v === '') {
+        notes.push(
+          name === 'RANKING_API_URL'
+            ? `${name} が空。ランキングは「準備中」表示のまま。connect-src は 'none' を要求する`
+            : `${name} が空。支援リンク（Buy Me a Coffee）は画面に出ない`
+        );
+        continue;
+      }
+      let u = null;
+      try {
+        u = new URL(v);
+      } catch {
+        ng('設定', `${CONFIG_SRC} の ${name} が URL として読めない: ${v}`);
+        continue;
+      }
+      if (u.protocol !== 'https:') ng('設定', `${CONFIG_SRC} の ${name} が https ではない: ${v}`);
+    }
+    if (typeof cfg.RANKING_API_URL === 'string') rankingApiUrl = cfg.RANKING_API_URL;
+  } catch (e) {
+    ng('設定', `${CONFIG_SRC} を import できない: ${e.message}`);
+  }
+}
+
+/** connect-src の値の並び（ソース式の配列）。指示自体が無ければ null */
+function connectSrcOf(csp) {
+  const d = csp
+    .split(';')
+    .map((s) => s.trim().split(/\s+/))
+    .find((t) => t[0].toLowerCase() === 'connect-src');
+  return d ? d.slice(1) : null;
+}
+
+/**
+ * connect-src が config.js と対応しているか。
+ * apiUrl が '' なら 'none' だけ。値があるならそのオリジンちょうど一つだけ（'none' も他のホストも、ワイルドカードも不可）。
+ */
+function connectSrcFindings(csp, apiUrl) {
+  const out = [];
+  const list = connectSrcOf(csp);
+  if (!list) return ["connect-src が無い（default-src に落ちるので、何が許されているか宣言から読めない）"];
+  if (apiUrl === '') {
+    if (list.length !== 1 || list[0] !== "'none'") {
+      out.push(`RANKING_API_URL が空なのに connect-src が "${list.join(' ')}"（'none' ちょうどでなければならない）`);
+    }
+    return out;
+  }
+  let origin = null;
+  try {
+    origin = new URL(apiUrl).origin;
+  } catch {
+    return [`RANKING_API_URL が URL として読めないので connect-src と突き合わせられない: ${apiUrl}`];
+  }
+  if (list.length !== 1 || list[0] !== origin) {
+    out.push(`connect-src が "${list.join(' ')}"。RANKING_API_URL のオリジン ${origin} ちょうど一つでなければならない`);
+  }
+  return out;
+}
+
+// ---- 検査の検査。«'none' か、そのオリジンちょうど一つ» の両側を確かめる
+{
+  const API = 'https://abc123.execute-api.ap-northeast-1.amazonaws.com/prod';
+  const O = 'https://abc123.execute-api.ap-northeast-1.amazonaws.com';
+  const selfTests = [
+    ['空で none', "default-src 'self'; connect-src 'none'", '', false],
+    ['値ありでそのオリジン', `default-src 'self'; connect-src ${O}; object-src 'none'`, API, false],
+    ['空なのに外を向いている', `connect-src ${O}`, '', true],
+    ["空なのに 'self'", "connect-src 'self'", '', true],
+    ["空なのに 'none' に何か足してある", `connect-src 'none' ${O}`, '', true],
+    ['connect-src が無い', "default-src 'self'", '', true],
+    ["値があるのに 'none'（ランキングが黙って死ぬ）", "connect-src 'none'", API, true],
+    ['値ありで別のホストも許している', `connect-src ${O} https://evil.example.com`, API, true],
+    ['値ありでワイルドカード', 'connect-src https://*.amazonaws.com', API, true],
+    ['値ありで別のオリジン', 'connect-src https://other.execute-api.ap-northeast-1.amazonaws.com', API, true],
+    ['値ありで http', `connect-src ${O.replace('https', 'http')}`, API, true],
+    ["値ありで 'self' 付き", `connect-src 'self' ${O}`, API, true],
+  ];
+  for (const [name, csp, api, shouldFind] of selfTests) {
+    const found = connectSrcFindings(csp, api);
+    if (shouldFind && !found.length) ng('検算の検算', `connect-src の検査が「${name}」を捕まえられていない`);
+    if (!shouldFind && found.length) ng('検算の検算', `connect-src の検査が「${name}」を誤って落とす: ${found.join(' / ')}`);
+  }
+}
+
+// 置く予定の CSP と、置いてある CSP。描画の検査はこれをそのまま検査サーバーから送る。
+// インラインスクリプト（配色の先当てなど）のハッシュは、全ページの分を実測して許可する。
+// _headers の CSP は全ページ共通（/*）なので、game.html の分も同じ行に要る
+const inlineHashes = [];
+for (const name of htmlFiles) {
+  for (const m of read(name).matchAll(/<script>([\s\S]*?)<\/script>/g)) {
+    inlineHashes.push({ page: name, hash: `'sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}'` });
+  }
+}
+const intendedConnect = rankingApiUrl ? (() => { try { return new URL(rankingApiUrl).origin; } catch { return "'none'"; } })() : "'none'";
+const intendedCsp = [
+  "default-src 'self'",
+  `script-src 'self' ${[...new Set(inlineHashes.map((h) => h.hash))].join(' ')}`.trim(),
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  `connect-src ${intendedConnect}`,
+  "object-src 'none'",
+  "base-uri 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+const headersFile = has('_headers') ? read('_headers') : null;
+const declaredCsp = headersFile?.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1]?.trim() ?? null;
+
+if (declaredCsp) {
+  // 置いてあるなら、緩んでいないかを見る。ここが緩むと外に出られるのに気づけない
+  for (const need of ["default-src 'self'", "object-src 'none'", "base-uri 'none'"]) {
+    if (!declaredCsp.includes(need)) ng('CSP', `_headers の CSP に ${need} が無い`);
+  }
+  if (rankingApiUrl === null) {
+    ng('CSP', `${CONFIG_SRC} を読めないので、_headers の connect-src が正しいか判定できない`);
+  } else {
+    for (const f of connectSrcFindings(declaredCsp, rankingApiUrl)) ng('CSP', `_headers の ${f}`);
+  }
+  for (const { page, hash } of inlineHashes) {
+    if (!declaredCsp.includes(hash) && !/script-src[^;]*'unsafe-inline'/.test(declaredCsp)) {
+      ng('CSP', `${page} のインラインスクリプトが _headers の script-src で許可されていない: ${hash}`);
     }
   }
 }
@@ -604,41 +890,12 @@ async function browserChecks(chromeBin) {
 
   // CSP を検査サーバーが送る。_headers があればそれを、無ければ「置く予定の形」を送る。
   // 送らずに検査すると「CSP を当てた瞬間に画面が死ぬ」を出荷まで見つけられない。
-  const headersFile = has('_headers') ? read('_headers') : null;
-  const declaredCsp = headersFile?.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1]?.trim() ?? null;
-
-  // 冒頭のちらつき止めはインラインスクリプト。ハッシュを実測して許可する。
-  // 'unsafe-inline' で通すと検査が甘くなるうえ、ここで出るハッシュは
-  // そのまま _headers に貼れる（下で表示する）
-  const inline = [...read('index.html').matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-  const hashes = inline.map((s) => `'sha256-${createHash('sha256').update(s, 'utf8').digest('base64')}'`);
-  const intendedCsp = [
-    "default-src 'self'",
-    `script-src 'self' ${hashes.join(' ')}`.trim(),
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data:",
-    "font-src 'self'",
-    "connect-src 'none'",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "frame-ancestors 'none'",
-  ].join('; ');
-
+  // 宣言そのものの検査（connect-src と config.js の対応など）は 4.6 で済ませてある。
+  // Chrome が無くても静的に分かることは、ブラウザの有無に左右させない
   const csp = declaredCsp ?? intendedCsp;
   if (!declaredCsp) {
     console.log('_headers がまだ無いので、検査サーバーが「置く予定の CSP」を代わりに送って検査する:');
     console.log(`  Content-Security-Policy: ${intendedCsp}`);
-  } else {
-    // 置いてあるなら、緩んでいないかを見る。ここが緩むと外に出られるのに気づけない
-    for (const need of ["default-src 'self'", "connect-src 'none'", "object-src 'none'", "base-uri 'none'"]) {
-      if (!declaredCsp.includes(need)) ng('CSP', `_headers の CSP に ${need} が無い`);
-    }
-    if (/connect-src[^;]*(https?:|\*)/.test(declaredCsp)) ng('CSP', '_headers の connect-src が外を向いている');
-    for (const h of hashes) {
-      if (!declaredCsp.includes(h) && !/script-src[^;]*'unsafe-inline'/.test(declaredCsp)) {
-        ng('CSP', `index.html のインラインスクリプトが _headers の script-src で許可されていない: ${h}`);
-      }
-    }
   }
 
   const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml' };
@@ -690,11 +947,21 @@ async function browserChecks(chromeBin) {
 
     let id = 0;
     const waiting = new Map();
+    // コンソールに出たエラーも拾う。window.__err は «最後の一つ» しか持たないうえ、
+    // console.error で出しただけのもの（握りつぶしの手前で一応出した、など）は拾えない
+    const consoleErrors = [];
     ws.onmessage = (e) => {
       const m = JSON.parse(e.data);
       if (m.id && waiting.has(m.id)) {
         waiting.get(m.id)(m);
         waiting.delete(m.id);
+      } else if (m.method === 'Runtime.exceptionThrown') {
+        const d = m.params.exceptionDetails;
+        consoleErrors.push(`例外: ${d.exception?.description?.split('\n')[0] ?? d.text}`);
+      } else if (m.method === 'Runtime.consoleAPICalled' && m.params.type === 'error') {
+        consoleErrors.push(`console.error: ${m.params.args.map((a) => a.value ?? a.description ?? '').join(' ')}`);
+      } else if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') {
+        consoleErrors.push(`${m.params.entry.source}: ${m.params.entry.text}${m.params.entry.url ? ` (${m.params.entry.url})` : ''}`);
       }
     };
     const send = (method, params = {}) =>
@@ -835,6 +1102,38 @@ async function browserChecks(chromeBin) {
     const over = await evaluate('document.documentElement.scrollWidth - window.innerWidth');
     if (over > 1) ng('見た目', `横に溢れている（${over}px）`);
 
+    // ---- ゲーム（game.html）。独立したページなので、読み込みだけで壊れていないかを見る。
+    //      canvas が置かれていること、読み込みでエラーも CSP 違反も出ないこと。
+    //      ゲームを最後まで遊ばせる検査はここではしない（判断は engine.js の単体テストが見る）
+    if (has('game.html')) {
+      await send('Runtime.enable');
+      await send('Log.enable');
+      consoleErrors.length = 0;
+      await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/game.html` });
+      let canvas = null;
+      for (let i = 0; i < 30; i++) {
+        canvas = await evaluate(
+          `(() => { const c = document.querySelector('canvas'); return c ? { w: c.getBoundingClientRect().width, h: c.getBoundingClientRect().height } : null; })()`
+        ).catch(() => null);
+        if (canvas) break;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      // module の読み込み失敗や初回描画の例外は、canvas が出た後に来ることもあるので少し待つ
+      await new Promise((r) => setTimeout(r, 600));
+      if (!canvas) {
+        const why = await evaluate('window.__err || "(見当たらない)"').catch(() => '(読めない)');
+        ng('描画', `game.html に canvas が無い。読み込みで落ちている疑い: ${why}`);
+      } else if (!(canvas.w > 0 && canvas.h > 0)) {
+        ng('描画', `game.html の canvas の大きさが ${canvas.w}×${canvas.h}（見えていない）`);
+      }
+      const err = await evaluate('window.__err').catch(() => null);
+      if (err) ng('描画', `game.html の読み込みでエラー: ${err}`);
+      for (const c of new Set(consoleErrors)) ng('描画', `game.html のコンソールにエラー: ${c}`);
+      const gameCsp = await evaluate('JSON.stringify(window.__csp || null)').catch(() => 'null');
+      if (gameCsp === 'null') ng('CSP', 'game.html で違反を拾う仕込みが入っていない（検査が空振りしている）');
+      else for (const v of new Set(JSON.parse(gameCsp))) ng('CSP', `game.html が CSP に引っかかっている: ${v}`);
+    }
+
     console.log('描画の検査を実行');
   } catch (e) {
     ng('描画', `検査できなかった: ${e.message}`);
@@ -922,6 +1221,13 @@ function findChrome() {
 }
 
 // ---------------------------------------------------------------- 判定
+
+// 未設定は失敗ではないので終了コードは変えない。ただし緑の行の直前に必ず出す。
+// 本番の値が入らないまま出荷されるのを、毎回目に入る所で止めるため
+if (notes.length) {
+  console.log(`\n未設定 ${notes.length} 件（失敗ではない。本番の値は石田さんが ${CONFIG_SRC} に入れる）\n`);
+  for (const n of notes) console.log(`  未設定: ${n}`);
+}
 
 const undone = fails.filter((f) => f.startsWith('未実装: '));
 const broken = fails.filter((f) => !f.startsWith('未実装: '));

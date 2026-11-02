@@ -117,14 +117,16 @@
       <div class="g-card g-card--wide">
         <h2 class="g-sheet__head" id="rankingHead">ランキング</h2>
         <div class="g-tabs" role="tablist" aria-label="コース" id="rankCourseTabs"></div>
-        <div class="g-tabs g-tabs--small" role="tablist" aria-label="期間" id="rankPeriodTabs">
-          <button type="button" role="tab" data-period="all" aria-selected="true">これまで</button>
-          <button type="button" role="tab" data-period="month" aria-selected="false">今月</button>
-        </div>
-        <div class="g-tabs g-tabs--small" role="tablist" aria-label="入力方式" id="rankInputTabs">
-          <button type="button" role="tab" data-input="all" aria-selected="true">すべて</button>
-          <button type="button" role="tab" data-input="nicola" aria-selected="false">親指シフト</button>
-          <button type="button" role="tab" data-input="romaji" aria-selected="false">ローマ字</button>
+        <div class="g-filters">
+          <div class="g-tabs g-tabs--small" role="tablist" aria-label="期間" id="rankPeriodTabs">
+            <button type="button" role="tab" data-period="all" aria-selected="true">これまで</button>
+            <button type="button" role="tab" data-period="month" aria-selected="false">今月</button>
+          </div>
+          <div class="g-tabs g-tabs--small" role="tablist" aria-label="入力方式" id="rankInputTabs">
+            <button type="button" role="tab" data-input="all" aria-selected="true">すべて</button>
+            <button type="button" role="tab" data-input="nicola" aria-selected="false">親指シフト</button>
+            <button type="button" role="tab" data-input="romaji" aria-selected="false">ローマ字</button>
+          </div>
         </div>
         <p class="g-status" id="rankStatus" role="status"></p>
         <ol class="g-board" id="rankList"></ol>

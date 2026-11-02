@@ -347,3 +347,28 @@
 .cal-legend__svg {
   display: block;
 }
+
+/* ---- 入口の計器（renderScope）。窓の外の棒は沈め、ぴったりの窓の中だけ主色で立てる */
+
+.chart--scope .bar {
+  fill: var(--tone);
+  fill-opacity: 0.3;
+}
+
+.chart--scope .bar--in {
+  fill-opacity: 1;
+}
+
+.chart--scope .tick-mark {
+  stroke: var(--fg-dim);
+  shape-rendering: crispEdges;
+}
+
+.chart--scope .tick-mark--zero {
+  stroke: var(--fg);
+}
+
+.chart--scope .needle {
+  stroke: var(--perfect);
+  stroke-width: 2;
+}

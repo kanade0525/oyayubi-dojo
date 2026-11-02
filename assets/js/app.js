@@ -30,7 +30,7 @@ import { renderIso } from './iso.js';
 import { svg } from './viz.js';
 import { medal } from './medal.js';
 import { icon, fillIcons } from './icons.js';
-import { renderTrend, renderOffsetHist, renderCalendar } from './charts.js';
+import { renderTrend, renderOffsetHist, renderCalendar, renderScope } from './charts.js';
 import { createSound } from './sound.js';
 
 const layout = loadLayout('nicola');
@@ -46,6 +46,12 @@ const el = {
   },
   // 玄関の振り分け。門ではなく、二つの札の並び順を変えるだけの一問
   doorLearnState: $('doorLearnState'), doorTrainState: $('doorTrainState'),
+  // 入口の計器
+  gateOffset: $('gateOffset'), gatePerfect: $('gatePerfect'), gateCpm: $('gateCpm'),
+  gateSample: $('gateSample'), gateScope: $('gateScope'),
+  // 鍛えるの見出しの数字
+  trainRank: $('trainRank'), trainCpm: $('trainCpm'), trainPerfect: $('trainPerfect'),
+  trainOffset: $('trainOffset'), trainWeak: $('trainWeak'),
   noticeStack: $('noticeStack'), playBadge: $('playBadge'),
   // ローマ字の基準。記録画面に置く。
   // 記録が無い間は #romajiCard が隠れるので、入力欄は別の札に分けてある
@@ -914,10 +920,11 @@ function paintNav(stats = loadStats()) {
   el.navStreak.textContent = String(stats.streak ?? 0);
 }
 
-/** 門。三つの扉に «いまどこまで来たか» を一行ずつ添えるだけ */
+/** 門。計器にいまの親指のズレを出し、三つの扉に «いまどこまで来たか» を一行ずつ添える */
 function paintHome() {
   const stats = loadStats();
   paintNav(stats);
+  paintGateInst(stats);
   const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0));
   if (el.doorLearnState) {
     el.doorLearnState.textContent = next
@@ -928,6 +935,41 @@ function paintHome() {
     el.doorTrainState.textContent = stats.runs > 0
       ? `段位 ${stats.rank ?? RANKS[0].name} ・ いま弱いのは ${weakFaces(stats, { limit: 40 }).length} 面`
       : '弱点集中・総ざらい・速度・実文・自由入力';
+  }
+}
+
+/**
+ * 入口の計器。ズレと分布は累計（stats.offset）、ぴったり率も累計、速さは直近 10 本の平均（gateNumbers）。
+ * まだ測っていない間は数字を «—» にして、分布の場所に何が出るかだけを書く
+ */
+function gateNumbers(stats) {
+  const rep = offsetReport(stats);
+  const mean = meanOfBoth(rep);
+  const n = (rep.left.n ?? 0) + (rep.right.n ?? 0);
+  const recent = (stats.history ?? []).slice(0, 10).map(h => h.cpm).filter(v => Number.isFinite(v) && v > 0);
+  return {
+    n,
+    offset: mean == null ? '—' : fmtOffset(mean).replace('ms', '').replace('-', '−'),
+    perfect: n ? String(Math.round(overview(stats).perfectRate)) : '—',
+    cpm: recent.length ? String(Math.round(recent.reduce((a, b) => a + b, 0) / recent.length)) : '—',
+  };
+}
+
+function paintGateInst(stats) {
+  const g = gateNumbers(stats);
+  const n = g.n;
+  el.gateOffset.textContent = g.offset;
+  el.gatePerfect.textContent = g.perfect;
+  el.gateCpm.textContent = g.cpm;
+  el.gateSample.textContent = n ? `${n.toLocaleString('ja-JP')} 打の同時打鍵` : '';
+  el.gateOffset.closest('.inst').classList.toggle('is-empty', !n);
+  if (n) {
+    renderScope(el.gateScope, stats.offset);
+  } else {
+    const p = document.createElement('p');
+    p.className = 'inst__empty';
+    p.textContent = '1 本打つと、ここに親指のズレが出ます';
+    el.gateScope.replaceChildren(p);
   }
 }
 
@@ -1397,9 +1439,20 @@ function paintDrill() {
     btn?.closest('.mode')?.classList.remove('is-locked');
   }
 
+  paintTrainStats(stats);
   paintInputPick();
   paintMaterials(stats);
   updateFreeText();
+}
+
+/** 見出しの横の数字。数字の出所は入口の計器（gateNumbers）と同じにする */
+function paintTrainStats(stats) {
+  const g = gateNumbers(stats);
+  el.trainRank.textContent = stats.runs > 0 ? (stats.rank ?? RANKS[0].name) : '—';
+  el.trainCpm.textContent = g.cpm;
+  el.trainPerfect.textContent = g.perfect;
+  el.trainOffset.textContent = g.offset;
+  el.trainWeak.textContent = stats.runs > 0 ? String(weakFaces(stats, { limit: 40 }).length) : '—';
 }
 
 function paintInputPick() {

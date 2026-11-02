@@ -79,12 +79,6 @@
     <b id="navStreak">0</b><span>日連続</span>
   </a>
 
-  <div class="tones" role="group" aria-label="配色">
-    <button type="button" class="tones__opt" data-tone-set="midnight" aria-pressed="true"><i></i><span>藍</span></button>
-    <button type="button" class="tones__opt" data-tone-set="matcha" aria-pressed="false"><i></i><span>抹茶</span></button>
-    <button type="button" class="tones__opt" data-tone-set="plum" aria-pressed="false"><i></i><span>藤</span></button>
-    <button type="button" class="tones__opt" data-tone-set="sumi" aria-pressed="false"><i></i><span>墨</span></button>
-  </div>
 </header>
 
 
@@ -186,6 +180,17 @@
       </label>
     </div>
 
+    <!-- 配色。以前は上の帯に常に出していたが、毎回触るものではないのでここへ移した -->
+    <div class="card" id="toneCard">
+      <h2 class="card__head">配色</h2>
+      <div class="tones" role="group" aria-label="配色">
+        <button type="button" class="tones__opt" data-tone-set="midnight" aria-pressed="true"><i></i><span>藍</span></button>
+        <button type="button" class="tones__opt" data-tone-set="matcha" aria-pressed="false"><i></i><span>抹茶</span></button>
+        <button type="button" class="tones__opt" data-tone-set="plum" aria-pressed="false"><i></i><span>藤</span></button>
+        <button type="button" class="tones__opt" data-tone-set="sumi" aria-pressed="false"><i></i><span>墨</span></button>
+      </div>
+    </div>
+
     <!-- 打鍵音。既定は «無音» なので、ここを置かないと sound.js は一度も鳴らない。
          この道場の芯は «押下の時間差を 1 打ごとに返すこと» で、音はそれを
          «画面を見ずに» 受け取れる唯一の道。同時打鍵の練習では手元と画面を往復せずに済む。
@@ -265,36 +270,53 @@
      一覧は #/learn に出して、ここには «目的ごとの入口三つ» と «自分の数字» だけを置く。
      配列表と設定はナビの右（共通の道具）から入る。玄関に札を並べ直すと、また入口が五つに見える。 -->
 <section class="screen screen--home" id="screenHome" hidden>
-  <!-- 門。三つの場所への扉を同じ重さで並べるだけの画面。
+  <!-- 門。左に名前、右に計器、下に三つの場所への扉。
        親指シフトの説明は置かない。説明から入ると «初心者向けのサイト» と読まれ、
        もう打てる人がその場で離れる（2026-11-02 の指摘）。
-       扉はそれぞれの場所の色と名前で描き、どれか一つだけを目立たせない（主ボタンを置かない） -->
+       代わりに、このサイトにしか無い数字（親指のズレの ms）を最初に見せる。
+       まだ一本も打っていない人には、計器は空のまま «何を測るか» だけを見せる。
+       扉は札ではなく行。三つを同じ重さで並べ、どれか一つだけを目立たせない -->
   <div class="page gate">
-    <h1 class="gate__title">親指シフトマスター</h1>
-    <p class="gate__sub">0から覚えてトレーニングまで</p>
-
-    <div class="doors" id="gateDoors">
-      <a class="door" data-area="learn" href="#/learn">
-        <span class="door__icon" data-icon="learn"></span>
-        <b class="door__name">覚える</b>
-        <span class="door__site">親指シフト入門</span>
-        <span class="door__note">七つの課・46題。単独打鍵から交差シフトまで順に。</span>
-        <em class="door__state" id="doorLearnState"></em>
-      </a>
-      <a class="door" data-area="train" href="#/train">
-        <span class="door__icon" data-icon="train"></span>
-        <b class="door__name">鍛える</b>
-        <span class="door__site">親指シフト トレーニング</span>
-        <span class="door__note">1 打ごとに親指のズレと取りこぼしを測り、弱いところから出題。</span>
-        <em class="door__state" id="doorTrainState"></em>
-      </a>
-      <a class="door" data-area="game" href="game.html">
-        <span class="door__icon" data-icon="sushi"></span>
-        <b class="door__name">腕試し</b>
-        <span class="door__site">回転ずし</span>
-        <span class="door__note">流れてくる皿の単語を打って取る。60・90・120 秒。</span>
-      </a>
+    <div class="gate__hero">
+      <div class="gate__name">
+        <h1 class="gate__title">親指シフト<br>マスター</h1>
+        <p class="gate__sub">0から覚えてトレーニングまで</p>
+      </div>
+      <figure class="inst" id="gateInst">
+        <figcaption class="inst__label">親指のズレ<span id="gateSample"></span></figcaption>
+        <p class="inst__read">
+          <b id="gateOffset">—</b><small>ms</small>
+          <span class="inst__sub">ぴったり率 <b id="gatePerfect">—</b>%</span>
+          <span class="inst__sub">速さ <b id="gateCpm">—</b>cpm</span>
+        </p>
+        <div class="inst__scope" id="gateScope"></div>
+        <p class="inst__axis"><span>← 親指が先</span><span class="inst__ok">±15ms がぴったり</span><span>親指が遅れ →</span></p>
+      </figure>
     </div>
+
+    <ol class="doors" id="gateDoors">
+      <li><a class="door" data-area="learn" href="#/learn">
+        <span class="door__no">01</span>
+        <span class="door__main"><b class="door__name">覚える</b><span class="door__site">親指シフト入門</span></span>
+        <span class="door__note">七つの課・46題。単独打鍵から交差シフトまで</span>
+        <em class="door__state" id="doorLearnState"></em>
+        <span class="door__go" data-icon="forward"></span>
+      </a></li>
+      <li><a class="door" data-area="train" href="#/train">
+        <span class="door__no">02</span>
+        <span class="door__main"><b class="door__name">鍛える</b><span class="door__site">親指シフト トレーニング</span></span>
+        <span class="door__note">1 打ごとにズレと取りこぼしを測って出題</span>
+        <em class="door__state" id="doorTrainState"></em>
+        <span class="door__go" data-icon="forward"></span>
+      </a></li>
+      <li><a class="door" data-area="game" href="game.html">
+        <span class="door__no">03</span>
+        <span class="door__main"><b class="door__name">腕試し</b><span class="door__site">回転ずし</span></span>
+        <span class="door__note">流れてくる皿の単語を打って取る</span>
+        <em class="door__state">60・90・120 秒</em>
+        <span class="door__go" data-icon="forward"></span>
+      </a></li>
+    </ol>
 
     <footer class="page__foot">
       <p class="note">記録はこの端末の中だけに残ります。</p>
@@ -535,11 +557,17 @@
      配線を切ってまで綴りを揃える利は無い。 -->
 <section class="screen screen--train" id="screenTrain" hidden>
   <div class="page">
-    <header class="area-head">
-      <p class="area-head__site">親指シフト トレーニング</p>
+    <!-- 見出しの横に、いまの数字を並べる。説明文の代わりに «何を測っているか» を数字で見せる。
+         弱い面の数は記録の弱点一覧へのリンクを兼ねる -->
+    <header class="train-head">
       <h1 class="page__title">鍛える</h1>
-      <!-- 読むのは «もう打てる人»。配列や同時打鍵の説明はしない -->
-      <p class="page__lead">落としている面と親指のズレを測って、そこから出題します。弱点は<a class="link" href="#/record">記録</a>に出ます。</p>
+      <dl class="stats" id="trainStats">
+        <div><dt>段位</dt><dd id="trainRank">—</dd></div>
+        <div><dt>速さ</dt><dd><span id="trainCpm">—</span><small>cpm</small></dd></div>
+        <div><dt>ぴったり率</dt><dd><span id="trainPerfect">—</span><small>%</small></dd></div>
+        <div><dt>平均ズレ</dt><dd><span id="trainOffset">—</span><small>ms</small></dd></div>
+        <div><dt>弱い面</dt><dd><a class="stats__hot" href="#/record" id="trainWeak">—</a></dd></div>
+      </dl>
     </header>
 
     <aside class="kbnote">
@@ -550,19 +578,19 @@
       </p>
     </aside>
 
-    <!-- 三つのモード。説明は一行だけ。中身は押せば分かる -->
+    <!-- 三つのモード。札を三枚並べず、罫で区切った一本の帯にする。説明は一行だけ -->
     <div class="modes" id="drillModes">
       <button type="button" class="mode" id="btnDrillWeak">
-        <b class="mode__name">弱点集中</b>
-        <span class="mode__note">落としている面とズレの大きいキーだけ</span>
+        <span class="mode__go" data-icon="play"></span>
+        <span class="mode__text"><b class="mode__name">弱点集中</b><span class="mode__note">落としている面とズレの大きいキー</span></span>
       </button>
       <button type="button" class="mode" id="btnDrillAll">
-        <b class="mode__name">総ざらい</b>
-        <span class="mode__note">全部の面を、しばらく打っていない順に</span>
+        <span class="mode__go" data-icon="play"></span>
+        <span class="mode__text"><b class="mode__name">総ざらい</b><span class="mode__note">全部の面を、打っていない順に</span></span>
       </button>
       <button type="button" class="mode" id="btnDrillSpeed">
-        <b class="mode__name">速度</b>
-        <span class="mode__note">打ち慣れた語だけ。正確率が落ちたら止まる</span>
+        <span class="mode__go" data-icon="play"></span>
+        <span class="mode__text"><b class="mode__name">速度</b><span class="mode__note">打ち慣れた語だけ。正確率が落ちたら止まる</span></span>
       </button>
     </div>
 
@@ -573,20 +601,21 @@
              <b class="material__name">題名</b><span class="material__len">53字</span>
              <span class="material__pop">字数・割合／狙い／タグ</span>
            </button> -->
-    <!-- 実文と自由入力をどちらで打つか。上の三つは親指シフトの面を狙う出題なので対象外 -->
-    <div class="inputsw" id="inputPick" role="radiogroup" aria-label="打ち方">
-      <button type="button" role="radio" data-input="nicola">親指シフト</button>
-      <button type="button" role="radio" data-input="romaji">ローマ字</button>
-    </div>
-
     <section class="texts">
-      <h2 class="texts__head">実文</h2>
-      <div class="texts__tabs" id="drillTextTabs" role="tablist" aria-label="長さ"></div>
+      <div class="texts__bar">
+        <h2 class="texts__head">実文</h2>
+        <div class="texts__tabs" id="drillTextTabs" role="tablist" aria-label="長さ"></div>
+        <!-- 実文と自由入力をどちらで打つか。上の三つは親指シフトの面を狙う出題なので対象外 -->
+        <div class="inputsw" id="inputPick" role="radiogroup" aria-label="打ち方">
+          <button type="button" role="radio" data-input="nicola">親指シフト</button>
+          <button type="button" role="radio" data-input="romaji">ローマ字</button>
+        </div>
+      </div>
       <div class="materials" id="drillTextList"></div>
     </section>
 
     <section class="texts">
-      <h2 class="texts__head">自由入力<span class="card__count" id="freeTextCount"></span></h2>
+      <div class="texts__bar"><h2 class="texts__head">自由入力<span class="card__count" id="freeTextCount"></span></h2></div>
       <textarea class="input input--area" id="freeText" rows="4" placeholder="ひらがなの文を貼る"></textarea>
       <div class="warn warn--stop" id="freeTextWarn" hidden>
         <b>打てない字が混じっています</b>

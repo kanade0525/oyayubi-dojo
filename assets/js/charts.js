@@ -20,9 +20,10 @@
 //   export function renderTrend(container, history)
 //   export function renderOffsetHist(container, offset)
 //   export function renderCalendar(container, daily, today)
+//   export function renderScope(container, offset)   入口の計器（左右を合わせた ±60ms）
 
 import { svg, html, showTip, hideTip } from './viz.js';
-import { OFFSET_BINS, OFFSET_RANGE_MS, offsetBinRange, offsetSummary } from './trophies.js';
+import { OFFSET_BINS, OFFSET_BIN_MS, OFFSET_RANGE_MS, offsetBinRange, offsetSummary } from './trophies.js';
 import { THRESHOLDS } from './meter.js';
 
 const EMPTY_TEXT = 'まだ記録がありません';
@@ -589,6 +590,59 @@ function drawOffsetHist(container, offset) {
     html('p', { class: 'chart-sum' }, '親指キーが文字キーより何 ms 早いか遅いか。縦は打鍵の割合'),
     ...blocks,
   );
+}
+
+// ---------------------------------------------------------------- 入口の計器
+
+/**
+ * 入口の計器に置く分布。左右の親指を合わせて一本にし、±60ms だけを見せる。
+ * 記録の図（renderOffsetHist）の縮約版で、軸・帯・平均の描き方は同じ。
+ * 小窓は付けない。細かく見たい人は記録へ行く。
+ */
+export function renderScope(container, offset) {
+  const draw = () => drawScope(container, offset);
+  redrawOnResize(container, draw);
+  draw();
+}
+
+const SCOPE_MS = 60;
+
+function drawScope(container, offset) {
+  container.classList.add('viz', 'chart', 'chart--scope');
+  const sides = ['left', 'right'].map((k) => (offset && offset[k]) || {});
+  const hist = Array.from({ length: OFFSET_BINS }, (_, i) =>
+    sides.reduce((a, s) => a + (Array.isArray(s.hist) && Number(s.hist[i]) > 0 ? Number(s.hist[i]) : 0), 0));
+  const total = hist.reduce((a, b) => a + b, 0);
+
+  const W = widthOf(container, 520);
+  const PH = 112;
+  const H = PH + 26;
+  const x = (ms) => ((clamp(ms, -SCOPE_MS, SCOPE_MS) + SCOPE_MS) / (2 * SCOPE_MS)) * W;
+  const g = svg('svg', { class: 'chart-svg', width: W, height: H, 'aria-hidden': 'true' });
+  const { perfect } = THRESHOLDS;
+  g.append(svg('rect', { class: 'band band--perfect', x: x(-perfect), y: 0, width: x(perfect) - x(-perfect), height: PH }));
+
+  // 見せる範囲のビンだけ。端のビン（範囲外を寄せたもの）は描かない
+  const shown = hist.map((v, i) => ({ v, ...offsetBinRange(i) })).filter((b) => b.from >= -SCOPE_MS && b.to <= SCOPE_MS);
+  const peak = Math.max(1, ...shown.map((b) => b.v));
+  const binW = (x(OFFSET_BIN_MS) - x(0));
+  const barW = Math.max(1, binW - 2);
+  for (const b of shown) {
+    const h = total ? (b.v / peak) * (PH - 8) : 0;
+    const inside = b.from >= -perfect && b.to <= perfect;
+    g.append(svg('path', { class: inside ? 'bar bar--in' : 'bar', d: barPath(x(b.from) + 1, PH - h, barW, h) }));
+  }
+  g.append(svg('line', { class: 'axis', x1: 0, x2: W, y1: PH, y2: PH }));
+  for (let t = -SCOPE_MS; t <= SCOPE_MS; t += 15) {
+    const major = t % 30 === 0;
+    g.append(svg('line', { class: t === 0 ? 'tick-mark tick-mark--zero' : 'tick-mark', x1: x(t), x2: x(t), y1: PH, y2: PH + (major ? 7 : 4) }));
+    g.append(svg('text', { class: 'tick', x: x(t), y: PH + 20, 'text-anchor': t === -SCOPE_MS ? 'start' : t === SCOPE_MS ? 'end' : 'middle' }, t === 0 ? '0' : fmtSigned(t)));
+  }
+  const mean = total ? sides.reduce((a, s) => a + (Number(s.sum) || 0), 0) / sides.reduce((a, s) => a + (Number(s.n) || 0), 0) : null;
+  if (mean != null && Number.isFinite(mean)) {
+    g.append(svg('line', { class: 'needle', x1: x(mean), x2: x(mean), y1: 0, y2: PH }));
+  }
+  container.replaceChildren(g);
 }
 
 function fmtSigned(v) {

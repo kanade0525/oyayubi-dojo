@@ -320,9 +320,9 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 9px;
+  padding: 7px 14px;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--fg-dim);
   background: transparent;
   border: 1px solid transparent;
@@ -409,11 +409,11 @@ kbd {
   font-weight: 600;
 }
 
+/* 札（.card）は箱にしない。上の罫一本で区切った節にする。
+   地色と枠で囲んだ箱が縦に積み重なると、どの画面も «カードの束» に見える（2026-11-02） */
 .card {
-  padding: 20px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
+  padding: 22px 0 6px;
+  border-top: 1px solid var(--line);
   display: grid;
   /* .page と同じ理由。中の図（横に流すカレンダーなど）に札ごと押し広げられないようにする */
   grid-template-columns: minmax(0, 1fr);
@@ -425,10 +425,10 @@ kbd {
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   letter-spacing: 0.03em;
-  color: var(--fg-mid);
+  color: var(--fg);
 }
 
 .card__count {
@@ -613,9 +613,11 @@ kbd {
   border-top: 1px solid var(--line-soft);
 }
 
+/* 数字は鍛えるの見出しの帯（.stats）と同じ組み方。ラベルは小さく、数字を主役にする */
 .tally dt {
-  margin-bottom: 4px;
-  font-size: 10.5px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
   color: var(--fg-dim);
 }
 
@@ -623,9 +625,10 @@ kbd {
   margin: 0;
   font-family: var(--ui);
   font-variant-numeric: tabular-nums;
-  font-size: 17px;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
   color: var(--fg);
-  font-variant-numeric: tabular-nums;
 }
 
 .field {
@@ -994,86 +997,204 @@ body[data-area="train"] .btn--primary {
 
 /* ---------------------------------------------------------------- #/ 門 */
 
+/* 左に名前、右に計器。どちらも箱にしない。計器は四隅の鉤だけで囲む */
+.gate__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 540px);
+  align-items: end;
+  gap: 48px;
+  padding: 24px 0 44px;
+}
+
 .gate__title {
-  margin: 8px 0 4px;
-  font-size: 28px;
+  margin: 0;
+  font-size: clamp(36px, 5vw, 56px);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  font-feature-settings: "palt";
   color: var(--fg);
 }
 
 .gate__sub {
-  margin: 0 0 24px;
-  font-size: 14px;
+  margin: 16px 0 0;
+  font-size: 15px;
   color: var(--fg-mid);
 }
 
-.doors {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+.inst {
+  position: relative;
+  margin: 0;
+  padding: 18px 20px 14px;
 }
 
-/* 扉一枚。場所の色で上端の帯・看板・縁を描く。三枚は同じ大きさ・同じ重さ */
-.door {
-  display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
-  gap: 6px;
-  min-height: 260px;
-  padding: 26px 24px 22px;
-  border: 1px solid color-mix(in srgb, var(--area) 35%, var(--line));
-  border-top: 4px solid var(--area);
-  border-radius: var(--r-m);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--area) 10%, var(--panel)), var(--panel) 55%);
+.inst::before,
+.inst::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--tone);
+}
+
+.inst::before { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.inst::after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+
+.inst__label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--tone);
+}
+
+.inst__label span {
+  letter-spacing: 0;
+  color: var(--fg-dim);
+}
+
+.inst__read {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 2px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inst__read > b {
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.inst__read > small {
+  margin-right: auto;
+  font-size: 17px;
+  color: var(--fg-mid);
+}
+
+.inst__sub {
+  margin-left: 18px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+
+.inst__sub b {
+  margin: 0 3px;
+  font-size: 22px;
   color: var(--fg);
-  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.inst__axis {
+  display: flex;
+  justify-content: space-between;
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+
+.inst__ok { color: var(--perfect); }
+
+/* まだ測っていない間。«—» を 60px で出すと太い棒に見えるので、小さく沈める */
+.inst.is-empty .inst__read > b,
+.inst.is-empty .inst__sub b {
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--fg-dim);
+}
+
+.inst__empty {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+
+/* 扉は札ではなく行。番号・名前・説明・いまの状態・矢印 */
+.doors {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.doors li { border-bottom: 1px solid var(--line-soft); }
+
+.door {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(180px, 230px) minmax(0, 1fr) auto 24px;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 12px 20px 0;
+  color: var(--fg);
+}
+
+.door::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 0;
+  width: 2px;
+  background: var(--area);
+  opacity: 0;
 }
 
 .door:hover,
-.door:focus-visible {
-  transform: translateY(-2px);
-  border-color: var(--area);
-}
+.door:focus-visible { background: color-mix(in srgb, var(--area) 6%, transparent); }
 
-.door__site {
-  font-size: 12px;
-  font-weight: 700;
+.door:hover::before,
+.door:focus-visible::before { opacity: 1; }
+
+.door__no {
+  padding-left: 16px;
+  font-size: 13px;
   letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
   color: var(--area);
 }
-
-.door__icon {
-  display: flex;
-  margin-bottom: 6px;
-  color: var(--area);
-}
-
-.door__icon .icon { width: 32px; height: 32px; }
 
 .door__name {
-  font-size: 34px;
-  font-weight: 700;
+  display: block;
+  font-size: 28px;
   line-height: 1.2;
 }
 
+.door__site {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--area);
+}
 
 .door__note {
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 14px;
   color: var(--fg-mid);
 }
 
 .door__state {
   font-style: normal;
-  font-size: 12px;
-  color: var(--fg-mid);
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  text-align: right;
 }
 
-
+.door__go { display: flex; color: var(--fg-dim); }
+.door:hover .door__go { color: var(--area); }
 
 @media (max-width: 900px) {
-  .doors { grid-template-columns: minmax(0, 1fr); }
-  .door { min-height: 0; }
+  .gate__hero { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .door { grid-template-columns: 40px minmax(0, 1fr) 24px; gap: 4px 12px; }
+  .door__no { grid-row: span 3; align-self: start; padding-top: 10px; }
+  .door__note,
+  .door__state { grid-column: 2; text-align: left; }
+  .door__go { grid-column: 3; grid-row: 1; }
 }
 
 /* --- コース札 ---
@@ -2562,13 +2683,13 @@ body[data-area="train"] .btn--primary {
 .trophies {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
-  gap: 8px;
+  gap: 0 32px;
 }
 
 /* 系統の見出し。行を丸ごと使わせて、札の群れを区切る */
 .trophies__cat {
   grid-column: 1 / -1;
-  margin: 14px 0 0;
+  margin: 28px 0 0;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .08em;
@@ -2670,19 +2791,13 @@ body[data-area="train"] .btn--primary {
 
 /* ---------------------------------------------------------------- 実績の札 */
 
+/* 札にせず行にする。47 個の箱が並ぶと、それだけで画面が «カードの束» になる */
 .ach {
   display: flex;
   gap: 14px;
   align-items: center;
-  padding: 12px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-m);
-  background: var(--sunken);
-}
-
-.ach.is-got {
-  border-color: var(--line);
-  background: linear-gradient(100deg, color-mix(in srgb, var(--ach-c) 12%, var(--panel)), var(--panel) 60%);
+  padding: 12px 2px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .ach { --ach-c: #c07a45; }
@@ -2771,10 +2886,7 @@ body[data-area="train"] .btn--primary {
   grid-template-columns: auto 1fr;
   align-items: center;
   gap: 10px 20px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  background: var(--panel-2);
+  padding: 4px 0 8px;
 }
 
 .ach-sum__big {
@@ -3076,7 +3188,7 @@ body[data-area="train"] .btn--primary {
 
 .weaks {
   display: grid;
-  gap: 6px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -3087,10 +3199,8 @@ body[data-area="train"] .btn--primary {
   grid-template-columns: 6.5em 1fr 6em 3.5em;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
-  background: var(--sunken);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .weak__face {
@@ -3152,45 +3262,105 @@ body[data-area="train"] .btn--primary {
    モードは3つだけ。増やすと «どれを選べばいいのか» が新しい負担になる。
    選ぶ根拠（弱点）を上に置いてあるので、ここは «そこを狙う道具» の並びでよい。 */
 
+/* 見出しと、いまの数字の帯 */
+.train-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 32px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.train-head .page__title { font-size: 40px; line-height: 1; letter-spacing: 0.02em; }
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats > div {
+  padding: 0 22px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.stats dt {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--fg-dim);
+}
+
+.stats dd {
+  margin: 6px 0 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.stats dd small {
+  margin-left: 3px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-dim);
+}
+
+.stats__hot { color: var(--area); }
+.stats__hot:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* モードは札を三枚並べず、罫で区切った一本の帯 */
 .modes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(238px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 28px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
 }
 
 .mode {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 14px 16px;
+  align-items: center;
+  gap: 14px;
+  padding: 18px 20px;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  transition: border-color 0.16s;
+  background: none;
+  border: 0;
 }
 
-.mode:hover {
-  border-color: var(--tone);
-}
+.mode + .mode { border-left: 1px solid var(--line-soft); }
+
+.mode:hover,
+.mode:focus-visible { background: color-mix(in srgb, var(--area) 7%, transparent); }
+
+.mode__go { color: var(--fg-dim); }
+.mode__go .icon { width: 24px; height: 24px; }
+.mode:hover .mode__go { color: var(--area); }
+
+.mode__text { display: grid; gap: 4px; }
 
 .mode__name {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: var(--fg);
 }
 
 .mode__note {
-  flex: 1;
   font-size: 12px;
-  line-height: 1.85;
+  line-height: 1.6;
   color: var(--fg-dim);
   word-break: auto-phrase;
+}
+
+@media (max-width: 760px) {
+  .modes { grid-template-columns: minmax(0, 1fr); }
+  .mode + .mode { border-left: 0; border-top: 1px solid var(--line-soft); }
+  .stats > div { padding: 0 14px 0 0; border-left: 0; }
 }
 
 .mode.is-locked {
@@ -3233,11 +3403,27 @@ body[data-area="train"] .btn--primary {
   color: var(--fg-dim);
 }
 
+/* 見出し・長さのタブ・打ち方の切り替えを一行に。下の罫は行が持つ */
+.texts__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.texts__bar .texts__head { padding-bottom: 9px; }
+.texts__head { white-space: nowrap; }
+
+@media (max-width: 640px) {
+  .texts__bar { flex-wrap: wrap; }
+  .texts__tabs { order: 3; flex-basis: 100%; }
+}
+
 .texts__tabs {
   display: flex;
   gap: 4px;
+  min-width: 0;
   overflow-x: auto;
-  border-bottom: 1px solid var(--line);
 }
 
 .texts__tab {
@@ -3894,31 +4080,27 @@ body[data-area="train"] .btn--primary {
 
 .inputsw {
   display: inline-flex;
-  justify-self: start;
-  margin-top: 32px;
-  padding: 3px;
-  gap: 2px;
+  flex: none;
+  margin: 0 0 7px auto;
   border: 1px solid var(--line);
-  border-radius: 99px;
 }
 
 .inputsw button {
-  padding: 5px 14px;
+  padding: 5px 12px;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--fg-dim);
   background: none;
   border: 0;
-  border-radius: 99px;
   cursor: pointer;
 }
 
+.inputsw button:hover { color: var(--fg); }
+
 .inputsw button[aria-checked="true"] {
   color: var(--fg);
-  background: color-mix(in srgb, var(--area) 22%, transparent);
+  background: color-mix(in srgb, var(--area) 18%, transparent);
 }
-
-.inputsw + .texts { margin-top: 14px; }
 
 .screen--play.is-romaji .meter,
 .screen--play.is-romaji .board {
@@ -3982,7 +4164,7 @@ body[data-area="train"] .btn--primary {
   vertical-align: -0.25em;
 }
 
-[data-icon]:not(.door__icon) {
+[data-icon] {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;

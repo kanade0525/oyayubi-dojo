@@ -582,81 +582,49 @@
       <p class="area-head__site">親指シフト道場</p>
       <h1 class="page__title">鍛える</h1>
       <!-- 読むのは «もう打てる人»。配列や同時打鍵の説明はしない -->
-      <p class="page__lead">
-        面ごとの取りこぼしと、親指の早い・遅いを 1 打ごとに測ります。出題は決まった順ではなく、<b>いま落としているところ</b>を集めてそのつど組み直します。
-      </p>
+      <p class="page__lead">落としている面と親指のズレを測って、そこから出題します。弱点は<a class="link" href="#/record">記録</a>に出ます。</p>
     </header>
 
     <aside class="kbnote">
       <b class="kbnote__head">打つには物理キーボードが要ります</b>
-      <p class="kbnote__body">文字キーと親指キーを押した時刻の差を測るので、画面上のソフトキーボードでは打てません。パソコンか、外付けキーボードをつないだ端末で。記録は読めます。</p>
       <p class="kbnote__acts">
-        <a class="link" href="#/layout">配列表を見る →</a>
-        <a class="link" href="#/record">記録を見る →</a>
+        <a class="link" href="#/layout">配列表を見る</a>
+        <a class="link" href="#/record">記録を見る</a>
       </p>
     </aside>
 
-    <p class="train__weak">いまの弱点（落としている面と親指のズレ）は <a class="link" href="#/record">記録</a> で見られます。「弱点集中」はそこに出ている面を狙って組みます。</p>
-
-    <!-- 三つのモード。閉じているものは app.js が is-locked を付ける。
-         見出しを足したのは «この三つ» と «下の実文・自由入力» が別の種類だから。
-         上は道場が組む、下は打つ文が決まっている。同じ面に無名で並べると
-         «五つの選択肢» に見えて、また選べなくなる -->
-    <h2 class="courses__cat">その場で組んでもらう</h2>
+    <!-- 三つのモード。説明は一行だけ。中身は押せば分かる -->
     <div class="modes" id="drillModes">
       <button type="button" class="mode" id="btnDrillWeak">
         <b class="mode__name">弱点集中</b>
-        <span class="mode__note">落としている面と、ズレの大きいキーだけを集めて出します。いちばん効くぶん、いちばんつらい。</span>
-        <em class="mode__meta" id="drillWeakMeta"></em>
+        <span class="mode__note">落としている面とズレの大きいキーだけ</span>
       </button>
       <button type="button" class="mode" id="btnDrillAll">
         <b class="mode__name">総ざらい</b>
-        <span class="mode__note">三つの面を万遍なく。しばらく打っていない面から先に回します。腕を鈍らせないための一本。</span>
-        <em class="mode__meta" id="drillAllMeta"></em>
+        <span class="mode__note">全部の面を、しばらく打っていない順に</span>
       </button>
       <button type="button" class="mode" id="btnDrillSpeed">
         <b class="mode__name">速度</b>
-        <span class="mode__note">打ち慣れた語だけで速さを出します。正確率が落ちたらその場で止めます。</span>
-        <em class="mode__meta" id="drillSpeedMeta"></em>
+        <span class="mode__note">打ち慣れた語だけ。正確率が落ちたら止まる</span>
       </button>
     </div>
 
-    <!-- 実文。18本あって、札の一覧が縦にも横にも場所を要る。
-         自由入力と横並びの半分の幅に押し込むと、札が 1 列にしか並ばず縦に伸び切るので、
-         この札だけ幅を丸ごと使わせる（以前は .duo で二つ並べていた） -->
-    <h2 class="courses__cat">打つ文が決まっているとき</h2>
-    <div class="card">
-      <h2 class="card__head">実文<span class="card__count" id="drillTextCount"></span></h2>
-      <p class="note">数百字の通し打ち。語ではなく文のまま指が動くようになると、はじめて仕事で使えます。</p>
-
-      <!-- 空の受け皿。app.js が <button class="material"> の札を並べる。
-           select を開くまで «何があるか» が分からないのが元の姿だった。
-           題名だけでは選べない ── 字数と、どの面が鍛えられるかが要る。
-           札一枚の構造（CSS はこの形に付けてある）:
-             <button class="material [is-done]" data-lesson="sentence-1">
-               <b class="material__name">春はあけぼの</b>
-               <span class="material__meta">53字 · 同時打鍵 43% · 2回</span>
-               <span class="material__note">…課題の狙い…</span>
-               <span class="material__tags"><i>同側シフトが多い</i>…</span>  タグは 0〜4 個
-             </button> -->
+    <!-- 実文。83本あるので札ではなく一覧の行で出す。長さで切り替え、
+         字数・同時打鍵の割合・特徴はホバー（またはフォーカス）で出す。
+         app.js が #drillTextTabs に長さの切り替えを、#drillTextList に行を入れる:
+           <button class="material [is-done]" data-lesson="…">
+             <b class="material__name">題名</b><span class="material__len">53字</span>
+             <span class="material__pop">字数・割合／狙い／タグ</span>
+           </button> -->
+    <section class="texts">
+      <h2 class="texts__head">実文</h2>
+      <div class="texts__tabs" id="drillTextTabs" role="tablist" aria-label="長さ"></div>
       <div class="materials" id="drillTextList"></div>
+    </section>
 
-      <!-- 札より前からある選び方。打つ文がもう決まっているときは、
-           18枚を目で探すより名前で選ぶほうが速い。狭い画面でも一手で済む。
-           札と役が違うので、押しボタンは主役（btn--primary）から下ろしてある -->
-      <p class="materials__pick">
-        <label class="field__label" for="drillTextPick">決まっているなら、名前で選ぶ</label>
-        <!-- 空の受け皿。app.js が <option> を入れる -->
-        <select class="input" id="drillTextPick" aria-label="打つ文を選ぶ"></select>
-        <button type="button" class="btn" id="btnDrillText">この文を打つ</button>
-      </p>
-    </div>
-
-    <!-- 自由入力 -->
-    <div class="card">
-      <h2 class="card__head">自由入力<span class="card__count" id="freeTextCount"></span></h2>
-      <p class="note">自分の文章を貼って打てます。ふだん書いている文で打つのが、いちばん移行が速い。</p>
-      <textarea class="input input--area" id="freeText" rows="5" placeholder="ここにひらがなの文を貼ってください。&#10;漢字・カタカナは配列に無いので打てません。"></textarea>
+    <section class="texts">
+      <h2 class="texts__head">自由入力<span class="card__count" id="freeTextCount"></span></h2>
+      <textarea class="input input--area" id="freeText" rows="4" placeholder="ひらがなの文を貼る"></textarea>
       <div class="warn warn--stop" id="freeTextWarn" hidden>
         <b>打てない字が混じっています</b>
         <p id="freeTextWarnList"></p>
@@ -665,7 +633,7 @@
         <button type="button" class="btn btn--primary" id="btnFreeStart">この文を打つ</button>
         <button type="button" class="btn btn--quiet" id="btnFreeClear">消す</button>
       </p>
-    </div>
+    </section>
   </div>
 </section>
 

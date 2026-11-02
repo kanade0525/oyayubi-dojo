@@ -1011,7 +1011,7 @@ async function browserChecks(chromeBin) {
     const DRAWN = [
       ['#/', '#doorLearnState:not(:empty)', '門の三つの扉'],
       ['#/learn', '#courseList > *', '課題の一覧'],
-      ['#/train', '#drillTextList .material', '題材の一覧'],
+      ['#/train', '#drillTextList .material', '実文の一覧'],
       ['#/layout', '.board > *', '配列表'],
       ['#/play/basic-1', '.meter > *', 'タイミングメーター'],
     ];

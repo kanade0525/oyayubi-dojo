@@ -3179,8 +3179,8 @@ body[data-area="train"] .btn--primary {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 18px 18px 16px;
+  gap: 4px;
+  padding: 14px 16px;
   text-align: left;
   font: inherit;
   color: inherit;
@@ -3210,16 +3210,6 @@ body[data-area="train"] .btn--primary {
   word-break: auto-phrase;
 }
 
-/* «今回は交差シフトを多めに» のような、その場の出題の説明。
-   同じボタンでも中身が毎回違うので、何が出るのかをここで先に言う */
-.mode__meta {
-  font-family: var(--ui);
-  font-variant-numeric: tabular-nums;
-  font-style: normal;
-  font-size: 11px;
-  color: var(--tone);
-}
-
 .mode.is-locked {
   border-style: dashed;
   border-color: var(--line-soft);
@@ -3236,148 +3226,155 @@ body[data-area="train"] .btn--primary {
   color: var(--fg-dim);
 }
 
-.mode.is-locked .mode__meta {
-  color: var(--off);
-}
+/* --- 実文の一覧 ---
+   83本ある。札で並べると画面が札で埋まって選べないので、題名と字数だけの行にする。
+   狙い・同時打鍵の割合・特徴はホバー（キーボードならフォーカス）で行の下に出す。
+   行そのものが <button>。押せばその文が始まる。 */
 
-/* --- 実文の題材一覧 ---
-   18本ある。select だけだと «開くまで何があるか分からない» ので、札で並べる。
-
-   札に何を載せるかで、選べるかどうかが決まる。題名だけでは選べない。
-   稽古で知りたいのは「これを打つと何が鍛えられるか」なので、
-     題名 → 字数と同時打鍵の割合 → 狙い → 特徴のタグ
-   の順に、上から «どれか» → «どんなものか» → «なぜ打つか» と降りていく。
-
-   札そのものが <button> になっている。中に押す所を作ると、
-   «札を押しても始まらない» という当たり判定のズレが必ず出る。
-
-   打ち終えた札（.is-done）は、消さずに印だけ変える。
-   実文は何度打ってもよいもので、済んだら用済みという性質のものではない。 */
-
-.materials {
+.texts {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
-  gap: 8px;
-}
-
-/* 長さの束の見出し。83本を平らに並べると «長い一本» を探せない。
-   行を丸ごと使わせて、札の群れを本当に区切る（実績の系統見出しと同じ作り） */
-.materials__group {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: baseline;
   gap: 10px;
-  margin: 14px 0 0;
-  padding-bottom: 5px;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  color: var(--fg-mid);
-  border-bottom: 1px solid var(--line);
+  margin-top: 32px;
 }
 
-.materials__group:first-child { margin-top: 0; }
+.texts__head {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
 
-.materials__group small {
-  font-size: 11px;
+.texts__head .card__count {
+  margin-left: 8px;
+  font-size: 12px;
   font-weight: 400;
   color: var(--fg-dim);
 }
 
-.material {
+.texts__tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+}
+
+.texts__tab {
+  flex: none;
+  padding: 6px 12px 7px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg-dim);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+
+.texts__tab small {
+  margin-left: 6px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+
+.texts__tab:hover { color: var(--fg); }
+
+.texts__tab[aria-selected="true"] {
+  color: var(--fg);
+  border-bottom-color: var(--area);
+}
+
+.materials {
   display: grid;
-  align-content: start;
-  gap: 5px;
-  padding: 12px 14px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  column-gap: 24px;
+}
+
+.material {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 4px;
   font: inherit;
   text-align: left;
   color: var(--fg);
-  background: var(--sunken);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
   cursor: pointer;
-  transition: border-color 0.16s, background 0.16s;
 }
 
-.material:hover {
-  background: color-mix(in srgb, var(--tone) 9%, var(--bg));
-  border-color: var(--tone);
+.material:hover,
+.material:focus-visible {
+  background: color-mix(in srgb, var(--area) 8%, transparent);
 }
 
 .material__name {
+  flex: 1;
+  min-width: 0;
   font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.5;
+  font-weight: 500;
 }
 
-/* 数値は等幅で。札を縦に並べたとき、字数と割合が桁で揃って比べられる */
-.material__meta {
-  font-family: var(--ui);
+.material__len {
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
   color: var(--fg-dim);
+}
+
+/* 打ち終えた文。色だけにせず印を付ける */
+.material.is-done .material__name::before {
+  content: "✓ ";
+  color: var(--area);
+}
+
+.material__pop {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(340px, 100%);
+  display: none;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .35);
+  pointer-events: none;
+}
+
+.material:hover .material__pop,
+.material:focus-visible .material__pop {
+  display: grid;
+}
+
+.material__meta {
+  font-size: 11.5px;
   font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
 }
 
 .material__note {
-  font-size: 11.5px;
-  line-height: 1.75;
+  font-size: 12.5px;
+  line-height: 1.7;
   color: var(--fg-mid);
-  word-break: auto-phrase;
 }
 
-/* 特徴のタグ。0〜4個。4個並ぶ札があるので、必ず折り返させる。
-   :empty を消しておかないと、タグの無い札にだけ隙間が残って高さが揃わない */
 .material__tags {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 2px;
-}
-
-.material__tags:empty {
-  display: none;
 }
 
 .material__tags i {
-  padding: 2px 7px;
-  font-size: 10.5px;
+  padding: 1px 7px;
+  font-size: 11px;
   font-style: normal;
-  line-height: 1.6;
   color: var(--fg-mid);
-  background: color-mix(in srgb, var(--tone) 10%, transparent);
-  border: 1px solid var(--line-soft);
+  border: 1px solid var(--line);
   border-radius: 99px;
-}
-
-/* 打ち終えた札。題名の頭に印を置く。
-   色«だけ»で済ませると、色が見えない人には «済み» が届かない */
-.material.is-done {
-  border-color: color-mix(in srgb, var(--tone) 38%, transparent);
-}
-
-.material.is-done .material__name {
-  color: var(--tone);
-}
-
-.material.is-done .material__name::before {
-  content: "✓ ";
-}
-
-/* 名前で選ぶほうの一行。札の一覧より下に、静かに置く */
-.materials__pick {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  margin: 4px 0 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.materials__pick .input {
-  flex: 1 1 12rem;
-  min-width: 0;
 }
 
 

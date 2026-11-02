@@ -55,10 +55,8 @@ const el = {
   drillSkewLeftMark: $('drillSkewLeftMark'), drillSkewLeftVal: $('drillSkewLeftVal'),
   drillSkewRightMark: $('drillSkewRightMark'), drillSkewRightVal: $('drillSkewRightVal'),
   drillWeak: $('drillWeak'), drillWeakEmpty: $('drillWeakEmpty'),
-  btnDrillWeak: $('btnDrillWeak'), drillWeakMeta: $('drillWeakMeta'),
-  btnDrillAll: $('btnDrillAll'), drillAllMeta: $('drillAllMeta'),
-  btnDrillSpeed: $('btnDrillSpeed'), drillSpeedMeta: $('drillSpeedMeta'),
-  drillTextPick: $('drillTextPick'), drillTextCount: $('drillTextCount'), btnDrillText: $('btnDrillText'),
+  btnDrillWeak: $('btnDrillWeak'), btnDrillAll: $('btnDrillAll'), btnDrillSpeed: $('btnDrillSpeed'),
+  drillTextTabs: $('drillTextTabs'),
   freeText: $('freeText'), freeTextCount: $('freeTextCount'),
   freeTextWarn: $('freeTextWarn'), freeTextWarnList: $('freeTextWarnList'),
   btnFreeStart: $('btnFreeStart'), btnFreeClear: $('btnFreeClear'),
@@ -1287,29 +1285,12 @@ function paintDrill() {
   // 弱点が出せない間は、下の一覧が自分でそう言う。
   // 弱点の一覧は記録の画面へ移した（paintMypage）。ここは出題の札だけ
 
-  for (const [btn, meta, m] of [
-    [el.btnDrillWeak, el.drillWeakMeta, DRILL_MODES.weak],
-    [el.btnDrillAll, el.drillAllMeta, DRILL_MODES.review],
-    [el.btnDrillSpeed, el.drillSpeedMeta, DRILL_MODES.speed],
-  ]) {
-    if (meta) meta.textContent = m?.note ?? '';
+  for (const btn of [el.btnDrillWeak, el.btnDrillAll, el.btnDrillSpeed]) {
     if (btn) btn.disabled = false;
     btn?.closest('.mode')?.classList.remove('is-locked');
   }
 
-  // 実文の題材。何があるか見えないと選べないので、一覧で出す。
-  // select だけだと開くまで中身が分からず、字数も特徴も比べられない
-  const texts = materials();
   paintMaterials(stats);
-  if (el.drillTextPick) {
-    el.drillTextPick.replaceChildren(...texts.map(l => {
-      const o = document.createElement('option');
-      o.value = l.id;
-      o.textContent = `${l.title}（${[...l.text].length}字）`;
-      return o;
-    }));
-  }
-  if (el.drillTextCount) el.drillTextCount.textContent = `${texts.length}本`;
   updateFreeText();
 }
 
@@ -1345,7 +1326,6 @@ function materialInfo(lesson) {
   if (same / n >= 0.42) tags.push('同側シフトが多い');
   if (small / n >= 0.1) tags.push('小書き・拗音が多い');
   if (shifted / n <= 0.3) tags.push('ほぼ単独打鍵');
-  if (n >= 100) tags.push('長め');
   if (shifted / n >= 0.55) tags.push('同時打鍵が主');
 
   return { kana: chars.length, solo, same, cross, shifted, tags };
@@ -1364,14 +1344,9 @@ function materials() {
   return LESSONS.filter(l => isCourseOpen(l.courseId));
 }
 
-// 長さの束。83本を平らに並べると «長い文章を打ちたい» 人が探せない
+// 長さで切り替える。83本を平らに並べると長い一本を探せない
 const SIZE_ORDER = ['とてもながい', 'ながめ', 'ふつう', 'みじかめ'];
-const SIZE_NOTE = {
-  とてもながい: '1000字以上。腰を据えて一本',
-  ながめ: '400〜1000字',
-  ふつう: '100〜400字',
-  みじかめ: '100字まで。軽く一本',
-};
+let materialSize = SIZE_ORDER[0];
 
 function sizeOf(lesson) {
   if (lesson.size) return lesson.size;
@@ -1383,50 +1358,62 @@ function paintMaterials(stats) {
   const box = $('drillTextList');
   if (!box) return;
 
-  // 長い順に束ねる。要望は「もっとたくさんの文章を打ちたい」なので、長い方を上に置く
   const groups = new Map(SIZE_ORDER.map(s => [s, []]));
-  for (const l of materials()) groups.get(sizeOf(l))?.push(l);
-
-  const nodes = [];
-  for (const size of SIZE_ORDER) {
-    const list = groups.get(size) ?? [];
-    if (!list.length) continue;
-    const h = document.createElement('h3');
-    h.className = 'materials__group';
-    h.textContent = `${size}　${list.length}本`;
-    const small = document.createElement('small');
-    small.textContent = SIZE_NOTE[size] ?? '';
-    h.append(small);
-    nodes.push(h, ...materialCards(list, stats));
+  for (const l of materials()) {
+    const g = groups.get(sizeOf(l));
+    if (!g) throw new Error(`実文 ${l.id} の長さ ${sizeOf(l)} が SIZE_ORDER に無い`);
+    g.push(l);
   }
-  box.replaceChildren(...nodes);
+
+  el.drillTextTabs?.replaceChildren(...SIZE_ORDER.filter(s => groups.get(s).length).map(size => {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = 'texts__tab';
+    t.setAttribute('role', 'tab');
+    t.setAttribute('aria-selected', String(size === materialSize));
+    t.textContent = size;
+    const n = document.createElement('small');
+    n.textContent = groups.get(size).length;
+    t.append(n);
+    t.addEventListener('click', () => { materialSize = size; paintMaterials(loadStats()); });
+    return t;
+  }));
+
+  box.replaceChildren(...materialRows(groups.get(materialSize) ?? [], stats));
 }
 
-function materialCards(list, stats) {
+function materialRows(list, stats) {
   return list.map(l => {
     const info = materialInfo(l);
-    const done = (stats.cleared?.[l.id] ?? 0) > 0;
+    const times = stats.cleared?.[l.id] ?? 0;
 
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'material' + (done ? ' is-done' : '');
+    b.className = 'material' + (times ? ' is-done' : '');
     b.dataset.lesson = l.id;
 
     const name = document.createElement('b');
     name.className = 'material__name';
     name.textContent = l.title;
 
+    const len = document.createElement('span');
+    len.className = 'material__len';
+    len.textContent = `${info.kana}字`;
+
+    // ホバー（とフォーカス）で出す詳細
+    const pop = document.createElement('span');
+    pop.className = 'material__pop';
     const meta = document.createElement('span');
     meta.className = 'material__meta';
-    meta.textContent = `${info.kana}字 · 同時打鍵 ${Math.round((info.shifted / (info.kana || 1)) * 100)}%`
-      + (done ? ` · ${stats.cleared[l.id]}回` : '');
-
-    const note = document.createElement('span');
-    note.className = 'material__note';
-    note.textContent = l.note ?? '';
-
-    b.append(name, meta, note);
-
+    meta.textContent = `同時打鍵 ${Math.round((info.shifted / (info.kana || 1)) * 100)}%`
+      + (times ? ` · ${times}回打った` : '');
+    pop.append(meta);
+    if (l.note) {
+      const note = document.createElement('span');
+      note.className = 'material__note';
+      note.textContent = l.note;
+      pop.append(note);
+    }
     if (info.tags.length) {
       const tags = document.createElement('span');
       tags.className = 'material__tags';
@@ -1435,8 +1422,10 @@ function materialCards(list, stats) {
         i.textContent = t;
         tags.append(i);
       }
-      b.append(tags);
+      pop.append(tags);
     }
+
+    b.append(name, len, pop);
     return b;
   });
 }
@@ -1713,14 +1702,6 @@ document.addEventListener('click', e => {
   if (!card) return;
   const lesson = findLesson(card.dataset.lesson);
   if (!lesson) return;
-  mode = 'drill';
-  location.hash = `#/play/${lesson.id}`;
-});
-
-el.btnDrillText?.addEventListener('click', () => {
-  const id = el.drillTextPick?.value;
-  const lesson = findLesson(id);
-  if (!lesson) { toast('選んでください'); return; }
   mode = 'drill';
   location.hash = `#/play/${lesson.id}`;
 });

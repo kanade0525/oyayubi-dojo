@@ -455,12 +455,14 @@ function paintResult() {
   el.resultMoney.textContent = yen(s.money);
 
   const avg = s.plates ? s.money / s.plates : 0;
-  el.resultBalance.replaceChildren(
+  // replaceChildren は null を «null» という文字にして入れる（h() と違って飛ばさない）。
+  // 得したときに «800円 お得！null» と出ていた
+  el.resultBalance.replaceChildren(...[
     h('span', { class: gain ? 'is-gain' : 'is-loss' },
       gain ? `${yen(s.balance)}円 お得！` : `${yen(-s.balance)}円 損しました`),
     // 損したときだけ、あと何皿で元が取れたかを出す
     gain || !avg ? null : h('small', {}, `あと ${Math.ceil(-s.balance / avg)} 皿ほど`),
-  );
+  ].filter(Boolean));
 
   el.resultBest.hidden = !bestInfo?.isBest;
   el.resultBest.textContent = bestInfo?.prev ? `自己ベスト更新（前回 ${yen(bestInfo.prev.money)}円）` : 'はじめての記録';

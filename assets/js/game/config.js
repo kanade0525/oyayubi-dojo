@@ -8,7 +8,7 @@
 // 片方だけ変えると npm run check が落ちる（わざとそうしてある）。
 
 // 例: 'https://xxxxxxxxxx.execute-api.ap-northeast-1.amazonaws.com'（末尾スラッシュ無し）
-export const RANKING_API_URL = '';
+export const RANKING_API_URL = 'https://5u0vzxhs2f.execute-api.ap-northeast-1.amazonaws.com';
 
 // 例: 'https://buymeacoffee.com/<ユーザー名>'
 export const SUPPORT_URL = '';

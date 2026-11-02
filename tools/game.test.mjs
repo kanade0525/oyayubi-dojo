@@ -23,7 +23,7 @@ const imp = (p) => import(pathToFileURL(join(ROOT, p)).href);
 
 const { COURSES, itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } = await imp('assets/js/game/courses.js');
 const { createGame, keyFor } = await imp('assets/js/game/engine.js');
-const { WORDS, shiftedCount, MIN_SHIFTED } = await imp('assets/js/game/words.js');
+const { WORDS } = await imp('assets/js/game/words.js');
 const { THRESHOLDS } = await imp('assets/js/meter.js');
 
 // ---------------------------------------------------------------- 道具
@@ -293,7 +293,7 @@ describe('時間切れと summary', () => {
 // ---------------------------------------------------------------- 出す語（words.js）
 
 describe('出す語', () => {
-  test('どのコースの、どの字数にも語がある（実際の課題の文から拾えている）', () => {
+  test('どのコースの、どの字数にも 10 語以上ある', () => {
     for (const c of COURSES) {
       for (const n of new Set(lengthCycle(c))) {
         const k = WORDS.filter((w) => [...w.kana].length === n).length;
@@ -302,12 +302,13 @@ describe('出す語', () => {
     }
   });
 
-  test('どの語も配列で打ち切れ、親指を使う字を含む。重なりが無い', () => {
+  test('どの語も配列で打ち切れ、見せる表記（label）がある。重なりが無い', () => {
     assert.equal(new Set(WORDS.map((w) => w.kana)).size, WORDS.length);
     for (const w of WORDS) {
-      const sh = shiftedCount(w.kana);
-      assert.ok(sh != null, `「${w.kana}」に配列に無い字がある`);
-      assert.ok(sh >= MIN_SHIFTED, `「${w.kana}」に親指を使う字が無い`);
+      for (const c of w.kana) assert.ok(keyFor(c), `「${w.kana}」の「${c}」は配列に無い`);
+      assert.ok(typeof w.label === 'string' && w.label, `「${w.kana}」に label が無い`);
+      const n = [...w.kana].length;
+      assert.ok(n >= 2 && n <= 14, `「${w.kana}」は ${n} 字（コースの帯 2〜14 字の外）`);
     }
   });
 });

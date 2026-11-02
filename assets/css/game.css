@@ -289,8 +289,11 @@
   word-break: keep-all;
 }
 
+.g-cue__word { display: grid; justify-items: center; gap: 6px; }
+.g-cue__label { color: var(--fg); }
+.g-cue__yomi { font-size: 28px; font-weight: 500; letter-spacing: .1em; color: var(--fg-mid); }
 .g-cue__word .is-done { color: color-mix(in srgb, var(--fg) 30%, var(--bg)); }
-.g-cue__word .is-cur { color: var(--fg); box-shadow: inset 0 -4px var(--area); }
+.g-cue__word .is-cur { color: var(--fg); box-shadow: inset 0 -3px var(--area); }
 
 .g-cue__romaji {
   margin: 8px 0 0;

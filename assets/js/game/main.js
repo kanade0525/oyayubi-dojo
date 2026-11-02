@@ -519,11 +519,14 @@ function paintCue(st) {
     el.cueRomaji.hidden = true;
     return;
   }
+  // 大きく見せるのは label（漢字かな交じり）。打つのは下のかな
   const chars = [...head.word.kana];
   el.cueWord.replaceChildren(
-    h('span', { class: 'is-done' }, chars.slice(0, head.typed).join('')),
-    h('span', { class: 'is-cur' }, chars[head.typed] ?? ''),
-    h('span', {}, chars.slice(head.typed + 1).join('')),
+    h('span', { class: 'g-cue__label' }, head.word.label ?? head.word.kana),
+    h('span', { class: 'g-cue__yomi' },
+      h('span', { class: 'is-done' }, chars.slice(0, head.typed).join('')),
+      h('span', { class: 'is-cur' }, chars[head.typed] ?? ''),
+      h('span', {}, chars.slice(head.typed + 1).join(''))),
   );
   const rv = romajiView();
   el.cueRomaji.hidden = !rv;
@@ -565,8 +568,7 @@ function paintLine(st, t) {
     const key = `${it.typed}|${it.value}`;
     if (key !== n.key) {
       n.key = key;
-      const chars = [...it.word.kana];
-      n.word.replaceChildren(h('span', { class: 'is-done' }, chars.slice(0, it.typed).join('')), chars.slice(it.typed).join(''));
+      n.word.textContent = it.word.label ?? it.word.kana;
       n.value.textContent = `${num(it.value)}`;
     }
   });

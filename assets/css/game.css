@@ -368,13 +368,10 @@
 .g-result__best {
   justify-self: start;
   margin: 0;
-  padding: 4px 12px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.1em;
-  color: var(--tone-ink);
-  background: var(--tone);
-  border-radius: 999px;
+  color: var(--tone);
 }
 
 .g-tally {
@@ -423,9 +420,8 @@
 .g-submit {
   display: grid;
   gap: 8px;
-  padding: 12px 14px;
-  background: var(--sunken);
-  border-radius: var(--r-s);
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
 }
 
 .g-submit:empty {

@@ -19,7 +19,7 @@
 
 | 担当 | ファイル |
 | --- | --- |
-| コア（石田＋Claude本体） | `keycheck.html` / `assets/js/nicola.js` / `assets/js/romaji.js` / `assets/js/icons.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
+| コア（石田＋Claude本体） | `keycheck.html` / `assets/css/keycheck.css` / `assets/js/nicola.js` / `assets/js/romaji.js` / `assets/js/icons.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
 | 課題データ | `assets/js/lessons.js` |
 | 適応出題 | `assets/js/drill.js` |
 | 音 | `assets/js/sound.js` |

@@ -517,11 +517,10 @@ kbd {
 }
 
 /* 注意書き。設定画面の最初に置くので、読み飛ばされない程度には目立たせる */
+/* 枠で囲まず、左の線一本と薄い地で言う */
 .warn {
-  padding: 13px 16px;
-  border: 1px solid color-mix(in srgb, var(--off) 40%, transparent);
-  border-left-width: 3px;
-  border-radius: var(--r-s);
+  padding: 11px 16px;
+  border-left: 2px solid var(--off);
   background: color-mix(in srgb, var(--off) 7%, transparent);
 }
 
@@ -546,7 +545,7 @@ kbd {
 }
 
 .warn--stop {
-  border-color: color-mix(in srgb, var(--misfire) 45%, transparent);
+  border-color: var(--misfire);
   background: color-mix(in srgb, var(--misfire) 7%, transparent);
 }
 
@@ -569,12 +568,9 @@ kbd {
 .kbnote {
   display: none;
   gap: 8px;
-  padding: 14px 16px;
-  background: color-mix(in srgb, var(--tone) 8%, var(--bg));
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-left-color: var(--tone);
-  border-radius: var(--r-s);
+  padding: 11px 16px;
+  background: color-mix(in srgb, var(--tone) 7%, transparent);
+  border-left: 2px solid var(--tone);
 }
 
 .kbnote__head {
@@ -708,16 +704,12 @@ kbd {
 .assign {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 10px;
+  gap: 12px 32px;
 }
 
 .assign__one {
   display: grid;
   gap: 8px;
-  padding: 14px;
-  background: var(--sunken);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
 }
 
 .assign__label {
@@ -771,7 +763,7 @@ kbd {
   /* 240px は «1280px で四つ横並び／768px で二列» になる境目。
      半端な三列＋一つの折り返しを避けたくて、この幅にしてある */
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 8px;
+  gap: 0 24px;
   /* fieldset の既定を全部落とす。min-inline-size を切らないとグリッドが縮まない */
   margin: 0;
   padding: 0;
@@ -790,16 +782,14 @@ kbd {
   grid-template-columns: auto minmax(0, 1fr);
   align-content: start;
   gap: 3px 10px;
-  padding: 12px 14px;
-  background: var(--sunken);
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-s);
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line-soft);
   cursor: pointer;
-  transition: border-color 0.16s, background 0.16s;
+  transition: background 0.16s;
 }
 
 .sound:hover {
-  border-color: var(--line);
+  background: color-mix(in srgb, var(--tone) 6%, transparent);
 }
 
 /* 丸は一段目の左に置くだけ。行をまたがせようとすると（grid-row: 1 / -1）
@@ -837,8 +827,8 @@ kbd {
 
 /* 選ばれている札。:has が効かない環境でも、字の色だけは兄弟結合子で付く */
 .sound:has(.sound__radio:checked) {
-  background: color-mix(in srgb, var(--tone) 12%, var(--sunken));
-  border-color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 10%, transparent);
+  border-bottom-color: var(--tone);
 }
 
 .sound__radio:checked ~ .sound__name {
@@ -868,9 +858,7 @@ kbd {
 
 .sound.is-locked,
 .sound:has(.sound__radio:disabled) {
-  border-style: dashed;
-  border-color: var(--line-soft);
-  background: color-mix(in srgb, var(--sunken) 88%, transparent);
+  border-bottom-style: dashed;
   cursor: not-allowed;
 }
 
@@ -2356,7 +2344,7 @@ body[data-area="train"] .btn--primary {
   place-items: center;
   overflow: auto;
   padding: 20px;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   animation: fade 0.24s ease-out;
@@ -2367,17 +2355,27 @@ body[data-area="train"] .btn--primary {
   to { opacity: 1; }
 }
 
+/* 札は箱にしない。後ろは幕で沈め、入口の計器と同じ四隅の鉤だけで囲む */
 .finish__card {
-  width: min(440px, 100%);
+  position: relative;
+  width: min(460px, 100%);
   margin: auto;
-  padding: 26px 24px 20px;
+  padding: 28px 26px 22px;
   text-align: center;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-l);
-  box-shadow: 0 0 0 1px var(--glow), 0 30px 80px rgba(0, 0, 0, 0.8);
   animation: rise 0.32s cubic-bezier(0.2, 1.2, 0.4, 1);
 }
+
+.finish__card::before,
+.finish__card::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--tone);
+}
+
+.finish__card::before { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.finish__card::after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
 
 @keyframes rise {
   from { transform: translateY(14px) scale(0.97); opacity: 0; }
@@ -2411,7 +2409,7 @@ body[data-area="train"] .btn--primary {
 .finish__hero b {
   font-family: var(--ui);
   font-variant-numeric: tabular-nums;
-  font-size: 46px;
+  font-size: 56px;
   font-weight: 700;
   line-height: 1;
   color: var(--fg);
@@ -2428,12 +2426,10 @@ body[data-area="train"] .btn--primary {
 .finish__best {
   align-self: center;
   margin-left: 8px;
-  padding: 3px 10px;
-  font-size: 11px;
-  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   color: var(--perfect);
-  background: color-mix(in srgb, var(--perfect) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--perfect) 40%, transparent);
   animation: pop 0.42s cubic-bezier(0.2, 1.4, 0.5, 1) 0.2s backwards;
 }
 
@@ -2489,7 +2485,8 @@ body[data-area="train"] .btn--primary {
   margin: 0;
   font-family: var(--ui);
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: 20px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 

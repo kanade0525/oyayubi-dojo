@@ -1,4 +1,4 @@
-// 検品ライン（game.html）の配線。
+// タイピングゲーム（game.html）の配線。題材は工場の検品ライン。
 //
 // このファイルは何か
 //   キー入力 → nicola.js（同時打鍵の判定）→ engine.js（ゲームの決まり）→ 画面と音
@@ -673,7 +673,7 @@ function paintResult() {
 /** X の投稿画面を開く URL。投稿するかは本人が決める。こちらからは何も送らない */
 function shareUrl(s) {
     const res = s.balance >= 0 ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`;
-  const text = `タイピングゲーム「検品ライン」${num(course.target)} pt コース（${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
+  const text = `親指シフトマスターのタイピングゲーム ${num(course.target)} pt コース（${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
   const q = new URLSearchParams({ text, url: SHARE_URL, hashtags: '親指シフト' });
   return `https://x.com/intent/tweet?${q}`;
 }

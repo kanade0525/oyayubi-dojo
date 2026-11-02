@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>検品ライン｜親指シフトマスター</title>
+<title>タイピングゲーム｜親指シフトマスター</title>
 <meta name="description" content="ラインを流れてくる作業品の語を親指シフト（NICOLA配列）で打って検品を通すゲーム。同時打鍵が±15ms以内なら点が上乗せされます。">
 <meta name="color-scheme" content="dark">
 <!-- アイコンはサイト全体で一つ（弓道の霞的）。ゲームはサイトの中の一部屋なので看板を分けない -->
@@ -38,8 +38,8 @@
 <header class="nav">
   <!-- ゲームは «別の部屋»。看板・帯の色・ナビを部屋のものにする（app.css の body[data-area]）。
        練習の場所（覚える・鍛える）へは右の «ほかの入口» から -->
-  <a class="nav__brand" href="game.html">検品ライン</a>
-  <nav class="nav__links" aria-label="検品ライン">
+  <a class="nav__brand" href="game.html">タイピングゲーム</a>
+  <nav class="nav__links" aria-label="タイピングゲーム">
     <a href="game.html" aria-current="page" data-icon="play">ノルマを選ぶ</a>
     <button type="button" class="nav__btn" id="navRanking" data-icon="ranking">ランキング</button>
   </nav>
@@ -64,8 +64,7 @@
   <section class="g-screen g-title" id="scTitle" aria-labelledby="titleHead">
     <div class="g-hero">
       <div>
-        <p class="g-eyebrow">タイピングゲーム</p>
-        <h1 class="g-title__head" id="titleHead">検品ライン</h1>
+        <h1 class="g-title__head" id="titleHead">タイピングゲーム</h1>
         <p class="g-lead">ラインを流れてくる作業品の語を打つと、検品を通してその作業品の値段（pt）が入る。<br>時間内に通した合計がノルマを越えれば «お得»、届かなければ «損»。</p>
       </div>
       <dl class="g-rule" id="ruleTable">

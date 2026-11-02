@@ -15,7 +15,7 @@ import { loadLayout, lookup, handOf, thumbSideOf } from './layout.js';
 import { renderMeter, showJudgement, resetMeter, tierOf } from './meter.js';
 import { renderKeyboard, highlight, setThumbLamp } from './keyboard.js';
 import {
-  loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS,
+  loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS, resolveTone,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
 } from './storage.js';
 import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun } from './storage.js';
@@ -226,12 +226,21 @@ function thumbKeysOf(s) {
   };
 }
 
+// 配色は 'system' | 'light' | 'dark'。data-tone には解いた明暗（light / dark）を入れ、
+// 札の押し下げは設定の値（system を含む）で付ける
+const osDark = matchMedia('(prefers-color-scheme: dark)');
+
 function applyTone(tone) {
-  document.documentElement.dataset.tone = tone;
+  document.documentElement.dataset.tone = resolveTone(tone, osDark.matches);
   for (const b of document.querySelectorAll('[data-tone-set]')) {
     b.setAttribute('aria-pressed', String(b.dataset.toneSet === tone));
   }
 }
+
+// «システム» のときは OS の明暗の切り替え（夕方に自動でダークになる等）に開いたまま追従する
+osDark.addEventListener('change', () => {
+  if (settings.tone === 'system') applyTone('system');
+});
 
 // -- 判定エンジンを作り直す -------------------------------------------------
 // 親指キーや閾値を変えたら作り直す。状態機械が古い設定を抱えたままになると、
@@ -1824,7 +1833,7 @@ el.tauRange?.addEventListener('input', () => {
 for (const b of document.querySelectorAll('[data-tone-set]')) {
   b.addEventListener('click', () => {
     settings.tone = b.dataset.toneSet;
-    saveSettings(settings);
+    settings = saveSettings(settings) ?? settings;
     applyTone(settings.tone);
   });
 }
@@ -1967,7 +1976,7 @@ el.btnFreeStart?.addEventListener('click', () => {
 
 window.addEventListener('hashchange', route);
 
-applyTone(settings.tone ?? 'midnight');
+applyTone(settings.tone);
 fillIcons();
 paintNav();
 route();

@@ -25,7 +25,7 @@
 import { createNicola } from '../nicola.js';
 import { createRomaji, romajiKeyOf } from '../romaji.js';
 import { loadLayout, thumbSideOf } from '../layout.js';
-import { loadSettings } from '../storage.js';
+import { loadSettings, resolveTone, TONES } from '../storage.js';
 import { createSound } from '../sound.js';
 import { offsetBinOf, OFFSET_BINS } from '../trophies.js';
 import { renderScope } from '../charts.js';
@@ -47,14 +47,19 @@ const $ = (id) => {
   return node;
 };
 
-const TONES = ['midnight', 'matcha', 'plum', 'sumi'];
 const params = new URLSearchParams(location.search);
 const DEMO = params.get('demo');
 
 const settings = loadSettings();
-// デモのときだけ、配色を URL で替えられる（4 配色の見え方を確かめるため）
+// デモのときだけ、配色を URL で替えられる（ライトとダークの見え方を確かめるため）
 const tone = DEMO && TONES.includes(params.get('tone')) ? params.get('tone') : settings.tone;
-document.documentElement.dataset.tone = TONES.includes(tone) ? tone : 'midnight';
+const osDark = matchMedia('(prefers-color-scheme: dark)');
+const applyTone = () => {
+  document.documentElement.dataset.tone = resolveTone(tone, osDark.matches);
+};
+applyTone();
+// «システム» のときは OS の明暗の切り替えに開いたまま追従する
+osDark.addEventListener('change', applyTone);
 
 const layout = loadLayout('nicola');
 const thumbKeys = {

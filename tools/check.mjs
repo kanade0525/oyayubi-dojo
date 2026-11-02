@@ -881,9 +881,9 @@ if (has('index.html')) {
  * リンクの下線も、地に沈んだ文字色も、動きは壊さないし画像を見ても気づけない。
  * computed style を実測して不変条件を置くしか捕まえようがない。
  *
- * このアプリ固有の事情がもう一つある。配色を 4 種持っていて、地の色が種類ごとに違う。
- * 「黒地で 7:1 出ているから大丈夫」は他の 3 種の保証にならないので、
- * 4 種すべてについて、地の色を実測してから比を出す。
+ * このアプリ固有の事情がもう一つある。配色をライトとダークの 2 種持っていて、地の色が明暗で逆になる。
+ * 「黒地で 7:1 出ているから大丈夫」は白地の保証にならないので、
+ * 両方について、地の色を実測してから比を出す（«システム» はどちらかに解けるので、この 2 種で足りる）。
  */
 async function browserChecks(chromeBin) {
   const PORT = 8793;
@@ -1030,8 +1030,8 @@ async function browserChecks(chromeBin) {
     }
     await evaluate("location.hash = '#/'").catch(() => {});
 
-    // ---- 配色。デザイン担当の「4 種すべてで最小 7.0:1」を、こちらで実測して裏を取る
-    const tones = ['midnight', 'matcha', 'plum', 'sumi'];
+    // ---- 配色。デザイン担当の「ライト・ダークとも最小 7.0:1」を、こちらで実測して裏を取る
+    const tones = ['light', 'dark'];
     const measured = await evaluate(`(${String(measureContrast)})(${JSON.stringify(tones)})`);
     let worst = { ratio: Infinity };
     for (const row of measured) {
@@ -1056,7 +1056,7 @@ async function browserChecks(chromeBin) {
       if (worst.ratio < 7.0) {
         ng(
           '配色',
-          `申告は「4 種すべてで最小 7.0:1」だが、実測の最小は ${worst.ratio.toFixed(2)}:1` +
+          `申告は「ライト・ダークとも最小 7.0:1」だが、実測の最小は ${worst.ratio.toFixed(2)}:1` +
             `（${worst.tone} の ${worst.fg} ／ ${worst.bgName}）。素地 --bg だけで測ると届くが、札の上では届いていない`
         );
       }

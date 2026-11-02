@@ -1,10 +1,13 @@
 /* キー実測（keycheck.html）の見た目。
    以前は <style> を HTML の中に書いていたが、CSP（style-src 'self'）で読まれず、
    配信先では素の HTML のまま出ていた。外のファイルにしてある。
-   本体と同じ考え方：箱を積まず、罫で区切る。書体は本体の --ui と同じ一つだけ（等幅は使わない） */
+   本体と同じ考え方：箱を積まず、罫で区切る。書体は本体の --ui と同じ一つだけ（等幅は使わない）
+   色は本体（app.css）のダーク・ライトと同じ値。data-tone は <head> の先当てが入れる */
 
 :root {
+  color-scheme: dark;
   --tone: #7aa2f7;
+  --tone-ink: #05070c;
   --bg: #0b0e14;
   --fg: #e7ecf3;
   --fg-mid: #b6c0cf;
@@ -14,6 +17,23 @@
   --ok: #7ee787;
   --ng: #ff8079;
   --warn: #ffb454;
+  --sunken: #05070b;
+}
+
+:root[data-tone="light"] {
+  color-scheme: light;
+  --tone: #1f4a9a;
+  --tone-ink: #ffffff;
+  --bg: #f4f5f8;
+  --fg: #171c26;
+  --fg-mid: #2f3a4a;
+  --dim: #485262;
+  --line: color-mix(in srgb, var(--tone) 22%, var(--bg));
+  --line-soft: color-mix(in srgb, var(--tone) 11%, var(--bg));
+  --ok: #125a27;
+  --ng: #9a1f19;
+  --warn: #7c4300;
+  --sunken: #ffffff;
 }
 
 * { box-sizing: border-box; }
@@ -112,7 +132,7 @@ button {
   font: inherit;
   font-size: 14px;
   font-weight: 700;
-  color: #05070c;
+  color: var(--tone-ink);
   background: var(--tone);
   border: 0;
   cursor: pointer;
@@ -143,6 +163,6 @@ textarea {
   font: inherit;
   font-size: 12px;
   color: var(--fg);
-  background: #05070b;
+  background: var(--sunken);
   border: 1px solid var(--line-soft);
 }

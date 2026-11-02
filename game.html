@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>タイピングゲーム｜親指シフトマスター</title>
 <meta name="description" content="親指シフト（NICOLA配列）とローマ字で遊べるタイピングゲーム。ラインを流れてくる語を時間内に打ち、ノルマの pt を目指します。">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <!-- アイコンはサイト全体で一つ（弓道の霞的）。ゲームはサイトの中の一部屋なので看板を分けない -->
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
@@ -15,19 +15,26 @@
 <!-- 配色の先当て。index.html と一字も違わない中身にしてある。
      中身が同じならハッシュも同じなので、_headers の script-src は一つのハッシュのまま両方に効く。
      変えるときは index.html と同時に、同じ文字列に直すこと。
-     これが無いと、module（main.js）が走るまでの一瞬だけ既定色（藍）が見える -->
+     これが無いと、module（main.js）が走るまでの一瞬だけ逆の明暗が見える -->
 <script>
-  // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
+  // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
   // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
+  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
   (function () {
-    var ok = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
-    var t = 'midnight';
+    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
+    var t = 'system';
     try {
       var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
-      if (ok[s.tone]) t = s.tone;
+      if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
+      else if (old[s.tone]) t = 'dark';
     } catch (e) {
-      /* 読めなくても既定色で動く。ここで転ぶと画面が出ない */
+      /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
+    }
+    if (t === 'system') {
+      var dark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+      t = dark ? 'dark' : 'light';
     }
     document.documentElement.dataset.tone = t;
   })();

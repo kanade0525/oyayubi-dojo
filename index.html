@@ -650,10 +650,14 @@
       <h2 class="card__head">段位</h2>
       <div class="rank">
         <b class="rank__name" id="rankName">白帯</b>
-        <span class="rank__score" id="rankScore">SCORE 0</span>
+        <span class="rank__score" id="rankScore">稽古量 0</span>
       </div>
       <div class="rank__bar"><i id="rankFill"></i></div>
       <p class="rank__next" id="rankNext">次の段位まで —</p>
+      <!-- 段位の決まり。以前は名前と数字だけで、何をすれば上がるのかがどこにも書かれていなかった（2026-11-02）。
+           決まりは一行で言い、十段の条件ははしごの各段にマウスを乗せると出す（app.js が trophies.js の RANKS から組む） -->
+      <p class="rank__rule">二つが揃うと上がる。<b>稽古量</b>（打つたびに貯まる）がその段の値に届くこと。<b>30 字以上の一本</b>で、その段の速さと正確率を両方出すこと。</p>
+      <ol class="ladder" id="rankLadder" aria-label="段位のはしご"></ol>
       <dl class="tally" id="statTally"></dl>
     </div>
 

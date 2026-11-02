@@ -2593,6 +2593,75 @@ body[data-area="train"] .btn--primary {
   color: var(--fg-dim);
 }
 
+.rank__rule {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--fg-mid);
+}
+
+.rank__rule b { color: var(--fg); }
+
+/* 段位のはしご。十段を罫で区切った一列に。済んだ段は沈め、いまの段だけ主色で立てる */
+.ladder {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ladder__step {
+  position: relative;
+  padding: 10px 4px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--fg-dim);
+  cursor: default;
+}
+
+.ladder__step + .ladder__step { border-left: 1px solid var(--line-soft); }
+.ladder__step b { font-weight: 400; white-space: nowrap; }
+.ladder__step.is-done { color: var(--fg-mid); }
+.ladder__step.is-now { color: var(--tone-ink); background: var(--tone); }
+.ladder__step.is-now b { font-weight: 700; }
+.ladder__step:hover,
+.ladder__step:focus-visible { color: var(--fg); background: color-mix(in srgb, var(--tone) 12%, transparent); outline: none; }
+.ladder__step.is-now:hover,
+.ladder__step.is-now:focus-visible { color: var(--tone-ink); background: var(--tone); }
+
+/* 条件の小窓。マウスを乗せた段の下に出す */
+.ladder__pop {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 50%;
+  display: none;
+  width: 260px;
+  margin-top: 6px;
+  padding: 8px 10px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: left;
+  color: var(--fg-mid);
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+.ladder__step:first-child .ladder__pop { left: 0; transform: none; }
+.ladder__step:last-child .ladder__pop { left: auto; right: 0; transform: none; }
+.ladder__step:hover .ladder__pop,
+.ladder__step:focus-visible .ladder__pop { display: block; }
+
+@media (max-width: 700px) {
+  .ladder { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .ladder__step:nth-child(6) { border-left: 0; }
+  .ladder__step:nth-child(n + 6) { border-top: 1px solid var(--line-soft); }
+}
+
 /* ズレの分布。中心が «ぴったり»。山がどちらに寄っているかだけ読めればよい */
 .hist {
   display: grid;

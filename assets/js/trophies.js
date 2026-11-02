@@ -273,7 +273,12 @@ export function rankIndexOfRun(run) {
  * 足りている方は 0 を返す。両方 0 になった一本で昇段する。
  */
 export function nextRankGap(stats) {
-  const cur = rankOf((stats && stats.score) || 0);
+  // いまの段は stats.rank（腕前と稽古量の両方で決まった段）から引く。
+  // 稽古量だけで引く rankOf(score) を使うと、稽古量が名人の値を越えた人は腕前が皆伝でも
+  // «最高段位です» と出ていた（2026-11-02）。rank が無い・読めないときだけ稽古量から引く
+  const byName = RANKS.findIndex((r) => r.name === (stats && stats.rank));
+  const idx = byName >= 0 ? byName : rankOf((stats && stats.score) || 0).index;
+  const cur = { ...RANKS[idx], index: idx, next: RANKS[idx + 1] || null };
   if (!cur.next) return null;
   const best = (stats && stats.best) || {};
   // 段位は「腕前（一本で CPM と正確率）」と「稽古量（積み上げスコア）」の両方が要る。

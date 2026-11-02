@@ -104,7 +104,7 @@ const el = {
   inputPick: $('inputPick'), romajiTexts: $('romajiTexts'), romajiTextRows: $('romajiTextRows'),
   // mypage
   rankName: $('rankName'), rankScore: $('rankScore'), rankFill: $('rankFill'),
-  rankNext: $('rankNext'), statTally: $('statTally'),
+  rankNext: $('rankNext'), statTally: $('statTally'), rankLadder: $('rankLadder'),
   trendBox: $('trendBox'), offsetHist: $('offsetHist'), isoBoard: $('isoBoard'), calBox: $('calBox'),
   trophies: $('trophies'), trophyCount: $('trophyCount'),
   recBody: $('recBody'), recTable: $('recTable'), recEmpty: $('recEmpty'), dataKeys: $('dataKeys'),
@@ -173,6 +173,29 @@ function rankNeedText(gap) {
   if (gap.accGap > 0) need.push(`正確率 あと ${gap.accGap.toFixed(1)}%`);
   if (gap.scoreGap > 0) need.push(`稽古量 あと ${Math.ceil(gap.scoreGap)}`);
   return need.length ? need.join(' / ') : 'あと一本打ち切るだけ';
+}
+
+/**
+ * 段位のはしご。十段を一列に並べ、いまの段に印を付ける。
+ * 各段の条件（速さ・正確率・稽古量）と目安はマウスを乗せるか Tab で止めると出る
+ */
+function paintRankLadder(stats) {
+  // いまの段は stats.rank（腕前と稽古量の両方で決まった段）。稽古量だけで引く rankOf とは違うことがある
+  const cur = Math.max(0, RANKS.findIndex((r) => r.name === stats.rank));
+  el.rankLadder.replaceChildren(...RANKS.map((r, i) => {
+    const li = document.createElement('li');
+    li.className = `ladder__step${i < cur ? ' is-done' : i === cur ? ' is-now' : ''}`;
+    li.tabIndex = 0;
+    const name = document.createElement('b');
+    name.textContent = r.name;
+    const pop = document.createElement('span');
+    pop.className = 'ladder__pop';
+    pop.textContent = i === 0
+      ? `はじめの段。${r.note}`
+      : `速さ ${r.cpm} CPM・正確率 ${r.accuracy}% 以上の一本 ＋ 稽古量 ${r.at.toLocaleString('ja-JP')}。${r.note}`;
+    li.append(name, pop);
+    return li;
+  }));
 }
 
 /** 左右の親指をまとめた平均ズレ。打鍵数で重みを付ける */
@@ -1067,7 +1090,8 @@ function paintMypage() {
   paintWeakList(el.drillWeak, el.drillWeakEmpty, stats);
 
   el.rankName.textContent = stats.rank ?? RANKS[0].name;
-  el.rankScore.textContent = `SCORE ${stats.score ?? 0}`;
+  el.rankScore.textContent = `稽古量 ${(stats.score ?? 0).toLocaleString('ja-JP')}`;
+  paintRankLadder(stats);
   // nextRankGap は { next, cpmGap, accGap }。文言はこちらで組む。
   // 点数ではなく「あと何が足りないか」を出す（点数を見せても何をすればいいか分からない）
   const gap = nextRankGap(stats);
@@ -1076,11 +1100,17 @@ function paintMypage() {
     if (el.rankFill) el.rankFill.style.width = '100%';
   } else {
     el.rankNext.textContent = `${gap.next.name} まで ${rankNeedText(gap)}`;
-    const cur = rankOf(stats.score ?? 0);
-    const span = Math.max(1, (gap.next.at ?? 0) - (cur.at ?? 0));
-    if (el.rankFill) {
-      el.rankFill.style.width = `${Math.min(100, Math.max(0, (((stats.score ?? 0) - (cur.at ?? 0)) / span) * 100))}%`;
-    }
+    // 線は三つの条件（速さ・正確率・稽古量）のうち、いちばん遅れているものの進み具合。
+    // 稽古量だけで引くと、速さが足りないのに線が満杯に見えていた
+    const cur = RANKS.find((r) => r.name === stats.rank) ?? rankOf(stats.score ?? 0);
+    const part = (have, from, to) => (to > from ? Math.min(1, Math.max(0, (have - from) / (to - from))) : 1);
+    const best = stats.best ?? {};
+    const fill = Math.min(
+      part(best.cpm ?? 0, cur.cpm, gap.next.cpm),
+      part(best.accuracy ?? 0, cur.accuracy, gap.next.accuracy),
+      part(stats.score ?? 0, cur.at, gap.next.at),
+    );
+    if (el.rankFill) el.rankFill.style.width = `${fill * 100}%`;
   }
 
   // overview() は meanOffset を返さない。すぐ下の「同時打鍵のクセ」と同じ出所から取る。

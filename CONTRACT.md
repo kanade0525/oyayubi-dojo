@@ -1,6 +1,6 @@
 # 実装契約（作業分担のための取り決め）
 
-親指シフトタイピング道場。複数人（エージェント）で並行実装するため、
+親指シフトマスター。複数人（エージェント）で並行実装するため、
 **モジュール間の境界と担当ファイル**をここで固定する。ここに書いた形から外れないこと。
 
 ## プロジェクトの流儀
@@ -8,7 +8,7 @@
 同じ作者の `~/development/typing-engineer` の流儀をそのまま引き継ぐ。
 
 - **ビルドステップ無し。** 素の ES modules を `index.html` から `<script type="module">` 1行で読む
-- **依存パッケージゼロ。** npm install するものは何も無い。CDN も使わない（CSPで `connect-src 'none'`）
+- **依存パッケージゼロ。** npm install するものは何も無い。CDN も使わない。CSP の `connect-src` はランキング API のオリジンちょうど一つだけ（下の «CSP»）
 - **コメント・UI文言・コミットメッセージは全て日本語**
 - コメントは「APIの説明」ではなく**「なぜこの方針か」**を書く。判断が要る所は厚く、単なる組み立ては薄く
 - 各ファイルの冒頭に「このファイルは何か・なぜこの方針か」の段落を置く
@@ -23,7 +23,7 @@
 | 課題データ | `assets/js/lessons.js` |
 | 適応出題 | `assets/js/drill.js` |
 | 音 | `assets/js/sound.js` |
-| テスト | `tools/` 配下すべて / `.github/workflows/check.yml` |
+| テスト | `tools/` 配下（下の表で別の持ち主が書いてある `tools/server.test.mjs`・`tools/iso.test.mjs` を除く） / `.github/workflows/check.yml` |
 | デザイン | `index.html` / `assets/css/app.css` / `assets/js/keyboard.js` / `assets/js/meter.js` |
 | トークンエコノミー | `assets/js/storage.js` / `assets/js/trophies.js` / `assets/js/medal.js` |
 | ゲーム企画 | `assets/js/game/words.js` / `assets/js/game/courses.js` |
@@ -185,7 +185,7 @@ export function clearAll()
   misses: { mistouch: 3, shiftMisfire: 2, wrongFace: 1 },   // 3分類
   offsets: { left: [-8, 12, -3], right: [5, -20] },          // ズレ幅(ms)の生データ
   timing: { perfect: 40, good: 55, off: 20 },                // 判定の内訳
-  faceHits: { 'KeyH:none': 12, 'KeyH:left': 3 },             // キー×シフト面。ヒートマップ用
+  faceHits: { 'KeyH:none': 12, 'KeyH:left': 3 },             // キー×シフト面。記録の得意・苦手の 3D 柱（iso.js）と適応出題が使う
 }
 ```
 
@@ -268,12 +268,11 @@ export const METER_STEPS = [{ keys: 28, ms: 1000 }, { keys: 59, ms: 1000 }, { ke
 ### `assets/js/game/words.js`（ゲーム企画）
 
 ```js
-export const WORDS = [ { kana: 'ともだちとでかける', shifted: 5 }, ... ]   // lessons.js から起動時に組む
-export function shiftedCount(kana)   // 親指を使う字の数。配列に無い字があれば null
+export const WORDS = [ { kana: 'かいぎ', label: '会議' }, ... ]   // 手で書いた表
 ```
 
-- 語の表は持たない。語・文章・速度の課題と実文（`TEXTS`）を句読点で区切って拾う。面を覚えるための並び（第一〜三課・第六課）は入れない
-- 2〜14 字、親指を使う字を一つ以上含む語。長さの帯は `engine.js` がコースの `minLen`〜`maxLen` で絞る。どの帯にも 100 語以上
+- 打つのは `kana`、画面で大きく見せるのは `label`（漢字かな交じり）。ふだんの言葉と仕事でよく打つ言葉。それだけで意味が通る語・ひとことにする（課題の文の切れ端は使わない）
+- `kana` は NICOLA 配列の三面に載っている字だけ。2〜14 字のどの字数にも 10 語以上（`tools/game.test.mjs`）
 
 ### `assets/js/game/engine.js`（ゲーム画面）— DOM を知らない
 
@@ -284,7 +283,7 @@ export function keyFor(kana)                 // { code, thumb, hand } | null
 export function createGame({ course, words, rng })
 {
   start(t), input(result, t), tick(t),       // input / tick の返り値は events の配列
-  get state(),   // { phase, remainingMs, items: [{ id, word, value, typed, perfect, x /* 0..1 */ }], score, combo, maxCombo,
+  get state(),   // { phase, remainingMs, items: [{ id, word, value, typed, perfect, x /* 0..1 */ }], score,
                  //   missStreak, cleared, lost, misses, perfect, good, shifted, offsets, strokes, correctKeys, meterKeys, meterNext, elapsedMs, target }
   summary(),     // 終わる前に呼んだら throw
 }
@@ -295,7 +294,7 @@ export function createGame({ course, words, rng })
 
 // summary()
 { course, score, balance /* score - target */, cleared, lost, strokes, correctKeys, keysPerSec, misses, misfires, accuracy, kpm,
-  perfect, good, shifted, offsets /* 参考 */, timeBonusMs, maxCombo, durationMs }
+  perfect, good, shifted, offsets /* 参考 */, timeBonusMs, durationMs }
 ```
 
 - `input(result)` の `result.keys` はその字に要ったキーの数（無ければ 1）。ローマ字は main.js が綴りのキー数を渡す
@@ -308,11 +307,11 @@ export function createGame({ course, words, rng })
 ### `assets/js/game/config.js`（コア）
 
 ```js
-export const RANKING_API_URL = '';   // 空ならランキングは「準備中」と画面に出す（隠さない）
-export const SUPPORT_URL = '';       // Buy Me a Coffee の URL。空なら支援リンクは出さない
+export const RANKING_API_URL = 'https://5u0vzxhs2f.execute-api.ap-northeast-1.amazonaws.com';   // 空ならランキングは「準備中」と画面に出す（隠さない）
+export const SUPPORT_URL = 'https://buymeacoffee.com/kanade0525';   // 空なら支援リンクは出さない
 ```
 
-本番の値は石田さんが入れる。**ダミーの URL は入れない**（投げ銭が他人に飛ぶ・存在しない API を叩く）。
+どちらも本番の値が入っている（2026-11-02）。**ダミーの URL は入れない**（投げ銭が他人に飛ぶ・存在しない API を叩く）。
 
 ### `assets/js/game/ranking.js`（ランキング）
 
@@ -344,7 +343,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 - token はサーバーにハッシュでだけ残す
 - スコアは**ありえない値を弾く**（コースの時間・延長の上限・打鍵速度の上限・一字あたりの値段の最大から決まる上限を超えたら 400）
 - スコアの `course` と `input`（`nicola` / `romaji`）は必須。無ければ 400。自己ベストはコースごとに、部門（点数）と総合（速さ）で一人一つずつ
-- 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。今はダミー値。本番値は石田さんが入れる
+- 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。本番の値はデプロイの時に渡す（samconfig.toml と .env.example はダミーのまま。pepper はリポジトリに入れない）
 - 判断ロジック（検証・ハッシュ・順位）は `server/src/core.mjs` に置き、DynamoDB を差し替えられる形にする。テストは手元の偽ストアで回す
 
 ### CSP
@@ -359,10 +358,10 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 | ルート | 画面 | 中身 |
 | --- | --- | --- |
-| `#/` | 門 | 三つの場所への扉だけ。説明文・数字の欄は置かない |
+| `#/` | 門 | 左に名前、右に計器（親指のズレ・ぴったり率・速さと分布）、下に三つの場所への扉の行。親指シフトの説明は置かない（2026-11-02、このサイトにしか無い数字を最初に見せると決めた） |
 | `#/learn` | **覚える** | レッスンの一覧（curriculum.js）。18 レッスン、各 4 段階（見る・それだけ・混ぜる・語）を順に開く。全部終えると配列表の画像（layout-sheet.js）を保存できる |
-| `#/train` | **鍛える** | 適応出題（弱点集中・総ざらい・速度）・実文18本・自由入力 |
-| `#/record` | 記録 | 段位・ズレ分布・ヒートマップ・カレンダー・実績・データ持ち帰り |
+| `#/train` | **鍛える** | 適応出題（弱点集中・総ざらい・速度）・実文 83 本・自由入力 |
+| `#/record` | 記録 | 段位（決まりの一行とはしご）・伸び・ズレ分布・得意と苦手の 3D 柱・カレンダー・実績・データ持ち帰り |
 | `#/play/:id` | プレイ | 打つ画面 |
 | `#/layout` | 配列表 | 3面の一覧 |
 | `#/setup` | 設定 | 親指キー・判定の幅・打鍵音・配色 |

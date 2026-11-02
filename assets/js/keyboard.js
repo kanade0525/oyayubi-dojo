@@ -288,21 +288,5 @@ export function setThumbLamp(container, { left = false, right = false } = {}) {
   if (r) r.classList.toggle('is-on', !!right);
 }
 
-/**
- * 苦手な面を濃く塗る（マイページ）。
- * 契約の外に足した小道具。同じ図を塗り分けるだけにしてあるのは、
- * 練習中に見ている図とヒートマップの図が別物だと、対応が取れなくなるため。
- *
- * @param {Record<string, number>} levels  { 'KeyH:none': 0〜1 } の形。
- *        storage.js の faceHits をミス率に直したものを渡す想定。
- */
-export function setHeat(container, levels = {}) {
-  if (!container) return;
-  for (const face of container.querySelectorAll('[data-face]')) {
-    const v = levels[face.dataset.face];
-    face.style.setProperty('--heat', String(Math.max(0, Math.min(1, Number(v) || 0))));
-  }
-}
-
 /** 配列表の画面などで «この図が扱うキー» を知りたいとき用 */
 export const KEY_CODES = ROWS.flat().map(([code]) => code);

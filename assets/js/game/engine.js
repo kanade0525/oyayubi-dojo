@@ -12,21 +12,21 @@
 //
 // ゲームの決まり（CONTRACT.md「タイピングゲーム」の節が正）
 //   - 打てるのは先頭の作業品（いちばん出口に近いもの）だけ
-//   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。コンボが切れる
+//   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。連打メーターが 0 に戻る
 //   - 作業品の値段は語の字数で決まる（courses.js の prices）。語は字数の順（lengthCycle）に、
 //     一つの字数で SAME_LEN_RUN 枚ずつ出る。数値と算出方法は寿司打と同じ（courses.js の注記）
 //   - 作業品が出口まで流れたら検品漏れ。点は入らないがミスにも数えず、メーターも切らない
 //   - 連打メーター：ミスなしで続けて正しく打ったキーの数が METER_STEPS に届くたびに時間が延びる。
 //     最後の段で一周。ミスで 0 に戻る。キーは result.keys（親指シフトは一字 1、ローマ字は綴りのキー数）
 //   - 同時打鍵のズレ（ぴったり等）は数えるだけで、点には入れない（寿司打と比べられなくなるので）
-//   2026-11-02 に «回転ずし» から題材だけ替えた（作業品 → 作業品、円 → 点、点 → ノルマ）
+//   2026-11-02 に «回転ずし» から題材だけ替えた（皿 → 作業品、円 → pt、コースの値段 → ノルマ）
 
 import { tierOf } from '../meter.js';
 import { loadLayout } from '../layout.js';
 import { itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } from './courses.js';
 
 /** 作業品どうしの間隔（ライン長に対する割合）。前の作業品がここまで進んだら次を流す。
-    0.26 だとラインにおよそ 4 枚。多すぎると先頭がどれか分からなくなり、
+    0.22 だとラインにおよそ 4〜5 枚。多すぎると先頭がどれか分からなくなり、
     少なすぎると次の単語を先読みできない */
 const SPACING = 0.22;
 
@@ -35,7 +35,7 @@ const SPACING = 0.22;
 const ENTRY = 0.1;
 
 /** ラインに同時に載せる上限 */
-const MAX_PLATES = 5;
+const MAX_ITEMS = 5;
 
 /** 同じ単語が続けて出ないように覚えておく数 */
 const RECENT = 12;
@@ -97,8 +97,6 @@ export function createGame({ course, words, rng }) {
   let correctKeys = 0;    // 正しく打ったキーの数（結果画面の «正しく打ったキーの数»）
   let meterKeys = 0;      // 連打メーター。ミスなしで続けて正しく打ったキーの数（一周で 0 に戻る）
   let meterStep = 0;      // 次に届く METER_STEPS の段
-  let combo = 0;
-  let maxCombo = 0;
   let missStreak = 0;     // 先頭の同じ字で続けて外した数。打ち方の案内を出す合図
   let cleared = 0;
   let lost = 0;
@@ -152,7 +150,7 @@ export function createGame({ course, words, rng }) {
     // 補充。ラインが空なら待たずに出す（速く打てる人を待たせない）。
     // それ以外は最後尾が SPACING だけ進んだら次を出す
     if (!items.length) spawn(t, ENTRY);
-    while (items.length < MAX_PLATES && xOf(items[items.length - 1], t) >= SPACING) {
+    while (items.length < MAX_ITEMS && xOf(items[items.length - 1], t) >= SPACING) {
       // 最後尾がちょうど SPACING 進んだ時刻に出たことにする。
       // tick の間隔に引きずられて作業品の間が不揃いになるのを防ぐ
       spawn(items[items.length - 1].spawnAt + SPACING * course.laneMs);
@@ -201,9 +199,7 @@ export function createGame({ course, words, rng }) {
         head.typed++;
         strokes++;
         correctKeys += keys;
-        combo++;
         missStreak = 0;
-        if (combo > maxCombo) maxCombo = combo;
 
         // ズレを測れるのは、親指を落とした瞬間がある一打だけ。
         // 連続シフトで引き継いだ親指の一打（offsetMs が null）は測っていないので、
@@ -250,7 +246,6 @@ export function createGame({ course, words, rng }) {
         const misfire = !!(how && how.thumb && !result.thumb && result.charCode === how.code);
         if (misfire) misfires++;
         misses++;
-        combo = 0;
         meterKeys = 0;
         meterStep = 0;
         missStreak++;
@@ -275,8 +270,6 @@ export function createGame({ course, words, rng }) {
         correctKeys,
         meterKeys,
         meterNext: METER_STEPS[meterStep].keys,
-        combo,
-        maxCombo,
         missStreak,
         cleared,
         lost,
@@ -314,7 +307,6 @@ export function createGame({ course, words, rng }) {
         // 平均キータイプ数（回/秒）。正しく打ったキーを、延長込みの遊んだ秒数で割り、小数一桁で切り捨てる
         keysPerSec: durationMs > 0 ? Math.floor((correctKeys / (durationMs / 1000)) * 10) / 10 : 0,
         timeBonusMs,
-        maxCombo,
         durationMs,
       };
     },

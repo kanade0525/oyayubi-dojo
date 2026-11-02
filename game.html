@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>タイピングゲーム｜親指シフトマスター</title>
-<meta name="description" content="ラインを流れてくる作業品の語を親指シフト（NICOLA配列）で打って検品を通すゲーム。同時打鍵が±15ms以内なら点が上乗せされます。">
+<meta name="description" content="親指シフト（NICOLA配列）とローマ字で遊べるタイピングゲーム。ラインを流れてくる語を時間内に打ち、ノルマの pt を目指します。">
 <meta name="color-scheme" content="dark">
 <!-- アイコンはサイト全体で一つ（弓道の霞的）。ゲームはサイトの中の一部屋なので看板を分けない -->
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
@@ -46,7 +46,7 @@
   <p class="nav__others" data-for="game"><span data-icon="others">ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
 </header>
 
-<!-- 2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → 点、コースの値段 → ノルマ）。
+<!-- 2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → pt、コースの値段 → ノルマ）。
      遊びの仕組みは同じ。画面は札を重ねず、ふつうのページとして縦に置く（入口・鍛えると同じ計器の見た目） -->
 <main class="g-main">
 
@@ -67,7 +67,7 @@
         <h1 class="g-title__head" id="titleHead">タイピングゲーム</h1>
         <p class="g-lead">ラインを流れてくる作業品の語を打つと、検品を通してその作業品の値段（pt）が入る。<br>時間内に通した合計がノルマを越えれば «お得»、届かなければ «損»。</p>
       </div>
-      <dl class="g-rule" id="ruleTable">
+      <dl class="g-rule">
         <div><dt>作業品の値段（字数で決まる）</dt><dd>100〜500</dd></div>
         <div><dt>ミスなしで続けて打つと</dt><dd>+1〜3 秒</dd></div>
         <div><dt>結果</dt><dd>合計 − ノルマ</dd></div>
@@ -87,7 +87,7 @@
     <ul class="g-notes">
       <li>日本語入力は <b>オフ（英数）</b></li>
       <li id="thumbNote">親指キー：<span id="thumbNames"></span>（<a class="link" href="index.html#/setup">設定</a>）</li>
-      <li>打てるのは出口に一番近い作業品（▼）だけ。<kbd>Esc</kbd> で中断</li>
+      <li>打てるのは出口に一番近い作業品（枠が光っているもの）だけ。<kbd>Esc</kbd> で中断</li>
       <li id="soundNote"></li>
     </ul>
     <div class="g-row">
@@ -130,8 +130,8 @@
         <p class="g-res__best" id="resultBest" hidden></p>
         <dl class="stats g-res__stats" id="resultTally"><!-- main.js が埋める --></dl>
       </div>
-      <figure class="inst" id="resultInst" data-nicola>
-        <figcaption class="inst__label">参考：この回の親指のズレ（点には入らない）<span id="resultScopeNote"></span></figcaption>
+      <figure class="inst" data-nicola>
+        <figcaption class="inst__label">参考：この回の親指のズレ（pt には入らない）<span id="resultScopeNote"></span></figcaption>
         <p class="inst__read"><b id="resultOffset">—</b><small>ms</small><span class="inst__sub">ぴったり率 <b id="resultPerfect">—</b>%</span></p>
         <div class="inst__scope" id="resultScope"></div>
         <p class="inst__axis"><span>← 親指が先</span><span class="inst__ok">±15ms がぴったり</span><span>親指が遅れ →</span></p>
@@ -179,7 +179,7 @@
       <div class="g-narrow">
         <h2 class="g-sheet__head" id="consentHead">ランキングに参加する</h2>
         <div class="g-consent__body">
-          <p><b>送るもの</b>：ここで決めるニックネームと、ゲームの結果（ノルマのコース・入力方式・点数・毎分の打鍵数・正確さ・遊んだ時間）だけです。メールアドレスや本名は聞きません。練習の記録（覚える・鍛える）は送りません。</p>
+          <p><b>送るもの</b>：ここで決めるニックネームと、ゲームの結果（ノルマ・入力方式・獲得 pt・1 分あたりのかな・正確さ・遊んだ時間）だけです。メールアドレスや本名は聞きません。練習の記録（覚える・鍛える）は送りません。</p>
           <p><b>残る場所</b>：このサイトのランキング用サーバー（AWS 上のデータベース）に、ニックネームと自己ベストが残り、ランキングとして誰でも見られます。この端末には、本人であることを示す合言葉を保存します。</p>
           <p><b>消し方</b>：ランキング画面の「自分の記録を消す」で、サーバーの記録とこの端末の登録をまとめて消せます。この端末の保存を先に消してしまうと、サーバーの記録をこちらから消せなくなります。障害に備えたバックアップには、消したあとも最大35日残り、その後自動で消えます。</p>
           <p class="g-consent__ver">同意文の版：<span id="consentVersion"></span></p>

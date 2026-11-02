@@ -56,5 +56,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`親指シフトタイピング道場  →  http://localhost:${PORT}/`);
+  console.log(`親指シフトマスター  →  http://localhost:${PORT}/`);
 });

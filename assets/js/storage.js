@@ -783,7 +783,8 @@ export function offsetReport(stats = loadStats()) {
 
 /** マイページ一枚に出す要約 */
 export function overview(stats = loadStats()) {
-  const rank = rankOf(stats.score);
+  // 段位は stats.rank（腕前と稽古量の両方で決まった段）から引く。rankOf(score) は稽古量だけで引くので高く出る
+  const rank = RANKS.find((r) => r.name === stats.rank) ?? RANKS[0];
   const acc = stats.kana + stats.misses.mistouch + stats.misses.shiftMisfire + stats.misses.wrongFace;
   return {
     rank,

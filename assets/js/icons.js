@@ -53,4 +53,3 @@ export function fillIcons(root = document) {
   }
 }
 
-export const ICON_NAMES = Object.freeze(Object.keys(PATHS));

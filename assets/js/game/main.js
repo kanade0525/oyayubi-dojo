@@ -15,7 +15,7 @@
 //   （オートリピートは無視・IME がオンなら言う・blur で抱えたキーを捨てる・Esc で中断）。
 //
 // ラインの絵
-//   canvas は使わない。作業品一つを一つの要素にして、engine.js の x（0..1）を transform で動かす。
+//   canvas は使わない。作業品一つを一つの要素にして、engine.js の x（0..1）を CSS 変数 --x で渡し、left で動かす。
 //   作業品は数個しか無いので DOM で足り、文字は本文と同じ書体のまま読める。
 //
 // デモ用の入口（?demo=play など）
@@ -250,7 +250,7 @@ function paintTitle() {
         h('span', { class: 'g-course__main' },
           h('small', { class: 'g-course__label' }, 'ノルマ'),
           h('b', { class: 'g-course__target' }, num(c.target), h('small', {}, 'pt')),
-          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字・作業品 ${c.prices[0].price}〜${c.prices[c.prices.length - 1].price}`),
+          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字・作業品 ${c.prices[0].price}〜${c.prices[c.prices.length - 1].price} pt`),
           h('span', { class: 'g-course__best' }, b ? `自己ベスト ${num(Math.abs(b.score - c.target))} pt ${b.score >= c.target ? 'お得' : '損'}` : 'まだ打っていません')),
         h('kbd', {}, KEY_OF[i] ?? ''),
       );
@@ -314,9 +314,9 @@ let bestInfo = null;
 let perfectItems = new Set(); // ぴったりを一打でも含んだ作業品。通したときの音を変える
 let lastCount = 0;      // カウントダウンで最後に鳴らした数
 let lastTick = 0;       // 残り時間の刻みで最後に鳴らした秒
-let hitView = null;     // 直前の一打の返し（«が +10 右親指 −4ms ぴったり» の行）
+let hitView = null;     // 直前の一打の返し（«が 右親指 −4ms ぴったり» の行）
 let lastPainted = '';
-const flash = new Map(); // 作業品 id → { kind: 'clear' | 'lost', until }。通した・漏れたの一瞬の印
+const flash = new Map(); // 作業品 id → { kind: 'clear' | 'lost', at }。通した・漏れたの一瞬の印
 
 function buildNicola() {
   return createNicola({
@@ -385,8 +385,6 @@ function handle(events, t) {
       if (e.misfire) sound.misfire();
       else sound.miss();
       hitView = { kind: 'miss', ...e };
-    } else if (e.type === 'hit' && e.tier === 'perfect') {
-      perfectItems.add(e.itemId);
     } else if (e.type === 'clear') {
       // 通した音は sfx.js が受け持つ（打鍵音の設定が無音でも鳴る）
       sfx.take({ perfect: perfectItems.has(e.itemId) });
@@ -491,7 +489,7 @@ const fmtMs = (v) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(Math.round
 const keyName = (code) => code.replace(/^Key/, '').replace(/^Digit/, '')
   .replace('Semicolon', ';').replace('Comma', ',').replace('Period', '.').replace('Slash', '/');
 
-/** 一打の返し。«が ぴったり +10 右親指 −4ms» / 外れたら正しい打ち方 */
+/** 一打の返し。«が 右親指 −4ms ぴったり» / 外れたら正しい打ち方 */
 function paintHit() {
   const v = hitView;
   if (!v) { el.cueHit.replaceChildren(); return; }
@@ -675,7 +673,7 @@ function paintResult() {
 /** X の投稿画面を開く URL。投稿するかは本人が決める。こちらからは何も送らない */
 function shareUrl(s) {
     const res = s.balance >= 0 ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`;
-  const text = `親指シフトマスターのタイピングゲーム ${num(course.target)} pt コース（${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
+  const text = `親指シフトマスターのタイピングゲーム（ノルマ ${num(course.target)} pt・${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
   const q = new URLSearchParams({ text, url: SHARE_URL, hashtags: '親指シフト' });
   return `https://x.com/intent/tweet?${q}`;
 }
@@ -753,7 +751,7 @@ function openRanking(from) {
 function paintRankingTabs() {
   el.rankCourseTabs.replaceChildren(
     ...COURSES.map((c) => {
-      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `${c.name} コース`);
+      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `ノルマ ${c.name}`);
       b.setAttribute('aria-selected', String(c.id === rankCourse));
       return b;
     }),

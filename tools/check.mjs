@@ -72,7 +72,7 @@ for (const [path, who] of owners) {
 // 中のファイルは全部表に載っているのに「担当表に無い」と落ちていた。
 // 逆に、ディレクトリ名で照合すると中に紛れ込んだ持ち主不明のファイルを見逃す。
 // server/ は `server/` の丸預けで覆われる（下の covered の末尾スラッシュの扱い）。
-const LISTED_DIRS = ['assets/js', 'assets/css', 'assets/data', 'docs', 'server'];
+const LISTED_DIRS = ['assets/js', 'assets/css', 'assets/data', 'server'];
 const strayCandidates = [];
 const walkRel = (dir) => {
   for (const name of readdirSync(join(ROOT, dir))) {

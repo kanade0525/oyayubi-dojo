@@ -106,7 +106,7 @@ test('出題に使う字は全部ローマ字で打てる', () => {
   assert.deepEqual(bad, []);
 });
 
-test('実文と回転ずしの語は、案内どおりに打てば最後まで打ち切れる', () => {
+test('実文とタイピングゲームの語は、案内どおりに打てば最後まで打ち切れる', () => {
   for (const text of [...TEXTS.map((l) => l.text), ...WORDS.map((w) => w.kana)]) {
     const chars = [...text];
     const r = createRomaji();

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * assets/js/game/courses.js・engine.js・words.js（ゲーム「検品ライン」）の単体テスト。
+ * assets/js/game/courses.js・engine.js・words.js（タイピングゲーム。題材は検品ライン）の単体テスト。
  *
  * 採点は寿司打と同じ数値と算出方法にしてある（courses.js の注記）。ここではその数値を
  * «調べた値そのもの» で確かめる。courses.js の値を読んで比べるだけだと、値を書き換えても通ってしまい、

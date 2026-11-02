@@ -235,19 +235,13 @@
 .g-item__word .is-done { color: color-mix(in srgb, var(--fg) 30%, var(--bg)); }
 .g-item__value { font-size: 11px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 
-/* 打てる作業品（先頭）。四隅の鉤で «いまこれ» と示す */
-.g-item.is-head { border-color: var(--area); }
-.g-item.is-head .g-item__word { color: var(--fg); }
-
-.g-item.is-head::before {
-  content: "▼";
-  position: absolute;
-  top: -20px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 11px;
-  color: var(--area);
+/* 打てる作業品（先頭）。枠を場所の色で太くし、少し浮かせて «いまこれ» と示す（記号は付けない） */
+.g-item.is-head {
+  border: 2px solid var(--area);
+  background: color-mix(in srgb, var(--area) 12%, var(--bg));
 }
+
+.g-item.is-head .g-item__word { color: var(--fg); }
 
 .g-item.is-perfect .g-item__value { color: var(--perfect); }
 .g-item.is-clear { border-color: var(--perfect); }
@@ -782,18 +776,6 @@
 .g-support a {
   color: var(--tone);
   border-bottom: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
-}
-
-.g-foot {
-  display: grid;
-  gap: 6px;
-  font-size: 12px;
-  line-height: 1.8;
-  color: var(--fg-dim);
-}
-
-.g-foot p {
-  margin: 0;
 }
 
 

@@ -142,7 +142,6 @@ export function maxScoreOf(course) {
 export const RANKING_LIMIT = 50;
 export const NICKNAME_MAX = 12;
 export const CONSENT_VERSION_MAX = 32;
-export const PERIODS = Object.freeze(['all', 'month']);
 /** 本文の上限（バイト）。summary は数百バイトしかない。大きいものは読む前に断る */
 export const BODY_MAX_BYTES = 4096;
 

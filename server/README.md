@@ -1,4 +1,4 @@
-# ぴったりランキング API
+# タイピングゲームのランキング API
 
 HTTP API → Lambda（nodejs22.x / arm64）→ DynamoDB 1 テーブル。AWS SAM で置く。
 判断ロジックは `src/core.mjs`、DynamoDB は `src/store-dynamo.mjs`、入口は `src/index.mjs`。

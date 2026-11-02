@@ -270,7 +270,7 @@ export function rankIndexOfRun(run) {
 
 /**
  * 次の段位まで、CPM と正確率がそれぞれあといくつ足りないか。
- * 足りている方は 0 を返す。両方 0 になった一本で昇段する。
+ * 足りている方は 0 を返す。速さ・正確率・稽古量の三つとも 0 になった一本で昇段する。
  */
 export function nextRankGap(stats) {
   // いまの段は stats.rank（腕前と稽古量の両方で決まった段）から引く。
@@ -1114,12 +1114,6 @@ export function unlockedOf(stats) {
     if (ok && !out[u.kind].includes(u.target)) out[u.kind].push(u.target);
   }
   return out;
-}
-
-/** その設定値が使えるか。UI が保存済み設定を検証するため（開いていない配色が選ばれたままでも壊さない） */
-export function isUnlocked(stats, kind, target) {
-  const u = unlockedOf(stats);
-  return (u[kind] || []).includes(target);
 }
 
 // ---------------------------------------------------------------- ローマ字時代の自分との比較

@@ -91,7 +91,7 @@ Windows の 無変換／変換 も同じ位置です。別のキーにも割り�
 
 ```
 npm run dev     # 依存ゼロの静的サーバー。_headers も同じように付く
-npm test        # 同時打鍵の状態機械と適応出題の単体テスト
+npm test        # tools/*.test.mjs の単体テスト全部（同時打鍵・適応出題・ゲーム・サーバー・ローマ字など）
 npm run check   # 総合検査（下記）
 ```
 
@@ -127,7 +127,7 @@ README にそう書くだけでは宣言に留まりますが、これを置く�
 ## 構成
 
 ```
-index.html            画面の骨格（5つの section を hidden で切り替え）
+index.html            画面の骨格（7つの section を hidden で切り替え）
 keycheck.html         キー実測ページ（単体で動く）
 game.html             タイピングゲーム
 assets/
@@ -136,12 +136,15 @@ assets/
   js/
     nicola.js         同時打鍵の状態機械（DOMを知らない）★中核
     layout.js         配列の引き当て
-    engine.js         課題の進行と正誤判定
     drill.js          適応出題
     storage.js        localStorage
     trophies.js       段位・実績・アンロック
     medal.js          実績のメダル（格で金属の色、系統で中の絵）
-    lessons.js        課題データ
+    lessons.js        課題データ（鍛えるの実文など）
+    curriculum.js     覚えるのレッスン（配列表から組む）
+    layout-sheet.js   修了の特典の配列表の画像
+    romaji.js         ローマ字の綴りの判定
+    icons.js          アイコン（Material Symbols の path）
     meter.js          タイミングメーター
     keyboard.js       3面キーボード図
     sound.js          WebAudio による打鍵音の合成
@@ -152,7 +155,6 @@ assets/
   js/game/            ゲーム（engine.js は DOM を知らない状態機械。ranking.js がランキングの窓口）
 tools/check.mjs       総合検査
 server/               ランキングの API（Lambda + DynamoDB、AWS SAM）
-docs/game-design.md   ゲームの数値の根拠
 CONTRACT.md           モジュール間の契約と、言葉の決め方
 ```
 

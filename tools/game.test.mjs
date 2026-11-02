@@ -559,3 +559,49 @@ describe('時刻と乱数は引数からだけ', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------- ローマ字（2026-11-02）
+//
+// main.js はローマ字の一打を romaji.js で判定し、打ち切ったかなを一字ずつ
+// { kana, charCode: 'Romaji', thumb: null, offsetMs: null } で、合わない字を kana: null で渡す。
+// engine はそれを親指シフトの単打と同じに数え、ぴったりも不発も出さない。
+
+describe('ローマ字の入力', () => {
+  test('綴りどおりに打てば皿が取れ、ぴったりは出ない', async () => {
+    ready();
+    const { createRomaji } = await import(pathToFileURL(join(ROOT, 'assets/js/romaji.js')).href);
+    const words = [{ kana: 'しゃしん', label: '写真' }, { kana: 'きって', label: '切手' }];
+    const g = engine.mod.createGame({ course: { ...course(), minLen: 1, maxLen: 12 }, words, rng: () => 0 });
+    g.start(T0);
+    const r = createRomaji();
+    let t = T0;
+    const events = [];
+    let plate = null;
+    for (const ch of 'shashinn') { // 語末の「ん」は nn
+      const head = g.state.plates[0];
+      if (head.id !== plate) { r.reset(); plate = head.id; }
+      const chars = [...head.word.kana];
+      const res = r.press(chars, head.typed, ch);
+      assert.equal(res.ok, true, ch);
+      for (let i = 0; i < res.done; i++) {
+        events.push(...g.input({ kana: chars[head.typed + i], charCode: 'Romaji', thumb: null, offsetMs: null }, (t += 50)));
+      }
+    }
+    assert.ok(events.some((e) => e.type === 'clear'));
+    assert.ok(!events.some((e) => e.type === 'perfect'));
+    assert.ok(events.filter((e) => e.type === 'hit').every((e) => e.tier === null));
+  });
+
+  test('合わない字は kana: null のミスで、不発に数えない', () => {
+    ready();
+    const words = [{ kana: 'がっこう', label: '学校' }];
+    const g = engine.mod.createGame({ course: { ...course(), minLen: 1, maxLen: 12 }, words, rng: () => 0 });
+    g.start(T0);
+    const ev = g.input({ kana: null, charCode: 'Romaji', thumb: null, offsetMs: null }, T0 + 100);
+    const miss = ev.find((e) => e.type === 'miss');
+    assert.ok(miss);
+    assert.equal(miss.misfire, false);
+    assert.equal(g.state.misses, 1);
+    assert.equal(g.state.plates[0].typed, 0);
+  });
+});

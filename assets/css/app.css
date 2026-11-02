@@ -3908,3 +3908,85 @@ body[data-area="train"] .btn--primary {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------------------------------------------------------------- ローマ字
+   実文・自由入力はローマ字でも打てる。打つ画面では親指の案内・メーター・配列図を外し、
+   合図の欄に「打ちかけの綴り＋その続き」を出す。 */
+
+.inputsw {
+  display: inline-flex;
+  justify-self: start;
+  margin-top: 32px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+}
+
+.inputsw button {
+  padding: 5px 14px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--fg-dim);
+  background: none;
+  border: 0;
+  border-radius: 99px;
+  cursor: pointer;
+}
+
+.inputsw button[aria-checked="true"] {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--area) 22%, transparent);
+}
+
+.inputsw + .texts { margin-top: 14px; }
+
+.screen--play.is-romaji .meter,
+.screen--play.is-romaji .board {
+  display: none;
+}
+
+.cue__kind--romaji {
+  padding: 0;
+  border: 0;
+  font-size: 22px;
+  letter-spacing: .06em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+
+.cue__kind--romaji b {
+  font-weight: 400;
+  color: var(--fg);
+}
+
+/* 同じ文を両方で打った速さ。速かったほうだけ色を付ける（数の大小は字でも読める） */
+.vs {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vs th,
+.vs td {
+  padding: 7px 4px;
+  text-align: right;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.vs th[scope="row"],
+.vs thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.vs thead th {
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--fg-dim);
+}
+
+.vs td { color: var(--fg-mid); }
+.vs td.is-win { color: var(--fg); font-weight: 700; }

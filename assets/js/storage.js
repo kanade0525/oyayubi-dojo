@@ -180,7 +180,13 @@ function emptyStats() {
     history: [], // 直近 HISTORY_LIMIT 本。新しいものが先頭
 
     // 移行前のローマ字入力の速さ。移行者向けの独自機能の土台
-    romaji: null, // { cpm, at, sampleKana, passedAt }
+    romaji: null, // { cpm, at, sampleKana, passedAt, by: 'input' | 'measured' }
+
+    // 同じ文を両方の打ち方で比べるための、文ごとの最高 CPM。
+    // lessonBest は親指シフト、romajiBest はローマ字。lessonId → { cpm, runs }
+    // ローマ字の一本は段位・実績・弱点・連続日数には入れない（親指シフトの記録ではないので）
+    lessonBest: {},
+    romajiBest: {},
 
     // いま開いているコース・配色・打鍵音。保存はするが、正は毎回の再計算（loadStats を見よ）
     unlocked: null,
@@ -265,6 +271,20 @@ export function loadStats() {
   s.rank = RANKS[s.rankIndex].name;
 
   s.romaji = saved.romaji && num(saved.romaji.cpm) > 0 ? { ...saved.romaji, cpm: num(saved.romaji.cpm) } : null;
+
+  const bestMap = (v) => Object.fromEntries(Object.entries(obj(v))
+    .filter(([, b]) => num(obj(b).cpm) > 0)
+    .map(([id, b]) => [id, { cpm: num(b.cpm), runs: num(b.runs) }]));
+  s.romajiBest = bestMap(saved.romajiBest);
+  s.lessonBest = bestMap(saved.lessonBest);
+  // lessonBest が無かった頃の記録は、履歴から拾える分だけ拾う
+  if (!saved.lessonBest) {
+    for (const h of s.history) {
+      if (!h.id || !(num(h.cpm) > 0)) continue;
+      const b = s.lessonBest[h.id] ?? { cpm: 0, runs: 0 };
+      s.lessonBest[h.id] = { cpm: Math.max(b.cpm, num(h.cpm)), runs: b.runs + 1 };
+    }
+  }
 
   // 開いているものも保存値ではなく毎回計算する。保存した「開いた印」を正にすると、
   // 条件を後から変えたときに食い違うし、印だけ書き換える抜け道もできる。
@@ -460,6 +480,10 @@ export function recordRun(run) {
   s.streak = streakOf(s.days);
   s.bestStreak = Math.max(s.bestStreak, s.streak);
 
+  // ---- 文ごとの最高。ローマ字との比べっこに使う
+  const lb = s.lessonBest[r.lessonId] ?? { cpm: 0, runs: 0 };
+  s.lessonBest[r.lessonId] = { cpm: Math.max(lb.cpm, round(r.cpm, 1)), runs: lb.runs + 1 };
+
   // ---- 履歴。伸びの推定（ローマ字比較）と直近の振り返りに使う
   s.history.unshift({
     at: new Date().toISOString(),
@@ -520,9 +544,41 @@ export function saveRomajiBaseline(cpm, meta = {}) {
     sampleKana: num(meta.sampleKana),
     seconds: round(num(meta.seconds), 2),
     passedAt: (s.romaji && s.romaji.passedAt) || null,
+    by: 'input',
   };
   writeStats(s);
   return { ok: true, stats: s };
+}
+
+/** 比べる基準にする最短の一本（字）。数語で出た速さは、文を打つ速さとは言えない */
+export const ROMAJI_MIN_KANA = 30;
+
+/**
+ * ローマ字で打った一本を残す。親指シフトの記録（段位・実績・弱点・日数）には触らない。
+ * 文ごとの最高を更新し、ROMAJI_MIN_KANA 字以上の一本なら比較の基準（romaji.cpm）も
+ * 測った最高に上げる。手で入れた値は、測った値が来たら置き換える。
+ */
+export function recordRomajiRun({ lessonId, kana, seconds, keystrokes, misses }) {
+  if (typeof lessonId !== 'string' || !lessonId) throw new Error('recordRomajiRun: lessonId が無い');
+  if (!(seconds > 0)) throw new Error('recordRomajiRun: 時間が無い');
+  const s = loadStats();
+  const cpm = round((num(kana) * 60) / seconds, 1);
+  const tries = num(keystrokes) + num(misses);
+  const accuracy = tries ? round((num(keystrokes) / tries) * 100, 1) : 0;
+
+  const prev = s.romajiBest[lessonId] ?? { cpm: 0, runs: 0 };
+  const isBest = cpm > prev.cpm;
+  s.romajiBest[lessonId] = { cpm: Math.max(prev.cpm, cpm), runs: prev.runs + 1 };
+
+  if (num(kana) >= ROMAJI_MIN_KANA) {
+    const measured = s.romaji && s.romaji.by === 'measured';
+    if (!measured || cpm > s.romaji.cpm) {
+      // 基準が上がったら、追い抜いた記録は付け直す（低い基準を越えただけになるので）
+      s.romaji = { cpm, at: new Date().toISOString(), sampleKana: num(kana), seconds: round(seconds, 2), by: 'measured', passedAt: null };
+    }
+  }
+  writeStats(s);
+  return { stats: s, cpm, accuracy, isBest, nicola: s.lessonBest[lessonId]?.cpm ?? null };
 }
 
 /** 測り直し用。基準を消す（追い抜いた記録も一緒に消える） */
@@ -568,6 +624,7 @@ export const DEFAULT_SETTINGS = {
   showKeyboard: true, // 3面キーボード図を出すか
   showMeter: true, // タイミングメーターを出すか
   showRomaji: true, // ローマ字時代との比較を出すか
+  input: 'nicola', // 実文・自由入力をどちらで打つか。'nicola' | 'romaji'
   // 同じ字で 6 回続けて外したとき、その字を飛ばして先へ進めるか。
   // 既定 on（これまでの挙動）。off にすると打てるまでそこで止まる
   autoSkip: true,
@@ -619,6 +676,7 @@ function normalizeSettings(raw) {
   s.lenientRelease = s.lenientRelease !== false;
   s.continuousShift = s.continuousShift === true;
   s.autoSkip = s.autoSkip !== false;
+  s.input = s.input === 'romaji' ? 'romaji' : 'nicola';
   return s;
 }
 

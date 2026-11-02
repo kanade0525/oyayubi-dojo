@@ -16,7 +16,7 @@
 //
 // ・スコアは「人間に出せない値」を弾く。上限は「コースの制限時間＋延長の上限」の間、
 //   毎分 600 かな（親指シフトの上級者でも届かない速さ）で打ち続け、全部の字でそのコースの単価と
-//   ぴったりの上乗せを取った金額。これを超えたら改ざんと見なして 400 を返す。
+//   ぴったりの上乗せ（ローマ字には無い）を取った金額。これを超えたら改ざんと見なして 400 を返す。
 //   正直に遊んだ人を誤って弾かないよう、上限はわざと緩めに取ってある。
 //
 // ・エラーは { error } の JSON とステータスコードで返す。想定外の例外は中身を返さず 500 にする
@@ -49,6 +49,18 @@ export const COMBO_STEP = 20;
 /** courses.js の COMBO_TIME_BONUS_MS（一回の延長） */
 export const COMBO_TIME_BONUS_MS = 1000;
 
+/** 入力方式。ランキングは方式ごとの順位表と、両方を混ぜた順位表を持つ */
+export const INPUTS = Object.freeze(['nicola', 'romaji']);
+/** 順位表の絞り込み。all は両方を混ぜた表 */
+export const BOARD_INPUTS = Object.freeze(['all', ...INPUTS]);
+
+/** ぴったりの上乗せ（円）。ローマ字には同時打鍵が無いので上乗せも無い */
+export function perfectBonusOf(input) {
+  if (input === 'nicola') return PERFECT_BONUS;
+  if (input === 'romaji') return 0;
+  throw new Error(`未知の入力方式: ${input}`);
+}
+
 /** 人間の打鍵速度の上限（かな／分）。親指シフトの上級者でも続けては届かない速さ */
 export const HUMAN_MAX_KPM = 600;
 
@@ -78,13 +90,14 @@ export function maxDurationMsOf(course) {
  * コースごとの上限金額（円）。
  * 延長込みの時間いっぱい、上限の速さで打ち、全部の字で単価とぴったりの上乗せを取った金額。
  * 単語の途中で終わった字にはお金が入らないので、実際はこれより必ず低い。
- * いまの値で お手軽 60,000円 / おすすめ 108,000円 / 高級 156,000円。
+ * 親指シフトはいまの値で お手軽 60,000円 / おすすめ 108,000円 / 高級 156,000円。
+ * ローマ字は上乗せが無いぶん低い。
  */
-export function maxMoneyOf(course) {
+export function maxMoneyOf(course, input) {
   const c = COURSE_LIMITS[course];
   if (!c) throw new Error(`未知のコース: ${course}`);
   const maxKana = Math.ceil((HUMAN_MAX_KPM * maxDurationMsOf(course)) / 60_000);
-  return maxKana * (c.yenPerKana + PERFECT_BONUS);
+  return maxKana * (c.yenPerKana + perfectBonusOf(input));
 }
 
 // ---------------------------------------------------------------- 定数
@@ -162,12 +175,14 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /**
  * 送られた summary を検証し、残す値だけを取り出す。
- * 残すのは順位表に出す数（money / kpm / accuracy）と、検算に使う durationMs だけ。
+ * 残すのは順位表に出す数（money / kpm / accuracy）と入力方式、検算に使う durationMs だけ。
+ * 入力方式は必須。無いものを親指シフト扱いにすると、ローマ字の記録が親指シフトの表に混ざる。
  */
 export function validateScore(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad('スコアの形が違います');
-  const { course, money, kpm, accuracy, durationMs } = body;
+  const { course, input, money, kpm, accuracy, durationMs } = body;
   if (!COURSE_IDS.includes(course)) throw bad('コースが違います');
+  if (!INPUTS.includes(input)) throw bad('入力方式が違います');
   if (!isInt(money) || money < 0) throw bad('金額が違います');
   if (!isNum(kpm) || kpm < 0) throw bad('打鍵速度が違います');
   if (!isNum(accuracy) || accuracy < 0 || accuracy > 1) throw bad('正確さが違います');
@@ -176,7 +191,7 @@ export function validateScore(body) {
   // ありえない値。どれか一つでも超えたら記録しない
   if (durationMs > maxDurationMsOf(course) + DURATION_SLACK_MS) throw bad('ありえない記録です（時間）');
   if (kpm > HUMAN_MAX_KPM) throw bad('ありえない記録です（速さ）');
-  if (money > maxMoneyOf(course)) throw bad('ありえない記録です（金額）');
+  if (money > maxMoneyOf(course, input)) throw bad('ありえない記録です（金額）');
 
   // 値どうしの突き合わせ。上の三つは一つずつ上限と比べるだけなので、
   // 「金額だけ上限ぴったり・速さ 1・時間 1ms」のような矛盾した組を通してしまう。
@@ -185,9 +200,9 @@ export function validateScore(body) {
   // 取った金額は「正しく打った字数 ×（一字の単価＋ぴったりの上乗せ）」を超えない。
   // 字数は kpm と時間から戻せる。送る側で時間を丸めるので一字ぶんの余裕を持たせる
   const kanaTyped = Math.ceil((kpm * durationMs) / 60_000 + 1);
-  if (money > kanaTyped * (COURSE_LIMITS[course].yenPerKana + PERFECT_BONUS)) throw bad('ありえない記録です（速さと金額が合わない）');
+  if (money > kanaTyped * (COURSE_LIMITS[course].yenPerKana + perfectBonusOf(input))) throw bad('ありえない記録です（速さと金額が合わない）');
 
-  return { course, money, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
+  return { course, input, money, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
 }
 
 // ---------------------------------------------------------------- 期間と順位
@@ -235,13 +250,16 @@ export function boardSortKey(money, at) {
 //   createPlayer({ playerId, nickname, tokenHash, consentVersion, createdAt })
 //   getPlayer(playerId)                         → { playerId, nickname, tokenHash } | null
 //   putBestIfHigher(entry)                      → true（更新した）| false（自己ベストに届かない）
-//       entry = { playerId, nickname, course, period, money, kpm, accuracy, at }
+//       entry = { playerId, nickname, course, input, period, money, kpm, accuracy, at }
+//       自己ベストはプレイヤー×コース×入力方式×期間で一つ。
 //       「今の自己ベストより金額が多いときだけ書く」を一回の条件付き書き込みで行うこと。
 //       読んでから書くと、同時に二つ送られたときに低い方が勝ちうる。
 //       プレイヤーが消えていたら HttpError(401) を投げる（消した直後の送信で記録を蘇らせない）。
-//   getBest(playerId, course, period)           → entry | null
-//   countAhead(course, period, entry)           → compareEntries で entry より上にいる件数
-//   topEntries(course, period, limit)           → compareEntries の順に上位 limit 件
+//   getBest(playerId, course, input, period)    → entry | null
+//   countAhead(board, entry)                    → board の中で compareEntries により entry より上にいる件数
+//   topEntries(board, limit)                    → board の中を compareEntries の順に上位 limit 件
+//       board = { course, period, input }。input は BOARD_INPUTS のどれか（all は両方を混ぜた表。
+//       同じ人が親指シフトとローマ字の二行で並びうる）
 //   deletePlayer(playerId)                      → 本人のアイテムを全部消す
 
 // ---------------------------------------------------------------- 各エンドポイント
@@ -294,9 +312,10 @@ async function postScores(ctx, headers, body) {
     if (period === 'all') isBest = updated;
   }
 
-  const best = await ctx.store.getBest(player.playerId, score.course, 'all');
+  const best = await ctx.store.getBest(player.playerId, score.course, score.input, 'all');
   if (!best) throw new Error('自己ベストを書いた直後に読めない');
-  const rank = (await ctx.store.countAhead(score.course, 'all', best)) + 1;
+  // 順位は同じ入力方式の表の中で数える
+  const rank = (await ctx.store.countAhead({ course: score.course, period: 'all', input: score.input }, best)) + 1;
   return { status: 200, body: { rank, best: best.money, isBest } };
 }
 
@@ -304,16 +323,19 @@ async function getRanking(ctx, query) {
   const course = query.course;
   if (!COURSE_IDS.includes(course)) throw bad('コースが違います');
   const period = periodKey(query.period ?? 'all', ctx.now());
-  const rows = await ctx.store.topEntries(course, period, RANKING_LIMIT);
+  const input = query.input;
+  if (!BOARD_INPUTS.includes(input)) throw bad('入力方式が違います');
+  const rows = await ctx.store.topEntries({ course, period, input }, RANKING_LIMIT);
   const entries = rows.map((r, i) => ({
     rank: i + 1,
     nickname: r.nickname,
+    input: r.input,
     money: r.money,
     kpm: r.kpm,
     accuracy: r.accuracy,
     at: r.at,
   }));
-  return { status: 200, body: { course, period, entries } };
+  return { status: 200, body: { course, period, input, entries } };
 }
 
 async function deleteMe(ctx, headers) {

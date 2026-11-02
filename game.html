@@ -67,15 +67,18 @@
     <!-- ============================================================ タイトル -->
     <section class="g-sheet g-title" id="scTitle" aria-labelledby="titleHead">
       <div class="g-card">
-        <p class="g-eyebrow">親指シフトで食べる</p>
         <h1 class="g-title__head" id="titleHead">回転ずし</h1>
-        <p class="g-lead">流れてくる皿の単語を打ち切ると、その皿が取れます。<b>時間内にコースの値段より多く食べれば得</b>です。親指の同時打鍵が<b class="g-perfect">ぴったり</b>（±15ms）なら、皿の値段が上がります。</p>
+        <p class="g-lead">流れてくる皿の単語を打ち切ると、その皿が取れます。<b>時間内にコースの値段より多く食べれば得</b>です。<span id="perfectNote">親指の同時打鍵が<b class="g-perfect">ぴったり</b>（±15ms）なら、皿の値段が上がります。</span></p>
 
+        <div class="g-input" role="group" aria-label="入力方式" id="inputPick">
+          <button type="button" data-input="nicola" aria-pressed="true">親指シフト</button>
+          <button type="button" data-input="romaji" aria-pressed="false">ローマ字</button>
+        </div>
         <div class="g-courses" id="courseList" role="list"><!-- main.js が courses.js から作る --></div>
 
         <ul class="g-notes">
           <li>日本語入力は<b>オフ（英数）</b>にしてから始めてください。</li>
-          <li>親指キーは <span id="thumbNames">左 英数 ／ 右 かな</span>。変えるときは <a class="link" href="index.html#/setup">設定</a> で。</li>
+          <li id="thumbNote">親指キーは <span id="thumbNames">左 英数 ／ 右 かな</span>。変えるときは <a class="link" href="index.html#/setup">設定</a> で。</li>
           <li>打てるのは<b>先頭の皿</b>（▼の印）だけ。ミスせず続けると残り時間が延びます。<kbd>Esc</kbd> で中断。</li>
           <li id="soundNote">打鍵音は練習の設定に従います。</li>
           <li>皿を取った・取り逃した・残り時間の効果音は、下の «効果音» で切り替えられます。</li>
@@ -120,6 +123,11 @@
           <button type="button" role="tab" data-period="all" aria-selected="true">これまで</button>
           <button type="button" role="tab" data-period="month" aria-selected="false">今月</button>
         </div>
+        <div class="g-tabs g-tabs--small" role="tablist" aria-label="入力方式" id="rankInputTabs">
+          <button type="button" role="tab" data-input="all" aria-selected="true">すべて</button>
+          <button type="button" role="tab" data-input="nicola" aria-selected="false">親指シフト</button>
+          <button type="button" role="tab" data-input="romaji" aria-selected="false">ローマ字</button>
+        </div>
         <p class="g-status" id="rankStatus" role="status"></p>
         <ol class="g-board" id="rankList"></ol>
         <div class="g-row">
@@ -136,7 +144,7 @@
       <div class="g-card">
         <h2 class="g-sheet__head" id="consentHead">ランキングに参加する</h2>
         <div class="g-consent__body">
-          <p><b>送るもの</b>：ここで決めるニックネームと、ゲームの結果（コース・金額・毎分の打鍵数・正確さ・遊んだ時間）だけです。メールアドレスや本名は聞きません。練習の記録（覚える・鍛える）は送りません。</p>
+          <p><b>送るもの</b>：ここで決めるニックネームと、ゲームの結果（コース・入力方式・金額・毎分の打鍵数・正確さ・遊んだ時間）だけです。メールアドレスや本名は聞きません。練習の記録（覚える・鍛える）は送りません。</p>
           <p><b>残る場所</b>：このサイトのランキング用サーバー（AWS 上のデータベース）に、ニックネームと自己ベストが残り、ランキングとして誰でも見られます。この端末には、本人であることを示す合言葉を保存します。</p>
           <p><b>消し方</b>：ランキング画面の「自分の記録を消す」で、サーバーの記録とこの端末の登録をまとめて消せます。この端末の保存を先に消してしまうと、サーバーの記録をこちらから消せなくなります。障害に備えたバックアップには、消したあとも最大35日残り、その後自動で消えます。</p>
           <p class="g-consent__ver">同意文の版：<span id="consentVersion"></span></p>

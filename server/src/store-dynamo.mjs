@@ -4,10 +4,14 @@
 // 権限・バックアップ・削除がそれぞれ一か所で済む。
 //
 //   PK = PLAYER#<id>  SK = PROFILE                 … ニックネーム・token のハッシュ・同意の版
-//   PK = PLAYER#<id>  SK = BEST#<course>#<period>  … 自己ベスト。period は 'all' か 'YYYY-MM'
-//       GSI1PK = BOARD#<course>#<period>  GSI1SK = core.boardSortKey(money, at)
+//   PK = PLAYER#<id>  SK = BEST#<course>#<input>#<period>  … 自己ベスト。input は nicola / romaji、
+//                                                           period は 'all' か 'YYYY-MM'
+//       GSI1PK = BOARD#<course>#all#<period>      … 両方の入力方式を混ぜた順位表
+//       GSI2PK = BOARD#<course>#<input>#<period>  … 入力方式ごとの順位表
+//       GSI1SK = GSI2SK = core.boardSortKey(money, at)
 //
-// 順位表は GSI1 を降順に引くだけで出る。本人の記録は PK が同じなので、消すときは
+// 一つの自己ベストが二つの順位表に載るので、索引を二つ持つ。
+// 順位表は該当する索引を降順に引くだけで出る。本人の記録は PK が同じなので、消すときは
 // PK で引いて全部消せば「本人の全記録」になる（取りこぼしようがない）。
 //
 // 月ごとの自己ベストには TTL（expiresAt）を付け、400 日ほどで DynamoDB に消させる。
@@ -30,17 +34,21 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { HttpError, boardSortKey } from './core.mjs';
 
-const GSI = 'GSI1';
+/** board.input → 引く索引と、その索引の鍵の名前 */
+const indexOf = (input) => (input === 'all'
+  ? { IndexName: 'GSI1', pkName: 'GSI1PK', skName: 'GSI1SK' }
+  : { IndexName: 'GSI2', pkName: 'GSI2PK', skName: 'GSI2SK' });
 const MONTH_TTL_SECONDS = 400 * 24 * 3600;
 
 const pk = (playerId) => `PLAYER#${playerId}`;
-const bestSk = (course, period) => `BEST#${course}#${period}`;
-const boardPk = (course, period) => `BOARD#${course}#${period}`;
+const bestSk = (course, input, period) => `BEST#${course}#${input}#${period}`;
+const boardPk = ({ course, input, period }) => `BOARD#${course}#${input}#${period}`;
 
 const toEntry = (item) => ({
   playerId: item.playerId,
   nickname: item.nickname,
   course: item.course,
+  input: item.input,
   period: item.period,
   money: item.money,
   kpm: item.kpm,
@@ -72,12 +80,15 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
     },
 
     async putBestIfHigher(entry) {
-      const { playerId, course, period, money, at } = entry;
+      const { playerId, course, input, period, money, at } = entry;
+      const sortKey = boardSortKey(money, at);
       const item = {
         PK: pk(playerId),
-        SK: bestSk(course, period),
-        GSI1PK: boardPk(course, period),
-        GSI1SK: boardSortKey(money, at),
+        SK: bestSk(course, input, period),
+        GSI1PK: boardPk({ course, input: 'all', period }),
+        GSI1SK: sortKey,
+        GSI2PK: boardPk({ course, input, period }),
+        GSI2SK: sortKey,
         ...entry,
       };
       if (period !== 'all') item.expiresAt = Math.floor(Date.parse(at) / 1000) + MONTH_TTL_SECONDS;
@@ -116,16 +127,17 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
       }
     },
 
-    async getBest(playerId, course, period) {
+    async getBest(playerId, course, input, period) {
       const { Item } = await db.send(new GetCommand({
         TableName: tableName,
-        Key: { PK: pk(playerId), SK: bestSk(course, period) },
+        Key: { PK: pk(playerId), SK: bestSk(course, input, period) },
         ConsistentRead: true,
       }));
       return Item ? toEntry(Item) : null;
     },
 
-    async countAhead(course, period, entry) {
+    async countAhead(board, entry) {
+      const { IndexName, pkName, skName } = indexOf(board.input);
       // GSI は結果整合なので、書いた直後は自分の新しい行がまだ見えないことがある。
       // ソートキーより「上」だけを数えるので、自分が見えても見えなくても件数は変わらない。
       let count = 0;
@@ -133,9 +145,9 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
       do {
         const out = await db.send(new QueryCommand({
           TableName: tableName,
-          IndexName: GSI,
-          KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK > :sk',
-          ExpressionAttributeValues: { ':pk': boardPk(course, period), ':sk': boardSortKey(entry.money, entry.at) },
+          IndexName,
+          KeyConditionExpression: `${pkName} = :pk AND ${skName} > :sk`,
+          ExpressionAttributeValues: { ':pk': boardPk(board), ':sk': boardSortKey(entry.money, entry.at) },
           Select: 'COUNT',
           ExclusiveStartKey,
         }));
@@ -145,12 +157,13 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
       return count;
     },
 
-    async topEntries(course, period, limit) {
+    async topEntries(board, limit) {
+      const { IndexName, pkName } = indexOf(board.input);
       const { Items = [] } = await db.send(new QueryCommand({
         TableName: tableName,
-        IndexName: GSI,
-        KeyConditionExpression: 'GSI1PK = :pk',
-        ExpressionAttributeValues: { ':pk': boardPk(course, period) },
+        IndexName,
+        KeyConditionExpression: `${pkName} = :pk`,
+        ExpressionAttributeValues: { ':pk': boardPk(board) },
         ScanIndexForward: false,
         Limit: limit,
       }));

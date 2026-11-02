@@ -19,7 +19,7 @@
 
 | 担当 | ファイル |
 | --- | --- |
-| コア（石田＋Claude本体） | `keycheck.html` / `assets/js/nicola.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
+| コア（石田＋Claude本体） | `keycheck.html` / `assets/js/nicola.js` / `assets/js/romaji.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
 | 課題データ | `assets/js/lessons.js` |
 | 適応出題 | `assets/js/drill.js` |
 | 音 | `assets/js/sound.js` |
@@ -330,7 +330,8 @@ export function createGame({ course, words, rng })   // rng: () => number（0 �
 - `summary()` に `misfires` / `bonus`（ぴったりの上乗せの合計）/ `timeBonusMs`
 - `clear.value` はぴったりの上乗せを**含む**。上乗せは皿に積むので、取り逃せば一緒に流れる
 - 連続シフトで出た一打（`continued`）はズレを測れないので、ぴったりにもシフト打鍵の数にも入れない
-- 自己ベストは `oyayubi-dojo:gamebest:v1` にこの端末だけに残す（`storage.js` の `STORAGE_KEYS` には未登録）
+- 自己ベストは `oyayubi-dojo:gamebest:v2` に、入力方式ごと（`{ nicola: {course: …}, romaji: {…} }`）にこの端末だけに残す（`storage.js` の `STORAGE_KEYS` には未登録）。v1 は親指シフトの記録として読む
+- ローマ字入力（2026-11-02）: 入力方式は `oyayubi-dojo:gameinput:v1`（`nicola` / `romaji`）。ローマ字は `romaji.js` で綴りを判定し、かなを打ち切るたびに `input({ kana, charCode: 'Romaji', thumb: null, offsetMs: null })`、合わない字は `kana: null` で渡す。ぴったりは出ない。`main.js` が summary に `input` を足す
 
 ### `assets/js/game/config.js`（コア）
 
@@ -348,7 +349,7 @@ export function rankingEnabled()                       // RANKING_API_URL が空
 export function currentPlayer()                        // { playerId, nickname } | null（localStorage）
 export async function register({ nickname, consent })  // consent が true でなければ throw。{ playerId, nickname }
 export async function submitScore(summary)             // 登録済みでなければ throw。{ rank, best, isBest }
-export async function fetchRanking({ course, period }) // period: 'all' | 'month'。[{ rank, nickname, money, kpm, accuracy, at }]
+export async function fetchRanking({ course, period, input }) // period: 'all' | 'month'、input: 'all' | 'nicola' | 'romaji'。[{ rank, nickname, input, money, kpm, accuracy, at }]
 export async function forgetMe()                       // サーバーの記録を消し、手元の登録も消す
 ```
 
@@ -365,11 +366,12 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | --- | --- | --- |
 | POST | `/players` | `{ nickname, consent: true, consentVersion }` → `{ playerId, nickname, token }`（nickname は正規化後） |
 | POST | `/scores` | `Authorization: Bearer <token>`。summary を受けて自己ベストなら更新 |
-| GET | `/ranking?course=&period=` | 上位 50 件 |
+| GET | `/ranking?course=&period=&input=` | 上位 50 件。input は all（両方を混ぜる）/ nicola / romaji |
 | DELETE | `/players/me` | `Authorization: Bearer <token>`。本人の全記録を消す |
 
 - token はサーバーにハッシュでだけ残す
-- スコアは**ありえない値を弾く**（コースの時間と打鍵速度の上限から決まる上限金額を超えたら 400）
+- スコアは**ありえない値を弾く**（コースの時間と打鍵速度の上限から決まる上限金額を超えたら 400。ローマ字はぴったりの上乗せを 0 として計算）
+- スコアの `input`（`nicola` / `romaji`）は必須。無ければ 400。自己ベストはプレイヤー×コース×入力方式で別
 - 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。今はダミー値。本番値は石田さんが入れる
 - 判断ロジック（検証・ハッシュ・順位）は `server/src/core.mjs` に置き、DynamoDB を差し替えられる形にする。テストは手元の偽ストアで回す
 

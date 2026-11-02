@@ -7,8 +7,8 @@ HTTP API → Lambda（nodejs22.x / arm64）→ DynamoDB 1 テーブル。AWS SAM
 ## エンドポイント
 
 - `POST /players` … `{ nickname, consent: true, consentVersion }` → 201 `{ playerId, nickname, token }`
-- `POST /scores` … `Authorization: Bearer <token>`、本文 `{ course, money, kpm, accuracy, durationMs }` → `{ rank, best, isBest }`
-- `GET /ranking?course=otegaru&period=all|month` → `{ course, period, entries: [{ rank, nickname, money, kpm, accuracy, at }] }`（上位 50）
+- `POST /scores` … `Authorization: Bearer <token>`、本文 `{ course, input, money, kpm, accuracy, durationMs }` → `{ rank, best, isBest }`。`input` は `nicola` / `romaji`（必須）。自己ベストと順位は入力方式ごと
+- `GET /ranking?course=otegaru&period=all|month&input=all|nicola|romaji` → `{ course, period, input, entries: [{ rank, nickname, input, money, kpm, accuracy, at }] }`（上位 50）。`input=all` は両方を混ぜた表で、同じ人が二行並びうる
 - `DELETE /players/me` … `Authorization: Bearer <token>` → 204（もう居なくても 204）
 
 エラーは `{ error }` とステータス（400 / 401 / 404 / 413 / 500）。

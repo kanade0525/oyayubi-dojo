@@ -1217,7 +1217,7 @@ export function romajiComparison(stats) {
   }
   if (out.passed || current >= base) {
     out.passed = true;
-    out.message = `ローマ字時代の自分を追い抜きました（${Math.round(current)} / ${Math.round(base)} CPM）。`;
+    out.message = `ローマ字を追い抜きました（${Math.round(current)} / ${Math.round(base)} cpm）。`;
     return out;
   }
 
@@ -1229,11 +1229,11 @@ export function romajiComparison(stats) {
 
   const pct = Math.round((current / base) * 100);
   if (slope == null) {
-    out.message = `いまローマ字時代の ${pct}%。あと ${FORECAST_MIN_DAYS} 日ぶん記録がたまると、追い抜く日を出せます。`;
+    out.message = `ローマ字の ${pct}%。`;
     return out;
   }
   if (slope <= 0) {
-    out.message = `いまローマ字時代の ${pct}%。ここ数日は伸びが止まっています。速さより正確さとタイミングを整える時期です。`;
+    out.message = `ローマ字の ${pct}%。ここ数日は伸びが止まっています。`;
     return out;
   }
 
@@ -1242,6 +1242,6 @@ export function romajiComparison(stats) {
   const d = new Date();
   d.setDate(d.getDate() + days);
   out.passDate = dayKey(d);
-  out.message = `いまローマ字時代の ${pct}%。この伸び（1日 +${slope.toFixed(1)} CPM）なら、あと ${days} 日で追い抜きます。`;
+  out.message = `ローマ字の ${pct}%。この伸び（1日 +${slope.toFixed(1)} cpm）なら、あと ${days} 日で追い抜きます。`;
   return out;
 }

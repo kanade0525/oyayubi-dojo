@@ -2,7 +2,7 @@
 //
 // なぜこの形か。
 //
-// ・送るのはニックネームとスコア（コース・金額・速さ・正確さ・遊んだ時間）だけ。
+// ・送るのはニックネームとスコア（コース・入力方式・金額・速さ・正確さ・遊んだ時間）だけ。
 //   メールアドレスや本名は取らない。手元の練習記録（storage.js）は一切送らない。
 //   summary から送る項目をここで拾い直しているのは、summary に項目が増えたときに
 //   黙って外へ出ていかないようにするため。
@@ -23,6 +23,7 @@ import { RANKING_API_URL } from './config.js';
 export const CONSENT_VERSION = '2026-11-02';
 
 const PLAYER_KEY = 'oyayubi-dojo:player:v1';
+const INPUTS = ['nicola', 'romaji'];
 const TIMEOUT_MS = 10_000;
 
 export class RankingError extends Error {
@@ -147,17 +148,22 @@ export async function register({ nickname, consent }) {
 export async function submitScore(summary) {
   const p = loadPlayer();
   if (!p) throw new RankingError('ランキングに登録していません');
-  const { course, money, kpm, accuracy, durationMs } = summary;
+  const { course, input, money, kpm, accuracy, durationMs } = summary;
+  if (!INPUTS.includes(input)) throw new RankingError(`入力方式が違います: ${input}`);
   return call('POST', '/scores', {
     token: p.token,
-    body: { course, money, kpm, accuracy, durationMs: Math.round(durationMs) },
+    body: { course, input, money, kpm, accuracy, durationMs: Math.round(durationMs) },
   });
 }
 
-/** 順位表。period は 'all' | 'month'。→ [{ rank, nickname, money, kpm, accuracy, at }] */
-export async function fetchRanking({ course, period = 'all' }) {
+/**
+ * 順位表。period は 'all' | 'month'、input は 'all'（両方を混ぜる）| 'nicola' | 'romaji'。
+ * → [{ rank, nickname, input, money, kpm, accuracy, at }]
+ */
+export async function fetchRanking({ course, period = 'all', input }) {
   if (period !== 'all' && period !== 'month') throw new RankingError(`期間が違います: ${period}`);
-  const q = new URLSearchParams({ course, period });
+  if (input !== 'all' && !INPUTS.includes(input)) throw new RankingError(`入力方式が違います: ${input}`);
+  const q = new URLSearchParams({ course, period, input });
   const data = await call('GET', `/ranking?${q}`);
   if (!Array.isArray(data?.entries)) throw new RankingError('ランキングの応答の形が違います');
   return data.entries;

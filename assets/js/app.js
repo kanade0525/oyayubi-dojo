@@ -18,7 +18,8 @@ import {
   loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
 } from './storage.js';
-import { saveRomajiBaseline, clearRomajiBaseline } from './storage.js';
+import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun } from './storage.js';
+import { createRomaji, romajiKeyOf } from './romaji.js';
 import {
   RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
   cpmOf, accuracyOf, unlockedOf, UNLOCKS, romajiComparison,
@@ -64,7 +65,7 @@ const el = {
   romajiCard: $('romajiCard'), romajiRatio: $('romajiRatio'),
   romajiBaseBar: $('romajiBaseBar'), romajiBaseVal: $('romajiBaseVal'),
   romajiNowBar: $('romajiNowBar'), romajiNowVal: $('romajiNowVal'),
-  romajiMessage: $('romajiMessage'), romajiForecast: $('romajiForecast'), romajiPassed: $('romajiPassed'),
+  romajiMessage: $('romajiMessage'), romajiPassed: $('romajiPassed'),
   navStreak: $('navStreak'),
   // setup
   warnIme: $('setupWarnIme'), warnEmu: $('setupWarnEmu'),
@@ -92,6 +93,8 @@ const el = {
   finishGood: $('finishGood'), finishOff: $('finishOff'), finishMisfire: $('finishMisfire'),
   finishEarned: $('finishEarned'),
   btnNext: $('btnNext'), btnAgain: $('btnAgain'), btnHome: $('btnHome'),
+  finishOffsetLabel: $('finishOffsetLabel'), finishGrid: $('finishGrid'), screenPlay: $('screenPlay'),
+  inputPick: $('inputPick'), romajiTexts: $('romajiTexts'), romajiTextRows: $('romajiTextRows'),
   // mypage
   rankName: $('rankName'), rankScore: $('rankScore'), rankFill: $('rankFill'),
   rankNext: $('rankNext'), statTally: $('statTally'),
@@ -112,6 +115,9 @@ let catching = null;  // 親指キーを覚えさせている最中なら 'left'
 let rafId = null;
 let sound = createSound({ kind: settings.sound, volume: settings.soundVolume });
 let mode = null;      // 'check' | 'drill' | 'free' | null（通常の課題）
+// 実文・自由入力をどちらで打つか。押した瞬間の設定を預かり、やり直しでも同じ打ち方で始める
+let playInput = 'nicola';
+let romaji = null;    // ローマ字で打っている間の判定器（romaji.js）
 let pending = null;   // その場で作った課題（適応出題・自由入力）。id では引けないので持ち回る
 let recentFaces = null; // 前回の適応出題で狙った面。渡すと同じ一本が続かない
 // 設定画面の試し打ち用。親指キーを押したのに単独打鍵で確定したなら、それは不発。
@@ -274,8 +280,10 @@ function howToType(kana) {
 
 function startRun(lesson) {
   const chars = [...lesson.text];
+  const input = mode === 'drill' || mode === 'free' ? playInput : 'nicola';
   run = {
     lesson,
+    input,
     chars,
     // 行の切り方は表示のためだけのもの。進捗（index）は本文全体の通し番号なので、
     // 切り方を変えても中断と再開は壊れない
@@ -293,8 +301,9 @@ function startRun(lesson) {
     bestPerfectStreak: 0,
   };
 
-  // 途中で閉じた続きがあれば拾う。時間も引き継がないと CPM が嘘になる
-  const saved = loadResume(lesson);
+  // 途中で閉じた続きがあれば拾う。時間も引き継がないと CPM が嘘になる。
+  // ローマ字の一本は続きを残さない（親指シフトの続きと混ざるので）
+  const saved = input === 'romaji' ? null : loadResume(lesson);
   if (saved) {
     Object.assign(run, {
       index: saved.index, kana: saved.kana, keystrokes: saved.keystrokes,
@@ -315,12 +324,14 @@ function startRun(lesson) {
   }
   el.finish.hidden = true;
   el.finishEarned.hidden = true;   // 前回の札が残らないように
+  el.screenPlay?.classList.toggle('is-romaji', input === 'romaji');
+  romaji = input === 'romaji' ? createRomaji() : null;
   resetMeter(el.meter);
   paintPhrase();
   paintCue();
   updateStats();
 
-  engine = buildEngine(onOutput);
+  engine = input === 'romaji' ? null : buildEngine(onOutput);
   loop();
 }
 
@@ -374,6 +385,16 @@ function paintCue() {
   const how = howToType(kana);
 
   el.cueKana.textContent = kana;
+  if (run.input === 'romaji') {
+    // 打ちかけの綴りと、その続き。親指と面の案内は出さない
+    const h = romaji.hint(run.chars, run.index);
+    el.cueHow.hidden = true;
+    el.cueKind.className = 'cue__kind cue__kind--romaji';
+    const typed = document.createElement('b');
+    typed.textContent = h?.typed ?? '';
+    el.cueKind.replaceChildren(typed, h?.rest ?? '');
+    return;
+  }
   if (!how) {
     // 課題データにこの配列で打てない字が混ざっている。黙って詰まらせない
     el.cueHow.hidden = true;
@@ -487,6 +508,56 @@ function onOutput(result) {
   updateStats();
 }
 
+/** ローマ字の一字。綴りに合えば進み、合わなければミス（隣を打ったのと同じ数え方） */
+function pressRomaji(ch) {
+  if (run.startedAt == null) run.startedAt = performance.now();
+  const res = romaji.press(run.chars, run.index, ch);
+  if (!res.ok) {
+    run.misses.mistouch++;
+    sound.miss();
+    flashMiss();
+    updateStats();
+    return;
+  }
+  run.keystrokes++;
+  if (res.done) {
+    run.kana += res.done;
+    run.index += res.done;
+    sound.hit();
+    paintPhrase();
+    if (run.index >= run.chars.length) return finishRomaji();
+  }
+  paintCue();
+  updateStats();
+}
+
+/** ローマ字の一本の結果。親指シフトの記録には入れず、同じ文の親指シフトの最高と並べる */
+function finishRomaji() {
+  const seconds = (performance.now() - run.startedAt) / 1000;
+  const r = recordRomajiRun({
+    lessonId: run.lesson.id, kana: run.kana, seconds,
+    keystrokes: run.keystrokes, misses: run.misses.mistouch,
+  });
+  el.finishEyebrow.textContent = 'ローマ字';
+  el.finishTitle.textContent = run.lesson.title;
+  el.finishCpm.textContent = String(Math.round(r.cpm));
+  el.finishBest.hidden = !r.isBest;
+  el.finishBest.textContent = '自己ベスト更新';
+  el.finishOffsetLabel.textContent = '同じ文を親指シフトで';
+  el.finishOffset.textContent = r.nicola ? `${Math.round(r.nicola)} cpm` : '—';
+  el.finishOffsetWord.textContent = r.nicola ? '' : 'まだ打っていない';
+  el.finishGrid.hidden = true;
+  el.finishEarned.hidden = true;
+  el.finish.hidden = false;
+  sound.finish({ best: r.isBest });
+
+  run = null;
+  romaji = null;
+  mode = null;
+  stopLoop();
+  paintNav(r.stats);
+}
+
 // 打ち間違いを一瞬だけ光らせる。メーターは時間差の担当なので、
 // ズレの無いミスまでそこに出すと針が嘘をつく
 function flashMiss() {
@@ -525,6 +596,8 @@ function finishRun() {
   el.finishCpm.textContent = String(Math.round(summary?.cpm ?? 0));
   el.finishBest.hidden = !(records && records.length);
   if (records && records.length) el.finishBest.textContent = `自己ベスト更新（${records.join('・')}）`;
+  el.finishOffsetLabel.textContent = '平均のズレ';
+  el.finishGrid.hidden = false;
   el.finishOffset.textContent = fmtOffset(meanOffset);
   el.finishOffsetWord.textContent = offsetWord(meanOffset);
   // 段位はいちばん見る画面に出す。「自己ベスト更新（段位）」という文字列でしか
@@ -597,7 +670,7 @@ function finishRun() {
 const RESUME_KEY = 'oyayubi-dojo:resume:v1';
 
 function saveResume() {
-  if (!run || run.index === 0 || mode === 'check') return;
+  if (!run || run.index === 0 || mode === 'check' || run.input === 'romaji') return;
   try {
     localStorage.setItem(RESUME_KEY, JSON.stringify({
       lessonId: run.lesson.id,
@@ -685,6 +758,14 @@ window.addEventListener('keydown', e => {
   }
 
   if (e.key === 'Escape') { e.preventDefault(); location.hash = '#/'; return; }
+
+  if (screen === 'play' && run?.input === 'romaji') {
+    const ch = romajiKeyOf(e.key);
+    if (!ch) return;
+    e.preventDefault();
+    pressRomaji(ch);
+    return;
+  }
 
   if (!engine) return;
   e.preventDefault();
@@ -1242,9 +1323,8 @@ function paintRomajiState(stats) {
   const has = stats.romaji && stats.romaji.cpm > 0;
   if (el.checkRomajiState) el.checkRomajiState.textContent = has ? `${Math.round(stats.romaji.cpm)} cpm` : '未記録';
   if (el.checkRomajiStatus) {
-    el.checkRomajiStatus.textContent = has
-      ? '記録済みです。上の札でいまの速さと比べられます。'
-      : 'ローマ字入力のときの速度を入れておくと、追い抜くまでの見通しが出ます。';
+    el.checkRomajiStatus.textContent = !has ? ''
+      : stats.romaji.by === 'measured' ? 'ここで測った最高の速さです。' : '手で入れた値です。';
   }
 }
 
@@ -1263,15 +1343,29 @@ function paintRomajiCard(stats) {
   el.romajiNowBar?.style.setProperty('--w', String((cmp.current ?? 0) / top));
   if (el.romajiMessage) el.romajiMessage.textContent = cmp.message ?? '';
 
-  // 出せないときは行ごと出さない。嘘の期日を出すくらいなら黙る
-  if (el.romajiForecast) {
-    el.romajiForecast.hidden = cmp.daysToPass == null;
-    if (cmp.daysToPass != null) el.romajiForecast.textContent = `この伸びなら、あと ${cmp.daysToPass} 日で追い抜きます`;
-  }
   if (el.romajiPassed) {
     el.romajiPassed.hidden = !cmp.passedAt;
     if (cmp.passedAt) el.romajiPassed.textContent = `${cmp.passedAt} に追い抜きました`;
   }
+
+  // 同じ文を両方で打ったもの
+  const both = Object.keys(stats.romajiBest ?? {})
+    .filter(id => stats.lessonBest?.[id] && findLesson(id))
+    .map(id => ({ title: findLesson(id).title, r: stats.romajiBest[id].cpm, n: stats.lessonBest[id].cpm }));
+  if (el.romajiTexts) el.romajiTexts.hidden = !both.length;
+  el.romajiTextRows?.replaceChildren(...both.map(x => {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.scope = 'row';
+    th.textContent = x.title;
+    const r = document.createElement('td');
+    r.textContent = String(Math.round(x.r));
+    const n = document.createElement('td');
+    n.textContent = String(Math.round(x.n));
+    (x.n >= x.r ? n : r).className = 'is-win';
+    tr.append(th, r, n);
+    return tr;
+  }));
 }
 
 // -- 鍛える -------------------------------------------------------------------
@@ -1290,8 +1384,15 @@ function paintDrill() {
     btn?.closest('.mode')?.classList.remove('is-locked');
   }
 
+  paintInputPick();
   paintMaterials(stats);
   updateFreeText();
+}
+
+function paintInputPick() {
+  for (const b of el.inputPick?.querySelectorAll('[data-input]') ?? []) {
+    b.setAttribute('aria-checked', String(b.dataset.input === settings.input));
+  }
 }
 
 /**
@@ -1408,6 +1509,15 @@ function materialRows(list, stats) {
     meta.textContent = `同時打鍵 ${Math.round((info.shifted / (info.kana || 1)) * 100)}%`
       + (times ? ` · ${times}回打った` : '');
     pop.append(meta);
+    // 同じ文を両方で打っていれば、速さを並べる
+    const nb = stats.lessonBest?.[l.id]?.cpm;
+    const rb = stats.romajiBest?.[l.id]?.cpm;
+    if (nb || rb) {
+      const vs = document.createElement('span');
+      vs.className = 'material__meta';
+      vs.textContent = `親指シフト ${nb ? Math.round(nb) : '—'} / ローマ字 ${rb ? Math.round(rb) : '—'} cpm`;
+      pop.append(vs);
+    }
     if (l.note) {
       const note = document.createElement('span');
       note.className = 'material__note';
@@ -1464,7 +1574,8 @@ let area = 'gate';
 
 function setArea(name, arg) {
   if (AREA_OF[name]) area = AREA_OF[name];
-  else if (name === 'play') area = (pending ?? findLesson(arg))?.courseId ? 'learn' : 'train';
+  // 鍛えるから始めた一本（実文・自由入力・その場の出題）は道場。七つの課は入門
+  else if (name === 'play') area = mode === 'drill' || mode === 'free' ? 'train' : findLesson(arg)?.courseId ? 'learn' : 'train';
   document.body.dataset.area = area;
   document.title = AREA_TITLE[area];
 }
@@ -1690,6 +1801,7 @@ const startDrill = m => {
   // 「知らない語」と「意味の無い音の並び」の区別が付かず、読もうとして手が止まる
   const note = (lesson.note ?? '')
     + (DRILL_MODES[m]?.pseudo ? '　実在しない語（意味の無い音の並び）が混ざります。読まずに指だけで追ってください。' : '');
+  playInput = 'nicola';
   playMade({ ...lesson, note }, 'drill');
 };
 el.btnDrillWeak?.addEventListener('click', () => startDrill('weak'));
@@ -1703,7 +1815,17 @@ document.addEventListener('click', e => {
   const lesson = findLesson(card.dataset.lesson);
   if (!lesson) return;
   mode = 'drill';
-  location.hash = `#/play/${lesson.id}`;
+  playInput = settings.input;
+  const to = `#/play/${lesson.id}`;
+  if (location.hash === to) route(); else location.hash = to;
+});
+
+el.inputPick?.addEventListener('click', e => {
+  const b = e.target?.closest?.('[data-input]');
+  if (!b) return;
+  settings.input = b.dataset.input;
+  settings = saveSettings(settings) ?? settings;
+  paintInputPick();
 });
 
 el.freeText?.addEventListener('input', updateFreeText);
@@ -1711,6 +1833,7 @@ el.btnFreeClear?.addEventListener('click', () => { el.freeText.value = ''; updat
 el.btnFreeStart?.addEventListener('click', () => {
   const text = [...(el.freeText?.value ?? '')].filter(c => !/\s/.test(c)).join('');
   if (!text) return;
+  playInput = settings.input;
   playMade({ id: 'free', courseId: 'free', title: '自由入力', note: '自分で入れた文章', text }, 'free');
 });
 

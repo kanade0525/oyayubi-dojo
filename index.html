@@ -532,12 +532,12 @@
 
         <!-- 結果の主役も「速さ」ではなく「ズレ」。上に大きく出す -->
         <div class="finish__offset">
-          <span class="finish__offsetLabel">平均のズレ</span>
+          <span class="finish__offsetLabel" id="finishOffsetLabel">平均のズレ</span>
           <b id="finishOffset">-8ms</b>
           <small id="finishOffsetWord">親指がわずかに先行</small>
         </div>
 
-        <dl class="finish__grid">
+        <dl class="finish__grid" id="finishGrid">
           <div><dt>ぴったり</dt><dd id="finishPerfect">0</dd></div>
           <div><dt>良い</dt><dd id="finishGood">0</dd></div>
           <div><dt>ずれ</dt><dd id="finishOff">0</dd></div>
@@ -616,6 +616,12 @@
              <b class="material__name">題名</b><span class="material__len">53字</span>
              <span class="material__pop">字数・割合／狙い／タグ</span>
            </button> -->
+    <!-- 実文と自由入力をどちらで打つか。上の三つは親指シフトの面を狙う出題なので対象外 -->
+    <div class="inputsw" id="inputPick" role="radiogroup" aria-label="打ち方">
+      <button type="button" role="radio" data-input="nicola">親指シフト</button>
+      <button type="button" role="radio" data-input="romaji">ローマ字</button>
+    </div>
+
     <section class="texts">
       <h2 class="texts__head">実文</h2>
       <div class="texts__tabs" id="drillTextTabs" role="tablist" aria-label="長さ"></div>
@@ -682,7 +688,7 @@
          daysToPass / passedAt は出せないときに null で返る。null のときは行ごと隠す
          （«予測できません» と書くくらいなら、何も書かないほうが静かで正しい） -->
     <div class="card" id="romajiCard">
-      <h2 class="card__head">ローマ字時代の自分<span class="card__count" id="romajiRatio"></span></h2>
+      <h2 class="card__head">ローマ字と親指シフト<span class="card__count" id="romajiRatio"></span></h2>
 
       <div class="romaji">
         <div class="romaji__row">
@@ -691,54 +697,34 @@
           <b class="romaji__cpm" id="romajiBaseVal">—</b>
         </div>
         <div class="romaji__row romaji__row--now">
-          <span class="romaji__who">いま</span>
+          <span class="romaji__who">親指シフト</span>
           <span class="romaji__bar"><i id="romajiNowBar"></i></span>
           <b class="romaji__cpm" id="romajiNowVal">—</b>
         </div>
       </div>
 
       <p class="romaji__msg" id="romajiMessage"></p>
-
-      <!-- 追い抜く見込み。出せるときだけ app.js が hidden を外す -->
-      <p class="romaji__forecast" id="romajiForecast" hidden></p>
-      <!-- 追い抜いた日。一度きりの節目なので、ここだけ派手にしてよい -->
       <p class="romaji__passed" id="romajiPassed" hidden></p>
 
+      <!-- 同じ文を両方で打ったものだけ並べる。app.js が行を入れ、無ければ hidden のまま -->
+      <table class="vs" id="romajiTexts" hidden>
+        <thead><tr><th scope="col">文</th><th scope="col">ローマ字</th><th scope="col">親指シフト</th></tr></thead>
+        <tbody id="romajiTextRows"></tbody>
+      </table>
     </div>
 
-    <!-- ローマ字時代の速さを入れる欄。もとは «腕試し» の画面にあったが、
-         腕試しを廃したのでここへ移した。使う場所（上の比較）のすぐ下が本来の置き場所でもある。
-
-         上の #romajiCard とは別の札にしてあるのが肝。
-         app.js は記録が無いあいだ #romajiCard を hidden にするので、
-         入力欄を中に入れると «記録が無い人だけが欄に辿り着けない» という
-         いちばん困る形になる。この札は常に出す。
-
-         «ローマ字で測る» ボタン（旧 #btnRomajiMeasure）は置いていない。
-         押しても «上の欄に入れてください» と言うだけのボタンで、
-         欄がすぐ横にある以上、ただの回り道だった。
-
-         app.js への申し送り: paintRomajiState() を記録画面の描画から呼ぶこと。
-         id は移しただけで変えていない（#checkRomajiState / #checkRomajiStatus /
-         #romajiCpmInput / #btnRomajiSave / #btnRomajiClear）。 -->
+    <!-- 記録が無いあいだ #romajiCard は隠れるので、入れる欄は別の札にして常に出す -->
     <div class="card" id="romajiSetCard">
-      <h2 class="card__head">ローマ字時代の速さを入れる<span class="card__count" id="checkRomajiState">未記録</span></h2>
-      <p class="note">
-        移行前の速さを一度だけ入れておくと、上の札に <b>いまが何割か</b> と<b>この伸びならあと何日で追い抜くか</b> が出ます。単位は親指シフト側と同じ CPM（1分あたりの確定かな数）です。
-      </p>
-
+      <h2 class="card__head">ローマ字の速さ<span class="card__count" id="checkRomajiState">未記録</span></h2>
+      <p class="note"><a class="link" href="#/train">鍛える</a>の実文をローマ字で打つと測れます。手で入れることもできます。</p>
       <div class="romaji__set">
-        <label class="field__label" for="romajiCpmInput">ローマ字入力のときの速さ</label>
+        <label class="field__label" for="romajiCpmInput">ローマ字の速さ</label>
         <input type="number" class="input input--num" id="romajiCpmInput" min="1" max="2000" step="1" inputmode="numeric" placeholder="120">
         <span class="romaji__unit">cpm</span>
         <button type="button" class="btn" id="btnRomajiSave">記録する</button>
         <button type="button" class="btn btn--quiet" id="btnRomajiClear">消す</button>
       </div>
-
-      <p class="note" id="checkRomajiStatus">まだ記録がありません。</p>
-      <p class="note">
-        分からなければ、ふだん使っているローマ字入力の練習で測った値をそのまま入れてください。この道場では測れません。親指シフト側は日本語入力（IME）を OFF にして打つので、同じ画面でローマ字を測ると設定が行き来して、どちらの数字も当てにならなくなります。
-      </p>
+      <p class="note" id="checkRomajiStatus"></p>
     </div>
 
     <!-- 平均のズレ。ここが本アプリで一番見てほしい数字 -->

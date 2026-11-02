@@ -17,6 +17,7 @@
 //   URL に demo が無いときは一切走らない。本番の動きはこの分岐の外にある。
 
 import { createNicola } from '../nicola.js';
+import { createRomaji, romajiKeyOf } from '../romaji.js';
 import { loadLayout, thumbSideOf } from '../layout.js';
 import { loadSettings } from '../storage.js';
 import { createSound } from '../sound.js';
@@ -55,6 +56,34 @@ const thumbKeys = {
 const sound = createSound({ volume: settings.soundVolume ?? 0.4, kind: settings.sound ?? 'off' });
 const sfx = createSfx({ on: loadSfxOn() });
 
+// ---------------------------------------------------------------- 入力方式
+//
+// 親指シフトかローマ字か。同じ語・同じコースで遊んで比べられるようにする。
+// 選んだ方式はこの端末に覚える。読めなければ親指シフト
+
+const INPUT_KEY = 'oyayubi-dojo:gameinput:v1';
+const INPUTS = ['nicola', 'romaji'];
+const INPUT_NAME = { nicola: '親指シフト', romaji: 'ローマ字' };
+
+function loadInput() {
+  try {
+    const v = localStorage.getItem(INPUT_KEY);
+    return INPUTS.includes(v) ? v : 'nicola';
+  } catch {
+    return 'nicola';
+  }
+}
+
+function saveInput(v) {
+  try {
+    localStorage.setItem(INPUT_KEY, v);
+  } catch {
+    /* 覚えられなくても、この回はその方式で遊べる */
+  }
+}
+
+let inputMode = loadInput();
+
 const canvas = $('canvas');
 const renderer = createRenderer(canvas);
 renderer.readTheme();
@@ -68,6 +97,9 @@ const el = {
   scRanking: $('scRanking'),
   scConsent: $('scConsent'),
   courseList: $('courseList'),
+  inputPick: $('inputPick'),
+  thumbNote: $('thumbNote'),
+  perfectNote: $('perfectNote'),
   thumbNames: $('thumbNames'),
   soundNote: $('soundNote'),
   btnSfx: $('btnSfx'),
@@ -83,6 +115,7 @@ const el = {
   btnRankingFromResult: $('btnRankingFromResult'),
   rankCourseTabs: $('rankCourseTabs'),
   rankPeriodTabs: $('rankPeriodTabs'),
+  rankInputTabs: $('rankInputTabs'),
   rankStatus: $('rankStatus'),
   rankList: $('rankList'),
   rankMe: $('rankMe'),
@@ -117,24 +150,34 @@ function h(tag, props = {}, ...children) {
 // ランキングに参加しなくても «前の自分» と比べられるようにする。送らない。
 // 保存できない環境でも遊べることが先なので、読めなければ «記録なし»、書けなければ何もしない。
 
-const BEST_KEY = 'oyayubi-dojo:gamebest:v1';
+// 入力方式ごとに持つ: { nicola: { <course>: {...} }, romaji: { ... } }。
+// v1 は方式を分ける前のもので、中身は全部親指シフトの記録
+
+const BEST_KEY = 'oyayubi-dojo:gamebest:v2';
+const BEST_KEY_V1 = 'oyayubi-dojo:gamebest:v1';
 
 function loadBest() {
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
   try {
     const raw = localStorage.getItem(BEST_KEY);
-    const v = raw ? JSON.parse(raw) : {};
-    return v && typeof v === 'object' ? v : {};
+    if (raw) {
+      const v = obj(JSON.parse(raw));
+      return { nicola: obj(v.nicola), romaji: obj(v.romaji) };
+    }
+    const old = localStorage.getItem(BEST_KEY_V1);
+    return { nicola: old ? obj(JSON.parse(old)) : {}, romaji: {} };
   } catch {
-    return {};
+    return { nicola: {}, romaji: {} };
   }
 }
 
 function saveBest(courseId, summary) {
   const all = loadBest();
-  const prev = all[courseId];
+  const mine = all[summary.input];
+  const prev = mine[courseId];
   const isBest = !prev || summary.money > prev.money;
   if (isBest) {
-    all[courseId] = { money: summary.money, kpm: Math.round(summary.kpm), at: Date.now() };
+    mine[courseId] = { money: summary.money, kpm: Math.round(summary.kpm), at: Date.now() };
     try {
       localStorage.setItem(BEST_KEY, JSON.stringify(all));
     } catch {
@@ -164,7 +207,12 @@ function show(name) {
 const KEY_OF = ['1', '2', '3'];
 
 function paintTitle() {
-  const best = loadBest();
+  const best = loadBest()[inputMode];
+  for (const b of el.inputPick.querySelectorAll('[data-input]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.input === inputMode));
+  }
+  el.thumbNote.hidden = inputMode !== 'nicola';
+  el.perfectNote.hidden = inputMode !== 'nicola';
   el.courseList.replaceChildren(
     ...COURSES.map((c, i) => {
       const b = best[c.id];
@@ -208,6 +256,14 @@ function paintSfx() {
   b.textContent = sfx.enabled ? '効果音：オン' : '効果音：オフ';
 }
 
+el.inputPick.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-input]');
+  if (!b || !INPUTS.includes(b.dataset.input)) return;
+  inputMode = b.dataset.input;
+  saveInput(inputMode);
+  paintTitle();
+});
+
 el.btnSfx.addEventListener('click', () => {
   sfx.setEnabled(!sfx.enabled);
   saveSfxOn(sfx.enabled);
@@ -220,6 +276,9 @@ el.btnSfx.addEventListener('click', () => {
 let course = null;
 let game = null;
 let nicola = null;
+let romaji = null;      // ローマ字で遊んでいるときだけ
+let romajiPlate = null; // romaji の打ちかけが、どの皿のものか
+let playInput = 'nicola'; // この回の入力方式。遊んでいる途中でタイトルの選択が変わっても動かない
 let countdownEnd = 0;
 let curT = 0;           // いま処理している入力の時刻。onOutput には時刻が付かないので預けておく
 let imeUntil = 0;
@@ -259,7 +318,10 @@ function startCountdown(c) {
   course = c;
   renderer.setCourse(c);
   game = createGame({ course: c, words: WORDS, rng: Math.random });
-  nicola = buildNicola();
+  playInput = inputMode;
+  nicola = playInput === 'nicola' ? buildNicola() : null;
+  romaji = playInput === 'romaji' ? createRomaji() : null;
+  romajiPlate = null;
   countdownEnd = performance.now() + 3000;
   perfectPlates = new Set();
   lastCount = 0;
@@ -305,8 +367,53 @@ function handle(events, t) {
   }
 }
 
+/** ローマ字の一打。打ち切ったかなの数だけ engine に渡し、合わない字はミスとして渡す */
+function pressRomaji(ch, t) {
+  const head = game.state.plates[0];
+  if (!head) return;
+  if (head.id !== romajiPlate) {
+    romaji.reset();
+    romajiPlate = head.id;
+  }
+  const chars = [...head.word.kana];
+  const res = romaji.press(chars, head.typed, ch);
+  lastResult = null;
+  if (!res.ok) {
+    handle(game.input({ kana: null, charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
+    return;
+  }
+  for (let i = 0; i < res.done; i++) {
+    const want = chars[head.typed + i];
+    handle(game.input({ kana: want, charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
+    if (screen !== 'play') return;
+  }
+}
+
+/** 札の下に出す、打ちかけのローマ字と残りの綴り */
+function romajiView() {
+  if (!romaji || !game) return null;
+  const head = game.state.plates[0];
+  if (!head) return null;
+  if (head.id !== romajiPlate) {
+    romaji.reset();
+    romajiPlate = head.id;
+  }
+  const chars = [...head.word.kana];
+  const typed = romaji.buffer;
+  let rest = '';
+  // 皿の残りを全部綴る。いまの塊は打ちかけの続きから、その先は案内の綴りで
+  const r = createRomaji();
+  for (let pos = head.typed, first = true; pos < chars.length; first = false) {
+    const h = first ? romaji.hint(chars, pos) : r.hint(chars, pos);
+    if (!h) break;
+    rest += h.rest;
+    pos += h.n;
+  }
+  return { typed, rest };
+}
+
 function finishGame(t) {
-  summary = game.summary();
+  summary = { ...game.summary(), input: playInput };
   bestInfo = saveBest(course.id, summary);
   // 前の回の「送りました」やエラーを持ち越さない。持ち越すと次の結果が送れなくなる
   submitState = { busy: false, msg: '', kind: '' };
@@ -330,6 +437,7 @@ function abortToTitle() {
   nicola?.reset();
   game = null;
   nicola = null;
+  romaji = null;
   paintTitle();
   show('title');
 }
@@ -348,7 +456,7 @@ function paintResult() {
   const s = summary;
   const gain = s.balance >= 0;
   el.scResult.classList.toggle('is-gain', gain);
-  el.resultCourse.textContent = `${course.name}コース（${yen(course.price)}円・${course.timeMs / 1000}秒）`;
+  el.resultCourse.textContent = `${course.name}コース（${yen(course.price)}円・${course.timeMs / 1000}秒）・${INPUT_NAME[s.input]}`;
   el.resultMoney.textContent = yen(s.money);
 
   const avg = s.plates ? s.money / s.plates : 0;
@@ -366,14 +474,16 @@ function paintResult() {
   const pct = (x) => `${(x * 100).toFixed(1)}`;
   const rate = s.shifted ? s.perfect / s.shifted : 0;
   const cell = (k, v, unit, cls) => h('div', cls ? { class: cls } : {}, h('dt', {}, k), h('dd', {}, v, unit ? h('small', {}, unit) : null));
-  el.resultTally.replaceChildren(
+  el.resultTally.replaceChildren(...[
     cell('取った皿', String(s.plates), '枚'),
     cell('正確さ', pct(s.accuracy), '%'),
     cell('毎分', String(Math.round(s.kpm)), 'かな'),
-    cell('ぴったり率', s.shifted ? pct(rate) : '—', s.shifted ? `% (${s.perfect}/${s.shifted})` : 'シフト打鍵なし', 'is-perfect'),
+    s.input === 'nicola'
+      ? cell('ぴったり率', s.shifted ? pct(rate) : '—', s.shifted ? `% (${s.perfect}/${s.shifted})` : 'シフト打鍵なし', 'is-perfect')
+      : null,
     cell('最大コンボ', String(s.maxCombo), ''),
     cell('ミス', String(s.misses), `${s.misfires ? `うち不発 ${s.misfires}・` : ''}取り逃し ${s.lost}皿`),
-  );
+  ].filter(Boolean));
 
   paintSubmit();
 }
@@ -441,6 +551,7 @@ async function sendSummary() {
 
 let rankCourse = COURSES[0].id;
 let rankPeriod = 'all';
+let rankInput = 'all';
 let rankSeq = 0;
 
 function openRanking(from) {
@@ -467,6 +578,9 @@ function paintRankingTabs() {
   for (const b of el.rankPeriodTabs.querySelectorAll('[data-period]')) {
     b.setAttribute('aria-selected', String(b.dataset.period === rankPeriod));
   }
+  for (const b of el.rankInputTabs.querySelectorAll('[data-input]')) {
+    b.setAttribute('aria-selected', String(b.dataset.input === rankInput));
+  }
   const me = currentPlayer();
   const on = rankingEnabled();
   el.btnRegister.hidden = !on || !!me;
@@ -489,7 +603,7 @@ async function loadRanking() {
   el.rankList.replaceChildren();
   setRankStatus('読み込んでいます…');
   try {
-    const rows = await fetchRanking({ course: rankCourse, period: rankPeriod });
+    const rows = await fetchRanking({ course: rankCourse, period: rankPeriod, input: rankInput });
     if (seq !== rankSeq) return; // タブを切り替えたあとに古い応答が来た
     const me = currentPlayer();
     if (!rows.length) {
@@ -497,27 +611,43 @@ async function loadRanking() {
       return;
     }
     setRankStatus('');
-    el.rankList.replaceChildren(
-      h('li', { class: 'is-head', 'aria-hidden': 'true' },
-        h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'm' }, '金額'),
-        h('span', { class: 'k' }, '毎分'), h('span', { class: 'a' }, '正確さ')),
-      ...rows.map((r) => h('li', { class: me && r.nickname === me.nickname ? 'is-me' : '' },
-        h('span', { class: 'r' }, String(r.rank)),
-        h('span', { class: 'n' }, r.nickname),
-        h('span', { class: 'm' }, `${yen(r.money)}円`),
-        h('span', { class: 'k' }, `${Math.round(r.kpm)}`),
-        h('span', { class: 'a' }, `${(r.accuracy * 100).toFixed(0)}%`))),
-    );
+    paintBoard(rows, me);
   } catch (err) {
     if (seq !== rankSeq) return;
     setRankStatus(`ランキングを読み込めませんでした：${err.message}`, 'error');
   }
 }
 
+function paintBoard(rows, me) {
+  for (const r of rows) {
+    if (!INPUTS.includes(r.input)) throw new Error(`順位表の入力方式が違う: ${r.input}`);
+  }
+  el.rankList.replaceChildren(
+    h('li', { class: 'is-head', 'aria-hidden': 'true' },
+      h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, '金額'),
+      h('span', { class: 'k' }, '毎分'), h('span', { class: 'a' }, '正確さ')),
+    ...rows.map((r) => h('li', { class: me && r.nickname === me.nickname ? 'is-me' : '' },
+      h('span', { class: 'r' }, String(r.rank)),
+      h('span', { class: 'n' }, r.nickname),
+      h('span', { class: 'i' }, INPUT_NAME[r.input]),
+      h('span', { class: 'm' }, `${yen(r.money)}円`),
+      h('span', { class: 'k' }, `${Math.round(r.kpm)}`),
+      h('span', { class: 'a' }, `${(r.accuracy * 100).toFixed(0)}%`))),
+  );
+}
+
 el.rankPeriodTabs.addEventListener('click', (e) => {
   const b = e.target.closest('[data-period]');
   if (!b) return;
   rankPeriod = b.dataset.period;
+  paintRankingTabs();
+  loadRanking();
+});
+
+el.rankInputTabs.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-input]');
+  if (!b) return;
+  rankInput = b.dataset.input;
   paintRankingTabs();
   loadRanking();
 });
@@ -660,8 +790,16 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { e.preventDefault(); abortToTitle(); return; }
 
   e.preventDefault();
-  if (screen !== 'play' || !nicola) return;   // カウントダウン中の打鍵は捨てる
+  if (screen !== 'play') return;   // カウントダウン中の打鍵は捨てる
   curT = e.timeStamp;
+  if (romaji) {
+    const ch = romajiKeyOf(e.key);
+    if (ch == null) return;
+    if (imeUntil && e.timeStamp > imeUntil) el.imeWarn.hidden = true;
+    pressRomaji(ch, e.timeStamp);
+    return;
+  }
+  if (!nicola) return;
   if (thumbSideOf(thumbKeys, e.code) == null && imeUntil && e.timeStamp > imeUntil) el.imeWarn.hidden = true;
   nicola.keyDown(e.code, e.timeStamp);
 });
@@ -701,7 +839,7 @@ function frame(t) {
 
   if (screen === 'play') {
     curT = t;
-    nicola.tick(t);                       // タイムアウトはここでだけ起きる
+    nicola?.tick(t);                      // タイムアウトはここでだけ起きる
     if (screen === 'play') handle(game.tick(t), t);
     // 残り 10 秒からは一秒ごとに刻む。延長で秒が戻ったら、また 10 秒を切ったときから刻む
     const sec = Math.ceil(game.state.remainingMs / 1000);
@@ -720,6 +858,7 @@ function frame(t) {
       now: t,
       countdown: (countdownEnd - t) / 1000,
       thumbs: nicola?.thumbHeld,
+      romaji: romajiView(),
       totalMs: course.timeMs,
       laneMs: course.laneMs,
     });
@@ -826,12 +965,24 @@ function runDemo(kind) {
     game.start(0);
     simulate(game, 0, 1e9, { step: 300, draw: false });
     while (game.state.phase === 'playing') game.tick(game.state.remainingMs + 1e6);
-    summary = game.summary();
+    const input = params.get('input') ?? 'nicola';
+    if (!INPUTS.includes(input)) throw new Error(`知らない入力方式: ${input}`);
+    summary = { ...game.summary(), input };
     bestInfo = { isBest: true, prev: { money: Math.round(summary.money * 0.8) } };
     paintResult();
     show('result');
   } else if (kind === 'ranking') {
     openRanking('title');
+  } else if (kind === 'board') {
+    // 順位表の見た目だけを見る。サーバーにはつながない
+    show('ranking');
+    paintRankingTabs();
+    setRankStatus('');
+    const names = ['すしざんまい', 'おやゆび', 'ローマ字派', 'かっぱ巻き', 'nicola_fan', 'たまご'];
+    paintBoard(names.map((n, i) => ({
+      rank: i + 1, nickname: n, input: i % 2 ? 'romaji' : 'nicola',
+      money: 9800 - i * 1300, kpm: 210 - i * 14, accuracy: 0.97 - i * 0.02, at: '2026-11-02T00:00:00Z',
+    })), null);
   } else if (kind === 'consent') {
     openConsent('ranking');
     el.nickname.value = 'おやゆび';

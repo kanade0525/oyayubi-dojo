@@ -389,7 +389,7 @@ export function createRenderer(canvas) {
 
   // ---------------------------------------------------------------- 注文札（いま打つ単語）
 
-  function drawOrder(g, state, now) {
+  function drawOrder(g, state, now, romaji) {
     const head = state.plates[0];
     if (!head) return;
     const chars = [...head.word.kana];
@@ -457,7 +457,22 @@ export function createRenderer(canvas) {
 
     // 詰まったときの打ち方。二度続けて外したら出す
     const want = chars[head.typed];
-    if (state.missStreak >= 2 && want) {
+    if (romaji) {
+      // ローマ字は綴りを常に出す。打ちかけの分は色を変える
+      const size = Math.round(19 * g.u);
+      ctx.font = `600 ${size}px ${FONT}`;
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      const tw = ctx.measureText(romaji.typed).width;
+      const rw = ctx.measureText(romaji.rest).width;
+      let rx = cx - (tw + rw) / 2;
+      const ry = py + panelH - Math.round(12 * g.u);
+      ctx.fillStyle = missing ? rgba(C.misfire) : rgba(C.tone);
+      ctx.fillText(romaji.typed, rx, ry);
+      rx += tw;
+      ctx.fillStyle = rgba(C['fg-dim']);
+      ctx.fillText(romaji.rest, rx, ry);
+    } else if (state.missStreak >= 2 && want) {
       const how = keyFor(want);
       if (how) {
         const thumb = how.thumb === 'left' ? '左親指 ＋ ' : how.thumb === 'right' ? '右親指 ＋ ' : '親指なし・単独で ';
@@ -485,7 +500,7 @@ export function createRenderer(canvas) {
     ctx.font = `600 ${Math.round(12.5 * g.u)}px ${FONT}`;
     const items = [
       ['皿', `${state.cleared}枚`, C.fg],
-      ['ぴったり', `${state.perfect}`, C.perfect],
+      ...(thumbs === null ? [] : [['ぴったり', `${state.perfect}`, C.perfect]]),
       ['ミス', `${state.misses}`, C.misfire],
       ['取り逃し', `${state.lost}`, C['fg-mid']],
     ];
@@ -644,6 +659,7 @@ export function createRenderer(canvas) {
   /**
    * @param {{ mode: 'attract'|'countdown'|'play'|'over', state: object, now: number,
    *           countdown?: number, thumbs?: {left:boolean,right:boolean}, totalMs?: number,
+   *           romaji?: {typed:string, rest:string} | null,
    *           laneMs?: number }} view
    */
   function draw(view) {
@@ -666,9 +682,10 @@ export function createRenderer(canvas) {
     drawPlates(g, state, now, { attract });
 
     if (!attract) {
-      drawOrder(g, state, now);
+      drawOrder(g, state, now, view.romaji ?? null);
       drawHud(g, state, now, view.totalMs ?? course?.timeMs ?? 60000);
-      drawFoot(g, state, view.thumbs);
+      // ローマ字には親指もぴったりも無いので、足元の «ぴったり» と親指ランプを出さない
+      drawFoot(g, state, view.romaji ? null : view.thumbs);
     }
     drawFx(g, now);
     if (mode === 'countdown') drawCountdown(g, view.countdown ?? 0, now);

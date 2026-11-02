@@ -4,14 +4,21 @@
      アプリ全体の見た目。CSS はこの 1 枚しかない。フレームワークも CDN も使わない。
 
    なぜこの方針か
-     - 主色 --tone を 1 つ決めれば、面・境界・文字の濃さが color-mix で全部導かれる。
-       配色を増やすときに書き換えるのは :root[data-tone="…"] の数行だけで済む。
+     - 配色はライトとダークの二つ（と、OS の設定に合わせる «システム»）。
+       data-tone には 'light' か 'dark' が入る（«システム» は <head> の先当てと app.js が解いてから入れる）。
+       以前は暗い地の配色 4 種（藍・抹茶・藤・墨）を選ばせていたが、場所ごとの色（--area）と
+       主色がぶつかって «ヘッダーの色とテーマカラーが矛盾する» ので、明暗だけを選ばせる形にした。
+       色味はそれぞれの場所の色（覚える＝山吹・鍛える＝朱・ゲーム＝浅葱）が受け持つ。
+     - 主色 --tone は門と共通の部品に使う中立の青。面・境界は color-mix で --tone と --bg から導く。
      - 判定の色（ぴったり/良い/ずれ/不発）だけは --tone から導かない。
-       あれは信号機と同じ意味を持つ色で、配色を替えたからといって意味が変わると困る。
-     - 「同側シフトか交差シフトか」の 2 色も配色ごとに決め打ちする。
+       あれは信号機と同じ意味を持つ色で、明暗を替えたからといって意味が変わると困る。
+       ライトでは同じ色相のまま、明るい地で読める濃さに落としてある。
+     - 「同側シフトか交差シフトか」の 2 色も明暗ごとに決め打ちする。
        この 2 色は NICOLA の規則そのものを表しているので、慎重に離す。
      - 色だけに意味を持たせない。同側/交差は面の枠線の形でも、必ず添える言葉でも分かる。
        判定は針の位置でも分かる。色が見えない人にも同じ情報が届くようにしてある。
+     - 字として乗る色（--fg〜--misfire と --tone）は、明暗どちらでも素地と札の上で 7:1 以上。
+       tools/check.mjs が描画して実測する。
 
    演出の方針
      平時は静か、節目だけ派手。打鍵中に動くのは針と親指ランプだけ。
@@ -20,7 +27,9 @@
 
 /* ---------------------------------------------------------------- 配色 */
 
+/* ダーク（既定の値）。<head> の先当てが走らなかったときもこれで出る */
 :root {
+  color-scheme: dark;
   --tone: #7aa2f7;
   --tone-ink: #05070c; /* 主色を地にしたときに乗せる文字 */
   --bg: #0b0e14;
@@ -32,7 +41,7 @@
   --cross: #f4a3c0;
   --same: var(--tone);
 
-  /* --- ここから下は配色を替えても動かさない --- */
+  /* --- 判定の色と文字の濃さ。ライトでは下の :root[data-tone="light"] で同じ意味の濃い色に替える --- */
 
   /* 判定の色。信号機と同じで、意味が固定されていないと使いものにならない */
   --perfect: #7ee787;
@@ -72,30 +81,36 @@
   --r-l: 8px;
 }
 
-:root[data-tone="matcha"] {
-  --tone: #6fdc8c;
-  --tone-ink: #04120a;
-  --bg: #080c0a;
-  --cross: #ffc46b;
+/* ライト。明るい地では、ダークの色をそのまま置くと字が沈む（明るい青や桃は白地で 2〜3:1）。
+   同じ色相のまま濃さを落とし、素地と札の上でどれも 7:1 以上にしてある（tools/check.mjs が実測する）。
+   札（--panel）は素地より明るい白に近い面にして «浮いた面» に見せる。ダークでも札は素地より明るいので向きは同じ */
+:root[data-tone="light"] {
+  color-scheme: light;
+  --tone: #1f4a9a;
+  --tone-ink: #ffffff;
+  --bg: #f4f5f8;
+  --cross: #8c1f55;
+
+  --perfect: #125a27;
+  --good: #06536d;
+  --off: #7c4300;
+  --misfire: #9a1f19;
+
+  --fg: #171c26;
+  --fg-mid: #2f3a4a;
+  --fg-dim: #485262;
+
+  --panel: color-mix(in srgb, var(--tone) 2%, #fff);
+  --panel-2: color-mix(in srgb, var(--tone) 2%, color-mix(in srgb, #fff 50%, var(--bg)));
+  /* ダークの «凹み» は素地より暗いが、ライトで灰に沈めると入力欄が «使えない欄» に見える。
+     明るい地では書ける所・計器の溝は白で抜く（縁は --line が付ける） */
+  --sunken: #ffffff;
+  --line: color-mix(in srgb, var(--tone) 22%, var(--bg));
+  --line-soft: color-mix(in srgb, var(--tone) 11%, var(--bg));
+  --glow: color-mix(in srgb, var(--tone) 25%, transparent);
 }
 
-:root[data-tone="plum"] {
-  --tone: #c9a2f7;
-  --tone-ink: #0a0511;
-  --bg: #110b17;
-  --cross: #79d5e0;
-}
-
-/* 墨。色覚に頼らず、明度と形だけで読ませたい人向け */
-:root[data-tone="sumi"] {
-  --tone: #dbe1ea;
-  --tone-ink: #0a0b0d;
-  --bg: #0c0d0f;
-  --cross: #9db4d0;
-}
-
-/* 主色から導く面と線。ここを 1 か所にまとめてあるので、
-   配色を足すときに触るのは上の数行だけで済む */
+/* 主色から導く面と線（ダーク）。ライトは上の :root[data-tone="light"] が詳細度で勝つ */
 :root {
   --panel: color-mix(in srgb, var(--tone) 7%, var(--bg));
   --panel-2: color-mix(in srgb, var(--tone) 3%, var(--bg));
@@ -336,11 +351,11 @@ kbd {
   border-radius: 50%;
 }
 
-/* 見本の色は CSS 側で持つ。JS に色を書くと必ず食い違う */
-.tones__opt[data-tone-set="midnight"] i { background: #7aa2f7; }
-.tones__opt[data-tone-set="matcha"] i { background: #6fdc8c; }
-.tones__opt[data-tone-set="plum"] i { background: #c9a2f7; }
-.tones__opt[data-tone-set="sumi"] i { background: #dbe1ea; }
+/* 見本は地の色の丸。«システム» は左右に半分ずつ。見本の色は CSS 側で持つ。JS に色を書くと必ず食い違う */
+.tones__opt i { box-shadow: 0 0 0 1px var(--line); }
+.tones__opt[data-tone-set="light"] i { background: #f4f5f8; }
+.tones__opt[data-tone-set="dark"] i { background: #0b0e14; }
+.tones__opt[data-tone-set="system"] i { background: linear-gradient(90deg, #f4f5f8 50%, #0b0e14 50%); }
 
 .tones__opt:hover {
   color: var(--fg);
@@ -493,7 +508,7 @@ kbd {
 }
 
 .btn--danger:hover {
-  color: #ffd9d6;
+  color: color-mix(in srgb, var(--misfire) 35%, var(--fg));
   background: color-mix(in srgb, var(--misfire) 18%, var(--bg));
   border-color: var(--misfire);
 }
@@ -872,15 +887,23 @@ kbd {
 /* ---------------------------------------------------------------- 場所（入門・道場・回転ずし・門）
    覚える・鍛える・腕試しは来る人がまるで違うので、«別のサイト» に見せる。
    変えるのは看板（銘）・ヘッダーの帯・見出しのアクセント・ナビの中身だけ。
-   本文の色は配色（data-tone）のまま。場所の色は字の色には使わない（大きな看板と帯と札の縁だけ）。
-   色は配色 4 種のどれとも同じ色相にならないよう、山吹・朱・浅葱から取った */
-body { --area: var(--tone); }
+   本文の色は配色（data-tone）のまま。場所の色は看板・帯・札の縁・小見出しに使う。
+   色は山吹・朱・浅葱。門は主色の青（--tone）。
+   ライトでは同じ色相のまま濃くする。明るい山吹や浅葱は白地で 1.5〜2:1 しか出ず、看板の字が読めない。
+   ライトの値は素地 #f4f5f8 の上で 6〜7:1、主ボタンの白い字とも 6.6:1 以上（--area-ink）。 */
+body { --area: var(--tone); --area-ink: var(--tone-ink); }
 body[data-area="learn"],
-.door[data-area="learn"] { --area: #f0c35a; }
+.door[data-area="learn"] { --area: #f0c35a; --area-ink: #14110a; }
 body[data-area="train"],
-.door[data-area="train"] { --area: #ff8a70; }
+.door[data-area="train"] { --area: #ff8a70; --area-ink: #14110a; }
 body[data-area="game"],
-.door[data-area="game"] { --area: #5fd0d0; }
+.door[data-area="game"] { --area: #5fd0d0; --area-ink: #14110a; }
+:root[data-tone="light"] body[data-area="learn"],
+:root[data-tone="light"] .door[data-area="learn"] { --area: #7a5600; --area-ink: #fff; }
+:root[data-tone="light"] body[data-area="train"],
+:root[data-tone="light"] .door[data-area="train"] { --area: #9a2e16; --area-ink: #fff; }
+:root[data-tone="light"] body[data-area="game"],
+:root[data-tone="light"] .door[data-area="game"] { --area: #0b6266; --area-ink: #fff; }
 
 /* ヘッダーの上端に場所の色の帯。看板（銘）もその色 */
 .nav {
@@ -966,7 +989,7 @@ body[data-area="learn"] .btn--primary,
 body[data-area="train"] .btn--primary {
   background: var(--area);
   border-color: var(--area);
-  color: #14110a;
+  color: var(--area-ink);
 }
 
 .area-head__acts {
@@ -1701,11 +1724,14 @@ body[data-area="train"] .btn--primary {
 }
 
 /* 二行先。ここだけ一段落とすのは «遠い» ことを濃さで出すため。
-   78% は 4.5:1 を割らない上限（midnight で 5.40:1、いちばん明るい地の plum でも 5.3:1）。
+   78% は 4.5:1 を割らない上限（ダークで 5.40:1）。ライトは 78% だと 4.2:1 に落ちるので 84%（4.8:1）。
    大きさは次の行と同じにしてある ── 三段の大きさを全部違えると、
    «小さいほど遠い» の規則を読み取る手間のほうが先読みの利より大きくなる */
 .script__next--far {
   color: color-mix(in srgb, var(--fg-dim) 78%, var(--bg));
+}
+:root[data-tone="light"] .script__next--far {
+  color: color-mix(in srgb, var(--fg-dim) 84%, var(--bg));
 }
 
 /* 中身が無ければ段ごと消す。«覚える» の一行課題では二つとも空になるので、

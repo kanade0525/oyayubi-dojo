@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>親指シフトマスター ～0から覚えてトレーニングまで～</title>
 <meta name="description" content="親指シフト（NICOLA配列）の練習サイト。文字キーと親指キーを押した時刻の差を1打ごとに測り、親指が早いか遅いかを出します。">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="light dark">
 <!-- 外部への発信は一切しない。フォントは OS の和文書体を名前で当てるだけ（app.css の冒頭）、
      アイコンは自前の SVG / PNG。
      配列表も fetch せず JS モジュールとして import しているので connect-src は
@@ -19,17 +19,24 @@
 <link rel="stylesheet" href="assets/css/viz.css">
 <link rel="stylesheet" href="assets/css/charts.css">
 <script>
-  // module は遅れて走る。ここで配色を当てないと、一瞬だけ既定色が見えてちらつく。
+  // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
   // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
+  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
   (function () {
-    var ok = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
-    var t = 'midnight';
+    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
+    var t = 'system';
     try {
       var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
-      if (ok[s.tone]) t = s.tone;
+      if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
+      else if (old[s.tone]) t = 'dark';
     } catch (e) {
-      /* 読めなくても既定色で動く。ここで転ぶと画面が出ない */
+      /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
+    }
+    if (t === 'system') {
+      var dark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+      t = dark ? 'dark' : 'light';
     }
     document.documentElement.dataset.tone = t;
   })();
@@ -180,14 +187,15 @@
       </label>
     </div>
 
-    <!-- 配色。以前は上の帯に常に出していたが、毎回触るものではないのでここへ移した -->
+    <!-- 配色。以前は上の帯に常に出していたが、毎回触るものではないのでここへ移した。
+         明暗だけを選ぶ（2026-11-02）。色味は場所ごとの色（覚える・鍛える・ゲーム）が受け持つ。
+         値は storage.js の TONES と同じ。押し下げは app.js の applyTone が付け直す -->
     <div class="card" id="toneCard">
       <h2 class="card__head">配色</h2>
       <div class="tones" role="group" aria-label="配色">
-        <button type="button" class="tones__opt" data-tone-set="midnight" aria-pressed="true"><i></i><span>藍</span></button>
-        <button type="button" class="tones__opt" data-tone-set="matcha" aria-pressed="false"><i></i><span>抹茶</span></button>
-        <button type="button" class="tones__opt" data-tone-set="plum" aria-pressed="false"><i></i><span>藤</span></button>
-        <button type="button" class="tones__opt" data-tone-set="sumi" aria-pressed="false"><i></i><span>墨</span></button>
+        <button type="button" class="tones__opt" data-tone-set="light" aria-pressed="false"><i></i><span>ライト</span></button>
+        <button type="button" class="tones__opt" data-tone-set="dark" aria-pressed="false"><i></i><span>ダーク</span></button>
+        <button type="button" class="tones__opt" data-tone-set="system" aria-pressed="true"><i></i><span>システム</span></button>
       </div>
     </div>
 

@@ -618,7 +618,9 @@ export const DEFAULT_SETTINGS = {
   // 配色。鍵の名前は index.html の <head> のインラインスクリプトと必ず揃える。
   // あちらは module より先に走って配色を先当てする（ちらつき防止）ため、
   // 同じ鍵を直接読んでいる。ここを theme などに変えると、色が保存されなくなる。
-  tone: 'midnight',
+  // 'system'（OS の明暗に合わせる）| 'light' | 'dark'。
+  // 以前の配色 4 種（midnight / matcha / plum / sumi）はどれも暗い地だったので 'dark' として読む
+  tone: 'system',
   sound: 'off', // 打鍵音
   soundVolume: 0.4,
   showKeyboard: true, // 3面キーボード図を出すか
@@ -629,6 +631,21 @@ export const DEFAULT_SETTINGS = {
   // 既定 on（これまでの挙動）。off にすると打てるまでそこで止まる
   autoSkip: true,
 };
+
+/** 配色の値。index.html / game.html の <head> の先当てスクリプトと同じ並び */
+export const TONES = ['system', 'light', 'dark'];
+const OLD_DARK_TONES = ['midnight', 'matcha', 'plum', 'sumi'];
+
+/**
+ * 設定の値（'system' | 'light' | 'dark'）を、画面に当てる明暗（data-tone）に解く。
+ * osDark は OS が暗い側か（matchMedia('(prefers-color-scheme: dark)').matches）。
+ * DOM を読まないよう、OS の明暗は呼ぶ側が渡す
+ */
+export function resolveTone(tone, osDark) {
+  if (tone === 'light' || tone === 'dark') return tone;
+  if (tone === 'system') return osDark ? 'dark' : 'light';
+  throw new Error(`配色の値が不正: ${tone}`);
+}
 
 /** 閾値の範囲。NICOLA の規格と実装の都合から、この外は受け付けない */
 const LIMITS = {
@@ -668,7 +685,7 @@ function normalizeSettings(raw) {
   s.charTimeout = clamp(s.charTimeout, LIMITS.charTimeout, d.charTimeout);
   s.thumbTimeout = clamp(s.thumbTimeout, LIMITS.thumbTimeout, d.thumbTimeout);
   s.soundVolume = clamp(s.soundVolume, LIMITS.soundVolume, d.soundVolume);
-  s.tone = typeof s.tone === 'string' ? s.tone : d.tone;
+  s.tone = TONES.includes(s.tone) ? s.tone : OLD_DARK_TONES.includes(s.tone) ? 'dark' : d.tone;
   s.sound = typeof s.sound === 'string' ? s.sound : d.sound;
   s.showKeyboard = s.showKeyboard !== false;
   s.showMeter = s.showMeter !== false;

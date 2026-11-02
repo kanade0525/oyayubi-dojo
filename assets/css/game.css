@@ -5,8 +5,8 @@
      app.css のものを、ズレの分布は charts.css のものをそのまま使い、ここにはゲームにしか無い部品だけを書く。
 
    なぜこの方針か
-     - 色は app.css の data-tone のトークンと、場所の色（--area）から取る。ゲームだけ別の色を持つと、
-       配色を替えたときにゲームが浮く
+     - 色は app.css の data-tone（light / dark）のトークンと、場所の色（--area）から取る。
+       ゲームだけ別の色を持つと、明暗を替えたときにゲームが浮く
      - 回転ずしの頃は canvas のレーンの上に札を重ねていた。いまは入口・鍛えると同じく、
        札を重ねないふつうのページにして、数字（残り・点・ズレ）を主役にする
      - 練習画面は «静か»、ゲームは «派手»。派手にするのは打つ語・点・ズレの分布だけで、
@@ -666,6 +666,10 @@
 .g-board li:nth-child(2) .r { color: #d4a83c; }
 .g-board li:nth-child(3) .r { color: #c9ccd3; }
 .g-board li:nth-child(4) .r { color: #c98a5a; }
+/* ライトの地では明るい金・銀・銅は沈む（銀は 1.5:1）。同じ金属の暗い色にする */
+:root[data-tone="light"] .g-board li:nth-child(2) .r { color: #7a5600; }
+:root[data-tone="light"] .g-board li:nth-child(3) .r { color: #555d6b; }
+:root[data-tone="light"] .g-board li:nth-child(4) .r { color: #8a4a1c; }
 
 .g-board .n {
   overflow: hidden;

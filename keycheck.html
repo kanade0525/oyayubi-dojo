@@ -21,9 +21,36 @@
   押したキーの生のイベントをそのまま見せること。判定も変換も一切しない。
 
   依存は assets/css/keycheck.css だけ。見た目を CSP（style-src 'self'）に通すため外に出した。
+  明暗は本体の設定（localStorage の .tone）を <head> の先当てで読む。本体を開いたことが無ければ OS に合わせる。
   ファイルを直接開いても動く。
 -->
+<meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="assets/css/keycheck.css">
+<!-- 配色の先当て。index.html / game.html と一字も違わない中身にしてある（_headers のハッシュを増やさないため）。
+     本体で選んだ明暗（ライト・ダーク・システム）をこのページにも当てる -->
+<script>
+  // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
+  // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
+  // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
+  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
+  (function () {
+    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
+    var t = 'system';
+    try {
+      var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
+      if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
+      else if (old[s.tone]) t = 'dark';
+    } catch (e) {
+      /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
+    }
+    if (t === 'system') {
+      var dark = !window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches;
+      t = dark ? 'dark' : 'light';
+    }
+    document.documentElement.dataset.tone = t;
+  })();
+</script>
 </head>
 <body>
 <div class="wrap">

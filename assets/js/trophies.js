@@ -956,7 +956,7 @@ export function trophiesByCategory() {
 // 買うのではなく達成で開く。開く理由が自分の稽古と結びついている方が、
 // 通貨の残高が増えるより手応えがある。
 //
-// kind: 'course'（課題コース）| 'theme'（配色）| 'sound'（打鍵音）
+// kind: 'course'（課題コース）| 'sound'（打鍵音）。'theme'（配色）は既定で全部開いている
 // target: 他担当が参照する ID。course の target は lessons 側のコース ID と一致させること。
 
 export const UNLOCKS = [
@@ -1019,32 +1019,8 @@ export const UNLOCKS = [
   },
 
   // ---- 配色
-  {
-    id: 'u-theme-matcha',
-    kind: 'theme',
-    target: 'matcha',
-    name: '抹茶',
-    hint: '3日つづけて打つ',
-    check: (s) => s.streak >= 3 || s.bestStreak >= 3,
-  },
-  {
-    id: 'u-theme-plum',
-    kind: 'theme',
-    target: 'plum',
-    name: '藤',
-    hint: '7日つづけて打つ',
-    check: (s) => s.streak >= 7 || s.bestStreak >= 7,
-  },
-  {
-    id: 'u-theme-sumi',
-    kind: 'theme',
-    target: 'sumi',
-    name: '墨',
-    hint: '通算一万打鍵',
-    check: (s) => s.keystrokes >= 10000,
-  },
-  // 配色は 藍(midnight, 既定) / 抹茶 / 藤 / 墨 の4つ。既定を除く3つが開く。
-  // かつて存在しない配色（松葉など）を開こうとしていたが、画面側には無いので消した。
+  // 以前は暗い地の配色 4 種のうち 3 つを達成で開いていた。配色を明暗（ライト・ダーク・システム）の
+  // 三つにしたので、どれも最初から選べる。開くものは無い（DEFAULT_UNLOCKED.theme に三つとも入れてある）。
 
   // ---- 打鍵音
   {
@@ -1076,7 +1052,7 @@ export const UNLOCKS = [
 /** 最初から使えるもの。アンロックの一覧に「既定」として並べるため */
 export const DEFAULT_UNLOCKED = {
   course: ['basic'],
-  theme: ['midnight'],
+  theme: ['system', 'light', 'dark'],
   sound: ['off'],
 };
 

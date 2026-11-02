@@ -1,4 +1,4 @@
-# 検品ラインのランキング API。HTTP API → Lambda → DynamoDB（1 テーブル）。
+# タイピングゲームのランキング API。HTTP API → Lambda → DynamoDB（1 テーブル）。
 #
 # 方針
 # ・依存パッケージは足さない。@aws-sdk は nodejs22.x の実行環境に同梱のものを使う
@@ -13,7 +13,7 @@
 #   名前を変えると表ごと作り直しになり、一回のデプロイで済む。古い表は Retain なので残る
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: oyayubi-dojo 検品ラインランキング
+Description: oyayubi-dojo タイピングゲーム ランキング
 
 Parameters:
   TableName:

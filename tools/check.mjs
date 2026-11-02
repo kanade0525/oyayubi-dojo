@@ -67,10 +67,8 @@ for (const [path, who] of owners) {
 
 // 逆方向。ディスクにあって表に無いものは、誰の持ち物か分からない。
 //
-// 中は再帰で歩き、ファイル単位で照合する。以前は一段しか見ていなかったので、
-// assets/js/game のようなサブディレクトリが「ディレクトリ名そのもの」で照合され、
-// 中のファイルは全部表に載っているのに「担当表に無い」と落ちていた。
-// 逆に、ディレクトリ名で照合すると中に紛れ込んだ持ち主不明のファイルを見逃す。
+// 中は再帰で歩き、ファイル単位で照合する。ディレクトリ名で照合すると、assets/js/game の中の
+// ファイルが全部表に載っていても「担当表に無い」と落ち、逆に中に紛れ込んだ持ち主不明のファイルを見逃す。
 // server/ は `server/` の丸預けで覆われる（下の covered の末尾スラッシュの扱い）。
 const LISTED_DIRS = ['assets/js', 'assets/css', 'assets/data', 'server'];
 const strayCandidates = [];
@@ -350,7 +348,7 @@ function normalizeLayout(json) {
 // ---- 本番のデータ
 
 // 配列表は JSON ではなく JS モジュール。fetch を使わずに import で読めるので、
-// CSP の connect-src を 'none' のまま保てる（理由は assets/data/nicola.js の冒頭に書いてある）。
+// CSP の connect-src に 'self' を足さずに済む（理由は assets/data/nicola.js の冒頭に書いてある）。
 // こちらは JSON.parse ではなく import で受ける。
 const LAYOUT_SRC = 'assets/data/nicola.js';
 const LAYOUT_API = 'assets/js/layout.js';
@@ -476,7 +474,7 @@ function styleFindings(rel, src) {
   // innerHTML を使わない（CSP 整合と XSS 配慮）
   if (/\.innerHTML\s*=/.test(src)) out.push('innerHTML への代入がある。textContent / replaceChildren を使う');
 
-  // CDN を引かない。connect-src 'none' の下では黙って死ぬ
+  // CDN を引かない。CSP の下では黙って死ぬ
   const EXT = String.raw`(?:https?:)?\/\/([^"'\s/>]+)`;
   if (isHtml) {
     // タグごとに見る。<a> の href だけが遷移で、残りは全部「読み込み」
@@ -632,8 +630,8 @@ for (const p of sources.filter((f) => f.endsWith('.js'))) {
 
 // ---------------------------------------------------------------- 4.6 ゲームの設定値と CSP
 //
-// ランキングは外への通信なので、connect-src はもう 'none' 固定ではない。
-// ただし緩めてよいのは「config.js の RANKING_API_URL のオリジンちょうど一つ」だけ。
+// ランキングは外への通信なので、connect-src は 'none' ではなくそのオリジンを許す。
+// ただし許してよいのは「config.js の RANKING_API_URL のオリジンちょうど一つ」だけ。
 // 二つの値が別のファイルにあるので、片方だけ変えるのがいちばん起きやすい。
 //   - URL だけ入れて CSP を忘れる → 本番でランキングが黙って死ぬ（CSP 違反は画面に出ない）
 //   - CSP だけ緩めて URL が空      → 外へ出られる穴が、使われないまま開いている
@@ -1004,16 +1002,14 @@ async function browserChecks(chromeBin) {
     // 数えるのは「JS が入れた中身」だけにする。index.html に静的に置いてある
     // ボタン（配色の切替など）を数に入れると、app.js が丸ごと無くても
     // 数が立って緑になる。実際それで一度取り逃した
-    // 画面ごとに «そこで JS が入れるはずの中身» を見る。
-    // 玄関に課題一覧があった頃は 1 画面で足りたが、入口を «覚える／鍛える» に
-    // 分けたので一覧は #/learn へ移った。玄関だけ見ていると、
-    // 一覧が壊れていても «玄関は出ている» で緑になる
+    // 画面ごとに «そこで JS が入れるはずの中身» を見る。一覧は門ではなく #/learn・#/train に
+    // あるので、門だけ見ていると一覧が壊れていても «門は出ている» で緑になる
     const DRAWN = [
       ['#/', '#doorLearnState:not(:empty)', '門の三つの扉'],
       ['#/learn', '#learnUnits .lstep', 'レッスンの一覧'],
       ['#/train', '#drillTextList .material', '実文の一覧'],
       ['#/layout', '.board > *', '配列表'],
-      ['#/play/basic-1', '.meter > *', 'タイミングメーター'],
+      ['#/play/l-solo-1~see', '.meter > *', 'タイミングメーター'],
     ];
     for (const [hash, sel, label] of DRAWN) {
       await evaluate(`location.hash = ${JSON.stringify(hash)}`).catch(() => {});

@@ -22,9 +22,9 @@ import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun } from './stor
 import { createRomaji, romajiKeyOf } from './romaji.js';
 import {
   RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
-  cpmOf, accuracyOf, unlockedOf, UNLOCKS, romajiComparison,
+  cpmOf, accuracyOf, unlockedOf, romajiComparison,
 } from './trophies.js';
-import { LESSONS, findLesson, nextLesson, lessonsOf } from './lessons.js';
+import { TEXTS, findLesson, nextLesson } from './lessons.js';
 import { UNITS, CURRICULUM, PHASES, phaseId, lessonDone, phasesDone } from './curriculum.js';
 import { downloadLayoutPng } from './layout-sheet.js';
 import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './drill.js';
@@ -46,7 +46,7 @@ const el = {
     record: $('screenRecord'), play: $('screenPlay'),
     layout: $('screenLayout'), setup: $('screenSetup'),
   },
-  // 玄関の振り分け。門ではなく、二つの札の並び順を変えるだけの一問
+  // 門の扉に添える «いまどこまで来たか» の一行
   doorLearnState: $('doorLearnState'), doorTrainState: $('doorTrainState'),
   // 入口の計器
   gateOffset: $('gateOffset'), gatePerfect: $('gatePerfect'), gateCpm: $('gateCpm'),
@@ -125,7 +125,7 @@ let run = null;       // 進行中の一本。null なら打っていない
 let catching = null;  // 親指キーを覚えさせている最中なら 'left' | 'right'
 let rafId = null;
 let sound = createSound({ kind: settings.sound, volume: settings.soundVolume });
-let mode = null;      // 'check' | 'drill' | 'free' | null（通常の課題）
+let mode = null;      // 'drill'（鍛えるから始めた一本）| 'free'（自由入力）| null（覚えるのレッスン）
 // 実文・自由入力をどちらで打つか。押した瞬間の設定を預かり、やり直しでも同じ打ち方で始める
 let playInput = 'nicola';
 let romaji = null;    // ローマ字で打っている間の判定器（romaji.js）
@@ -717,7 +717,7 @@ function finishRun() {
 const RESUME_KEY = 'oyayubi-dojo:resume:v1';
 
 function saveResume() {
-  if (!run || run.index === 0 || mode === 'check' || run.input === 'romaji') return;
+  if (!run || run.index === 0 || run.input === 'romaji') return;
   try {
     localStorage.setItem(RESUME_KEY, JSON.stringify({
       lessonId: run.lesson.id,
@@ -1097,19 +1097,6 @@ function paintLearn() {
 el.btnRewardA4?.addEventListener('click', () => downloadLayoutPng(layout, 'a4'));
 el.btnRewardStrip?.addEventListener('click', () => downloadLayoutPng(layout, 'strip'));
 
-/**
- * そのコースが開いているか。判定の出どころをここ一本にする。
- * ホームの札の見た目とルーターで別々に判断すると、片方だけ守られる（実際そうなっていた）。
- */
-function isCourseOpen(courseId) {
-  // texts は «鍛える» の題材置き場。教程ではないので解禁の対象外。
-  // 以前は題材を教程のコースから引いていたため、新規の人には一覧に18本出るのに
-  // 押すと全部ホームに弾かれていた。出ているのに押せないのは、いちばん質の悪い壊れ方
-  // learn は覚える（curriculum.js）のレッスン。順番は一覧と打つ前の確かめ（route）で守る
-  if (!courseId || courseId === 'basic' || courseId === 'free' || courseId === 'texts' || courseId === 'learn') return true;
-  return (unlockedOf(loadStats()).course ?? []).includes(courseId);
-}
-
 
 function paintMypage() {
   const stats = loadStats();
@@ -1117,7 +1104,7 @@ function paintMypage() {
   const rep = offsetReport(stats);
   paintNav(stats);
 
-  // いまの弱点（以前は «鍛える» の頭にあった）
+  // いまの弱点
   setSkew(el.drillSkewLeftMark, el.drillSkewLeftVal, rep?.left);
   setSkew(el.drillSkewRightMark, el.drillSkewRightVal, rep?.right);
   const weak = weakFaces(stats, { limit: 6 });
@@ -1127,7 +1114,7 @@ function paintMypage() {
   el.rankName.textContent = stats.rank ?? RANKS[0].name;
   el.rankScore.textContent = `稽古量 ${(stats.score ?? 0).toLocaleString('ja-JP')}`;
   paintRankLadder(stats);
-  // nextRankGap は { next, cpmGap, accGap }。文言はこちらで組む。
+  // nextRankGap は { next, cpmGap, accGap, scoreGap }。文言はこちらで組む。
   // 点数ではなく「あと何が足りないか」を出す（点数を見せても何をすればいいか分からない）
   const gap = nextRankGap(stats);
   if (!gap) {
@@ -1308,8 +1295,8 @@ function trophyCard(t, when, stats) {
 }
 
 function paintRecords(stats) {
-  // 課題ごとに一行へまとめる。以前は直近 30 本をそのまま並べていて、
-  // 同じ課題が何十行も続き、見出しの «課題ごとの» と中身が食い違っていた。
+  // 課題ごとに一行へまとめる。直近の本をそのまま並べると同じ課題が何十行も続き、
+  // 見出しの «課題ごとの» と中身が食い違う。
   // history は新しい順。最大 200 本なので、ここに無い古い回は数えられない（«回数» は直近の範囲で）
   const groups = new Map();
   for (const h of stats.history ?? []) {
@@ -1392,7 +1379,7 @@ function paintWeakList(listEl, emptyEl, stats, limit = 6) {
   // CSS は 4 列（かな / 説明 / 帯 / 数）を待っている。クラスを付けずに作ると
   // 列に収まらず、文字が枠の外へあふれる（実際あふれていた）
   //
-  // 帯と数はミスの «率»。以前は回数で、たくさん打った面ほど大きく出ていた（単位も出ていなかった）。
+  // 帯と数はミスの «率»。回数にすると、たくさん打った面ほど大きく出てしまう。
   // 率は記録画面の得意・苦手の図と同じ式（missRateOf）。言うことを揃える
   const rateOf = f => missRateOf(f.hits ?? 0, f.misses ?? 0);
   const worst = Math.max(0.01, ...weak.filter(f => !f.unseen).map(rateOf));
@@ -1493,16 +1480,7 @@ function paintRomajiCard(stats) {
 function paintDrill() {
   const stats = loadStats();
   paintNav(stats);
-
-  // 門は撤去した。以前は測定（腕試し）を通さないと三つとも押せなかったが、
-  // 測らないと出せないのは「弱点集中」の狙いだけで、そのために全部を閉じるのは重すぎた。
-  // 弱点が出せない間は、下の一覧が自分でそう言う。
-  // 弱点の一覧は記録の画面へ移した（paintMypage）。ここは出題の札だけ
-
-  for (const btn of [el.btnDrillWeak, el.btnDrillAll, el.btnDrillSpeed]) {
-    if (btn) btn.disabled = false;
-    btn?.closest('.mode')?.classList.remove('is-locked');
-  }
+  // 弱点の一覧は記録の画面にある（paintMypage）。ここは出題の札だけ
 
   paintTrainStats(stats);
   paintInputPick();
@@ -1563,18 +1541,6 @@ function materialInfo(lesson) {
   return { kana: chars.length, solo, same, cross, shifted, tags };
 }
 
-/**
- * «鍛える» で選べる実文の題材。
- *
- * 教程（覚える）のコースからは引かない。あちらは段階的に解禁されるので、
- * 一覧に出しても新規の人は押した瞬間に弾かれる。題材は最初から全部打てるべきもの。
- * 専用の置き場（texts）が無ければ、打てるコースの中から拾って凌ぐ。
- */
-function materials() {
-  const texts = lessonsOf('texts');
-  if (texts.length) return texts;
-  return LESSONS.filter(l => isCourseOpen(l.courseId));
-}
 
 // 長さで切り替える。83本を平らに並べると長い一本を探せない
 const SIZE_ORDER = ['とてもながい', 'ながめ', 'ふつう', 'みじかめ'];
@@ -1591,7 +1557,7 @@ function paintMaterials(stats) {
   if (!box) return;
 
   const groups = new Map(SIZE_ORDER.map(s => [s, []]));
-  for (const l of materials()) {
+  for (const l of TEXTS) {
     const g = groups.get(sizeOf(l));
     if (!g) throw new Error(`実文 ${l.id} の長さ ${sizeOf(l)} が SIZE_ORDER に無い`);
     g.push(l);
@@ -1696,9 +1662,9 @@ function updateFreeText() {
 // -- ルーティング -----------------------------------------------------------
 
 /**
- * 場所（入門・道場・門）。看板・帯の色・ナビの中身は CSS が body[data-area] で切り替える。
+ * 場所（門・覚える・鍛える）。看板・帯の色・ナビの中身は CSS が body[data-area] で切り替える。
  * 配列表と設定は場所を持たない道具なので、開いても直前の場所のまま（入門から開いた配列表は入門の顔）。
- * 課題の画面は、覚えるのレッスン（と以前の七つの課）なら入門、その場で組んだ出題（鍛える・自由入力）なら道場
+ * 課題の画面は、覚えるのレッスンの段階なら覚える、それ以外（実文の題材・その場で組んだ出題・自由入力）なら鍛える
  */
 const AREA_OF = { home: 'gate', learn: 'learn', train: 'train', record: 'train' };
 const AREA_TITLE = { gate: '親指シフトマスター ～0から覚えてトレーニングまで～', learn: '親指シフト入門｜親指シフトマスター', train: '親指シフト トレーニング｜親指シフトマスター' };
@@ -1706,8 +1672,7 @@ let area = 'gate';
 
 function setArea(name, arg) {
   if (AREA_OF[name]) area = AREA_OF[name];
-  // 鍛えるから始めた一本（実文・自由入力・その場の出題）は道場。七つの課は入門
-  else if (name === 'play') area = mode === 'drill' || mode === 'free' ? 'train' : findLesson(arg)?.courseId ? 'learn' : 'train';
+  else if (name === 'play') area = findLesson(arg)?.courseId === 'learn' ? 'learn' : 'train';
   document.body.dataset.area = area;
   document.title = AREA_TITLE[area];
 }
@@ -1751,16 +1716,8 @@ function route() {
     pending = null;
     if (!lesson) { location.replace('#/'); return; }
 
-    // 解禁はホームの札の href だけで守られていた。つまり URL を打てば素通りできた。
-    // 教程の順番は「腕に覚えのある人ほど飛ばしたくなる」ものなので、
-    // 画面の見た目ではなくここで守る。その場で作った課題（適応出題・自由入力）は対象外
-    if (!lesson.courseId || !isCourseOpen(lesson.courseId)) {
-      if (lesson.courseId) {
-        toast('この課は、前の課を終えると開きます');
-        location.replace('#/');
-        return;
-      }
-    }
+    // レッスンの順番は一覧の札だけでなくここでも守る。札の href だけだと URL を打てば素通りでき、
+    // 順番は「腕に覚えのある人ほど飛ばしたくなる」もの。題材・その場で組んだ出題は順番を持たない
     if (lesson.courseId === 'learn' && !lessonOpen(loadStats(), lesson.lessonId)) {
       toast('このレッスンは、一つ前のレッスンを終えると開きます');
       location.replace('#/learn');

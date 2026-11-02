@@ -269,21 +269,19 @@ export function rankIndexOfRun(run) {
 }
 
 /**
- * 次の段位まで、CPM と正確率がそれぞれあといくつ足りないか。
- * 足りている方は 0 を返す。速さ・正確率・稽古量の三つとも 0 になった一本で昇段する。
+ * 次の段位まで、CPM・正確率・稽古量がそれぞれあといくつ足りないか → { next, cpmGap, accGap, scoreGap }。
+ * 足りているものは 0。三つとも 0 になった一本で昇段する。最高段位なら null。
  */
 export function nextRankGap(stats) {
   // いまの段は stats.rank（腕前と稽古量の両方で決まった段）から引く。
   // 稽古量だけで引く rankOf(score) を使うと、稽古量が名人の値を越えた人は腕前が皆伝でも
-  // «最高段位です» と出ていた（2026-11-02）。rank が無い・読めないときだけ稽古量から引く
+  // «最高段位です» と出てしまう。rank が無い・読めないときだけ稽古量から引く
   const byName = RANKS.findIndex((r) => r.name === (stats && stats.rank));
   const idx = byName >= 0 ? byName : rankOf((stats && stats.score) || 0).index;
   const cur = { ...RANKS[idx], index: idx, next: RANKS[idx + 1] || null };
   if (!cur.next) return null;
   const best = (stats && stats.best) || {};
-  // 段位は「腕前（一本で CPM と正確率）」と「稽古量（積み上げスコア）」の両方が要る。
-  // scoreGap を返していなかったため、稽古量が足りないのに
-  // 「条件は満たしています。一本打ち切れば上がります」と嘘をついていた。
+  // 段位は「腕前（一本で CPM と正確率）」と「稽古量（積み上げスコア）」の両方が要るので、三つとも返す
   return {
     next: cur.next,
     cpmGap: Math.max(0, cur.next.cpm - (best.cpm || 0)),
@@ -381,8 +379,8 @@ export { CATEGORY_LABEL };
 // 一本の長さで縛ると「長い課題を選べば取れる」に化けて、稽古量の担保にならない。
 // 通算なら、どの課題をどう選んでも積み上げでしか越えられない。
 //
-// 数字の根拠。lessons.js の課題は一本 34〜140字、ならすと 50〜70字。
-// 一本 55字として本数に直したのが右のコメント。
+// 数字の根拠。一本の字数は、覚えるの段階が 12〜50字（中央 24字）、鍛えるの題材が
+// 31〜1666字（中央 84字）。ならして一本 55字として本数に直したのが右のコメント。
 //
 // この下限は「上達した人には見えない」ように選んである。実際に CPM 200 を出せる
 // ようになった人は、その時点で通算数万字を打っている。塞ぎたいのは初日の花火だけで、
@@ -396,7 +394,7 @@ export const TROPHY_MIN_KANA = {
 };
 
 // タイミング系だけは通算「同時打鍵の回数」で測る。文字数で測ると、
-// 同時打鍵のほとんど出ない課題（第一課の単独打鍵だけの面）を延々打っても
+// 同時打鍵のほとんど出ない課題（覚えるの単元 1、単独打鍵だけのレッスン）を延々打っても
 // 下限を越えてしまい、タイミングの実績なのにタイミングの稽古量を担保しない。
 // 一本あたりの同時打鍵を 20 回として本数に直したのが右のコメント。
 export const TROPHY_MIN_SHIFTS = {
@@ -633,9 +631,9 @@ export const TROPHIES = [
     name: '無傷',
     hint: '50文字以上の課題を正確率100%で打ち切る（通算300字から）',
     // 「一度出せばよい」型。ここは積み上げを要求する所ではない。
-    // ただし以前は 34文字の一本をミス無しで通しただけで初稽古と同時に開いていた。
+    // ただし短い一本をミス無しで通しただけで初稽古と同時に開くと、取るものが先に無くなる。
     // 二つ足す。(1) 一本が 50文字以上 ─ 短い課題を選んで取る抜け道を塞ぐ。
-    // 課題の下限が 34文字なので、最短の一本では届かない所に置く。
+    // 覚えるの段階はほぼ 50字未満（中央 24字）なので、そこでは取れない所に置く。
     // (2) 通算300字 ─ 初稽古と同時に出さない。
     check: (s) => s.perfectRuns >= 1 && s.best.perfectRunKana >= 50 && kanaDone(s) >= TROPHY_MIN_KANA.start,
   },
@@ -956,72 +954,10 @@ export function trophiesByCategory() {
 // 買うのではなく達成で開く。開く理由が自分の稽古と結びついている方が、
 // 通貨の残高が増えるより手応えがある。
 //
-// kind: 'course'（課題コース）| 'sound'（打鍵音）。'theme'（配色）は既定で全部開いている
-// target: 他担当が参照する ID。course の target は lessons 側のコース ID と一致させること。
+// 開くのは打鍵音だけ。kind は 'sound'、target は sound.js の音色 id と一致させること。
+// 配色（明暗）とレッスンは解禁の対象ではない。レッスンの順番は app.js の lessonOpen が守る。
 
 export const UNLOCKS = [
-  // ---- 課題コース（段階的解禁）
-  {
-    id: 'u-course-dakuten',
-    kind: 'course',
-    target: 'dakuten',
-    name: '濁音コース',
-    hint: '単独打鍵の面で20キー打つ',
-    check: (s) => cov(s).solo >= 20,
-  },
-  {
-    id: 'u-course-cross',
-    kind: 'course',
-    target: 'cross',
-    name: '交差シフトコース',
-    hint: '同側シフト（別のかな）で15キー打つ',
-    check: (s) => cov(s).same >= 15,
-  },
-  {
-    id: 'u-course-words',
-    kind: 'course',
-    target: 'words',
-    name: '単語コース',
-    hint: '三つの面すべてで10キー以上打つ',
-    check: (s) => {
-      const c = cov(s);
-      return c.solo >= 10 && c.same >= 10 && c.cross >= 10;
-    },
-  },
-  {
-    id: 'u-course-sentence',
-    kind: 'course',
-    target: 'sentence',
-    name: '文章コース',
-    hint: '正確率95%以上で打ち切る',
-    check: (s) => s.best.accuracy >= 95,
-  },
-  {
-    id: 'u-course-timing',
-    kind: 'course',
-    target: 'timing',
-    name: 'タイミング稽古',
-    hint: 'ぴったり判定を通算50回出す',
-    check: (s) => s.timing.perfect >= 50,
-  },
-  {
-    id: 'u-course-speed',
-    kind: 'course',
-    target: 'speed',
-    name: '速度コース',
-    // 最終課なので、速さだけでは開けない。三つの面を一通り打っていることを併せて見る。
-    // 以前は CPM100 だけで、初心者の一本目で最終課だけが先に開いていた。
-    hint: 'CPM 100 に届く。三つの面をそれぞれ15キー以上打つ',
-    check: (s) => {
-      const c = cov(s);
-      return s.best.cpm >= 100 && c.solo >= 15 && c.same >= 15 && c.cross >= 15;
-    },
-  },
-
-  // ---- 配色
-  // 以前は暗い地の配色 4 種のうち 3 つを達成で開いていた。配色を明暗（ライト・ダーク・システム）の
-  // 三つにしたので、どれも最初から選べる。開くものは無い（DEFAULT_UNLOCKED.theme に三つとも入れてある）。
-
   // ---- 打鍵音
   {
     id: 'u-sound-tsuzumi',
@@ -1051,8 +987,6 @@ export const UNLOCKS = [
 
 /** 最初から使えるもの。アンロックの一覧に「既定」として並べるため */
 export const DEFAULT_UNLOCKED = {
-  course: ['basic'],
-  theme: ['system', 'light', 'dark'],
   sound: ['off'],
 };
 
@@ -1061,30 +995,19 @@ export const DEFAULT_UNLOCKED = {
  * 開いている・いないは stats から毎回計算する。保存した「開いた印」を正とすると、
  * 実績の条件を後から変えたときに食い違うし、印だけ書き換える抜け道もできる。
  *
- * @returns {{course:string[], theme:string[], sound:string[], items:object[]}}
+ * @returns {{sound:string[], items:object[]}}
  */
 export function unlockedOf(stats) {
   const out = {
-    course: [...DEFAULT_UNLOCKED.course],
-    theme: [...DEFAULT_UNLOCKED.theme],
     sound: [...DEFAULT_UNLOCKED.sound],
     items: [],
   };
-  // コースだけは順番に開く。条件が独立だと、CPM が出た人に最終課だけ先に開いて
-  // 間が全部閉じたままになる（実際そうなっていた）。教程は順に進んでこそ教程なので、
-  // 前の課が開いていない限り次は開かない。配色や音は独立でよい。
-  let coursesStillOpen = true;
-
   for (const u of UNLOCKS) {
     let ok = false;
     try {
       ok = !!u.check(stats);
     } catch {
       ok = false;
-    }
-    if (u.kind === 'course') {
-      ok = ok && coursesStillOpen;
-      if (!ok) coursesStillOpen = false;
     }
     out.items.push({ id: u.id, kind: u.kind, target: u.target, name: u.name, hint: u.hint, open: ok });
     if (ok && !out[u.kind].includes(u.target)) out[u.kind].push(u.target);

@@ -19,8 +19,7 @@
 
 import { RANKING_API_URL } from './config.js';
 
-/** 同意文の版。同意文を変えたら上げる。サーバーに登録と一緒に残る。
-    -2 は回転ずしから検品ラインに題材を替えて、送るものが「金額」から「点数」に変わった版 */
+/** 同意文の版。同意文を変えたら上げる。サーバーに登録と一緒に残る */
 export const CONSENT_VERSION = '2026-11-02-2';
 
 const PLAYER_KEY = 'oyayubi-dojo:player:v1';
@@ -162,11 +161,10 @@ export async function submitScore(summary) {
       body: { course, input, score, kpm, accuracy, durationMs: Math.round(durationMs) },
     });
   } catch (err) {
-    // 401 は «サーバーにこの登録が無い»。回転ずしから作り替えたときに表を新しくしたので、
-    // それ以前の登録はみな 401 になる。手元の登録を捨てて、参加し直せるようにする
+    // 401 は «サーバーにこの登録が無い»。手元の登録を捨てて、参加し直せるようにする
     if (err instanceof RankingError && err.status === 401) {
       dropPlayer();
-      throw new RankingError('登録が見つかりませんでした（ゲームを作り替えたときに表を新しくしました）。もう一度参加してください', 401);
+      throw new RankingError('登録が見つかりません。もう一度参加してください', 401);
     }
     throw err;
   }

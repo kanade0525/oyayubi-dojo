@@ -1,4 +1,4 @@
-/* 親指シフトタイピング道場 — 意匠のすべて
+/* 親指シフトマスター — 意匠のすべて
    ================================================================
    このファイルは何か
      アプリ全体の見た目。CSS はこの 1 枚しかない。フレームワークも CDN も使わない。
@@ -6,9 +6,8 @@
    なぜこの方針か
      - 配色はライトとダークの二つ（と、OS の設定に合わせる «システム»）。
        data-tone には 'light' か 'dark' が入る（«システム» は <head> の先当てと app.js が解いてから入れる）。
-       以前は暗い地の配色 4 種（藍・抹茶・藤・墨）を選ばせていたが、場所ごとの色（--area）と
-       主色がぶつかって «ヘッダーの色とテーマカラーが矛盾する» ので、明暗だけを選ばせる形にした。
-       色味はそれぞれの場所の色（覚える＝山吹・鍛える＝朱・ゲーム＝浅葱）が受け持つ。
+       暗い地の配色を何種も持つと、場所ごとの色（--area）と主色がぶつかって
+       «ヘッダーの色とテーマカラーが矛盾する» ので、明暗だけを選ばせる。色味はそれぞれの場所の色（覚える＝山吹・鍛える＝朱・ゲーム＝浅葱）が受け持つ。
      - 主色 --tone は門と共通の部品に使う中立の青。面・境界は color-mix で --tone と --bg から導く。
      - 判定の色（ぴったり/良い/ずれ/不発）だけは --tone から導かない。
        あれは信号機と同じ意味を持つ色で、明暗を替えたからといって意味が変わると困る。
@@ -147,9 +146,8 @@ body {
   line-break: strict;
 }
 
-/* 以前は上端に主色の燐光（radial-gradient）を敷いていた。
-   何も指していない光は飾りでしかなく、どの画面も同じ «それらしい» 顔になるのでやめた。
-   地は一色。面の区別は罫と札の地色で付ける */
+/* 地は一色。面の区別は罫と札の地色で付ける。
+   上端に光（radial-gradient）のような何も指していない飾りを敷くと、どの画面も同じ «それらしい» 顔になる */
 
 /* 看板と見出しは本文と同じゴシックの太字で組み、約物だけ詰める（palt）。
    本文には palt を掛けない。長い文で字間が揺れると読む速さが落ちる */
@@ -170,10 +168,8 @@ body {
 .nav__links a,
 .btn,
 .card__head,
-.courses__cat,
 .tool__name,
 .mode__name,
-.course__name,
 .material__name {
   font-feature-settings: "palt";
 }
@@ -425,7 +421,7 @@ kbd {
 }
 
 /* 札（.card）は箱にしない。上の罫一本で区切った節にする。
-   地色と枠で囲んだ箱が縦に積み重なると、どの画面も «カードの束» に見える（2026-11-02） */
+   地色と枠で囲んだ箱が縦に積み重なると、どの画面も «カードの束» に見える */
 .card {
   padding: 22px 0 6px;
   border-top: 1px solid var(--line);
@@ -772,7 +768,7 @@ kbd {
    自前の丸を描くと、選択の状態を CSS と JS の二か所で持つことになる。
 
    閉じている音色を «並べない» という手もあるが、それだと実績で解禁される意味が
-   消える。閉じたまま、条件を添えて見せる。コース札（.course.is-locked）と同じ流儀。 */
+   消える。閉じたまま、条件を添えて見せる。 */
 .sounds {
   display: grid;
   /* 240px は «1280px で四つ横並び／768px で二列» になる境目。
@@ -884,7 +880,7 @@ kbd {
   color: var(--fg-mid);
 }
 
-/* ---------------------------------------------------------------- 場所（入門・道場・回転ずし・門）
+/* ---------------------------------------------------------------- 場所（門・覚える・鍛える・タイピングゲーム）
    覚える・鍛える・腕試しは来る人がまるで違うので、«別のサイト» に見せる。
    変えるのは看板（銘）・ヘッダーの帯・見出しのアクセント・ナビの中身だけ。
    本文の色は配色（data-tone）のまま。場所の色は看板・帯・札の縁・小見出しに使う。
@@ -945,7 +941,7 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
 
 .nav__others span { margin-right: 6px; }
 
-/* ナビの中のボタン（回転ずしのランキング）。見た目はナビのリンクと同じ */
+/* ナビの中のボタン（タイピングゲームのランキング）。見た目はナビのリンクと同じ */
 .nav__btn {
   padding: 6px 11px;
   border: 0;
@@ -1208,182 +1204,6 @@ body[data-area="train"] .btn--primary {
   .door__go { grid-column: 3; grid-row: 1; }
 }
 
-/* --- コース札 ---
-   閉じている札に «なぜ閉じているか» と «いまどこまで進んだか» を必ず出す。
-
-   ここが今回いちばん直したかった所。以前は閉じた札が淡くなるだけで、
-   条件も進捗も出ていなかった。開かない理由が見えない鍵は、ただの行き止まりで、
-   人は行き止まりを二度は見に来ない。UNLOCKS の hint はそのために書かれている。 */
-
-.courses__cat {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 10px 0 -4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--fg-mid);
-}
-
-.courses__cat::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: var(--line-soft);
-}
-
-.courses {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--line);
-}
-
-/* 一行。左に印、題と一行の説明、右に進み具合 */
-.course {
-  display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) 120px 3.5em;
-  grid-template-areas:
-    "mark name bar count"
-    ".    note bar count"
-    ".    lock lock lock";
-  align-items: center;
-  column-gap: 14px;
-  row-gap: 2px;
-  padding: 13px 8px;
-  color: var(--fg);
-  border-bottom: 1px solid var(--line-soft);
-}
-
-.course:hover { background: color-mix(in srgb, var(--area) 7%, transparent); }
-
-.course__mark { grid-area: mark; display: flex; color: var(--fg-dim); }
-.course.is-done .course__mark { color: var(--perfect); }
-
-.course__name {
-  grid-area: name;
-  font-size: 14.5px;
-  font-weight: 600;
-}
-
-.course__note {
-  grid-area: note;
-  font-size: 12.5px;
-  color: var(--fg-dim);
-}
-
-.course__progBar {
-  grid-area: bar;
-  height: 4px;
-  border-radius: 99px;
-  background: color-mix(in srgb, var(--area) 16%, var(--bg));
-  overflow: hidden;
-}
-
-/* --p は 0〜1。app.js が style.setProperty で入れる */
-.course__progBar i {
-  display: block;
-  width: calc(var(--p, 0) * 100%);
-  height: 100%;
-  border-radius: 99px;
-  background: var(--area);
-}
-
-.course.is-done .course__progBar i { background: var(--perfect); }
-
-.course__progText {
-  grid-area: count;
-  justify-self: end;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-dim);
-}
-
-/* 開く条件。閉じている行にだけ入る（UNLOCKS の hint） */
-.course__lock::before { content: "開く条件："; }
-.course__lock {
-  grid-area: lock;
-  margin-top: 4px;
-  font-size: 12px;
-  color: var(--off);
-}
-
-.course.is-locked { cursor: default; }
-.course.is-locked:hover { background: none; }
-.course.is-locked .course__name,
-.course.is-locked .course__note {
-  color: var(--fg-dim);
-}
-
-@media (max-width: 640px) {
-  .course {
-    grid-template-columns: 22px minmax(0, 1fr) 3.5em;
-    grid-template-areas:
-      "mark name count"
-      ".    note note"
-      ".    bar  bar"
-      ".    lock lock";
-    row-gap: 4px;
-  }
-  .course__progBar { margin-top: 6px; }
-}
-
-.lessons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
-  gap: 12px;
-}
-
-.lesson {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 16px 16px 13px;
-  text-align: left;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  transition: border-color 0.16s;
-}
-
-.lesson:hover {
-  border-color: var(--tone);
-}
-
-.lesson__title {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.lesson__sub {
-  font-size: 12px;
-  color: var(--fg-dim);
-}
-
-.lesson__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 11px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line-soft);
-  font-family: var(--ui);
-  font-variant-numeric: tabular-nums;
-  font-size: 11px;
-  color: var(--fg-dim);
-}
-
-.lesson__best {
-  margin-left: auto;
-  color: var(--perfect);
-}
-
-
 /* ---------------------------------------------------------------- #/play */
 
 .screen--play {
@@ -1420,8 +1240,8 @@ body[data-area="train"] .btn--primary {
   color: var(--fg-mid);
 }
 
-/* 何のための一本か。腕試し・稽古・自由入力でもこの画面を使うので、
-   課題を打っているときとの区別が付くようにする。打鍵の邪魔をしない大きさで */
+/* 何のための一本か。鍛える・自由入力でもこの画面を使うので、
+   覚えるのレッスンを打っているときとの区別が付くようにする。打鍵の邪魔をしない大きさで */
 .play__badge {
   padding: 3px 9px;
   font-size: 11px;
@@ -1432,24 +1252,17 @@ body[data-area="train"] .btn--primary {
 }
 
 /* 課題の狙い。lesson.note がそのまま入る。
-   これが要るのは «メーターが黙る回» があるから。第一課の basic-4 / basic-5 は
-   親指を休ませて場所だけ覚える回で、狙いが読めないと故障に見える。
+   これが要るのは «メーターが黙る» 課題があるから。覚えるの単元 1（単独打鍵）は親指を使わないので、
+   狙いが読めないとメーターが動かないのがただの故障に見える。
 
    ただし打鍵中に読ませるものではない。読むのは «始まる前の一瞬» だけなので、
    課題名より一段落として、色も付けない。中身が無いときは行ごと消す ──
-   空の受け皿が隙間として残ると、バーの間隔が課題ごとに変わってしまう */
-/* 課題の狙い。
-   かつては «一行に切り詰めて、続きは title で» にしてあった。折り返させると
-   バーが三段になってお題を下へ押し出したからだが、これは代償が大きすぎた。
-   basic-4 / basic-5 の «ここは親指を休ませて場所だけ覚える回。メーターが黙るのは
-   そのため» が読めないと、メーターが動かないのがただの故障に見える。
-   いちばん読ませたい断りが、いちばん出ない形になっていた。
+   空の受け皿が隙間として残ると、バーの間隔が課題ごとに変わってしまう。
 
-   直し方は «幅を与えてから、行数を抑える»。
-   バーの中で自分の一段を占めさせる（flex-basis:100%）。数値や «やり直す» と
-   横並びにすると幅が 1/3 しか取れないが、一段まるごとなら 1280px で百数十字入り、
-   課題文の狙いはほぼ二行に収まる。押し出すのは «三段目» ではなく、
-   もともと一段に詰め込みすぎていたことのほうだった。
+   幅を与えてから行数を抑える。バーの中で自分の一段を占めさせる（flex-basis:100%）。
+   数値や «やり直す» と横並びにすると幅が 1/3 しか取れないが、一段まるごとなら
+   1280px で百数十字入り、課題の狙いはほぼ二行に収まる。一行に切り詰めると、
+   いちばん読ませたい断りがいちばん出ない形になる。
 
    そのうえで二行で止める。長い一文が来ても、伸びるのはここまで。
    はみ出した分は、置くか（hover）触れると（focus）その場で開く。
@@ -1585,10 +1398,9 @@ body[data-area="train"] .btn--primary {
 
 /* --- お題（カラオケの歌詞方式で行を送る） ---
 
-   かつてはお題の全文を .phrase 一つに流し込んで折り返させていた。
-   1本が30〜178字のうちは成り立っていたが、数百〜2000字の題材では壊れる。
-   実測 ── いまいちばん長い題材（text-50 ＝ 178字）を旧来の 40px で 1440×760 に出すと
-   六行 ＝ 332px を占め、配列図の下段が窓の外に出ていた。2000字ならこの 11 倍で、
+   お題の全文を .phrase 一つに流し込んで折り返させると、数百〜2000字の題材では壊れる。
+   実測 ── 178字の題材を 40px で 1440×760 に出すと六行 ＝ 332px を占め、
+   配列図の下段が窓の外に出た。2000字ならこの 11 倍で、
    そもそも «出す» という話ではなくなる。字を小さくすれば入るが、こんどは
    «いまどこを打っているか» が字の海に沈む。長さの問題は «縮める» では解けない。
 
@@ -3455,22 +3267,6 @@ body[data-area="train"] .btn--primary {
   .stats > div { padding: 0 14px 0 0; border-left: 0; }
 }
 
-.mode.is-locked {
-  border-style: dashed;
-  border-color: var(--line-soft);
-  cursor: not-allowed;
-}
-
-.mode.is-locked:hover {
-  transform: none;
-  box-shadow: none;
-  border-color: var(--line-soft);
-}
-
-.mode.is-locked .mode__name {
-  color: var(--fg-dim);
-}
-
 /* --- 実文の一覧 ---
    83本ある。札で並べると画面が札で埋まって選べないので、題名と字数だけの行にする。
    狙い・同時打鍵の割合・特徴はホバー（キーボードならフォーカス）で行の下に出す。
@@ -4122,7 +3918,7 @@ body[data-area="train"] .btn--primary {
     bottom: 18px;
   }
 
-  /* ---- 玄関 ---- */
+  /* ---- 門 ---- */
 
   /* 三択の縦積みは 900px 以下の @media で済ませてある */
 

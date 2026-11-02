@@ -122,6 +122,33 @@ describe('語彙表', () => {
   });
 });
 
+// ---------------------------------------------------------------- 鍛えるの実文と覚えるのレッスン
+//
+// 適応出題と同じく、出す字が配列表の外に出ていないかを見る。一字でも外れると、その一本は永久に打ち切れない
+
+describe('実文の題材とレッスン', () => {
+  test('実文の題材は打てる字だけでできている', async () => {
+    const { TEXTS } = await load('assets/js/lessons.js');
+    assert.ok(TEXTS.length > 0);
+    for (const l of TEXTS) assert.deepEqual(untypable(l.text), [], `打てない字がある題材: ${l.id}`);
+  });
+
+  test('覚えるの各段階は打てる字だけでできていて、id で引ける', async () => {
+    const { CURRICULUM, PHASES, phaseId } = await load('assets/js/curriculum.js');
+    const { findLesson, nextLesson } = await load('assets/js/lessons.js');
+    for (const l of CURRICULUM) {
+      for (const p of PHASES) {
+        const id = phaseId(l.id, p.id);
+        const got = findLesson(id);
+        assert.ok(got, `${id} が引けない`);
+        assert.deepEqual(untypable(got.text), [], `打てない字がある段階: ${id}`);
+      }
+    }
+    const last = CURRICULUM.at(-1);
+    assert.equal(nextLesson(phaseId(last.id, PHASES.at(-1).id)), null, '最後の段階の次は null');
+  });
+});
+
 // ---------------------------------------------------------------- 弱点の読み方
 
 describe('weakFaces', () => {

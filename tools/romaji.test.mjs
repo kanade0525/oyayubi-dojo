@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRomaji, spellingsAt, canType, romajiKeyOf } from '../assets/js/romaji.js';
-import { LESSONS, TEXTS } from '../assets/js/lessons.js';
+import { TEXTS } from '../assets/js/lessons.js';
 import { WORDS } from '../assets/js/game/words.js';
 
 /** keys を順に打って、最後まで打ち切れたか・ミスの数を返す */
@@ -98,9 +98,10 @@ test('ローマ字の一字だけをキーから取り出す', () => {
   assert.equal(romajiKeyOf('1'), null);
 });
 
+// ローマ字で打てるのは鍛えるの実文とゲームの語。覚えるのレッスンは親指シフトだけで打つ
 test('出題に使う字は全部ローマ字で打てる', () => {
   const all = new Set();
-  for (const l of [...LESSONS, ...TEXTS]) for (const c of l.text) all.add(c);
+  for (const l of TEXTS) for (const c of l.text) all.add(c);
   for (const w of WORDS) for (const c of w.kana) all.add(c);
   const bad = [...all].filter((c) => !canType(c));
   assert.deepEqual(bad, []);

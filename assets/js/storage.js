@@ -31,7 +31,6 @@ import {
   scoreOf,
   rankOf,
   rankIndexOfRun,
-  unlockedOf,
   faceCoverage,
   faceTotals,
   summarizeOffsets,
@@ -188,8 +187,6 @@ function emptyStats() {
     lessonBest: {},
     romajiBest: {},
 
-    // いま開いているコース・配色・打鍵音。保存はするが、正は毎回の再計算（loadStats を見よ）
-    unlocked: null,
   };
 }
 
@@ -208,7 +205,7 @@ function normalizeOffsetSide(v) {
 }
 
 /**
- * 保存された記録を読む。壊れた値・古い形が入っていても落ちないように、
+ * 保存された記録を読む。手で書き換えた値や読み込んだファイルの壊れた値で落ちないように、
  * 必ず既定値と混ぜて型を揃えてから返す。
  * 保存が失敗したブラウザでは空の stats が返るだけで、遊ぶのに支障は無い。
  */
@@ -277,19 +274,6 @@ export function loadStats() {
     .map(([id, b]) => [id, { cpm: num(b.cpm), runs: num(b.runs) }]));
   s.romajiBest = bestMap(saved.romajiBest);
   s.lessonBest = bestMap(saved.lessonBest);
-  // lessonBest が無かった頃の記録は、履歴から拾える分だけ拾う
-  if (!saved.lessonBest) {
-    for (const h of s.history) {
-      if (!h.id || !(num(h.cpm) > 0)) continue;
-      const b = s.lessonBest[h.id] ?? { cpm: 0, runs: 0 };
-      s.lessonBest[h.id] = { cpm: Math.max(b.cpm, num(h.cpm)), runs: b.runs + 1 };
-    }
-  }
-
-  // 開いているものも保存値ではなく毎回計算する。保存した「開いた印」を正にすると、
-  // 条件を後から変えたときに食い違うし、印だけ書き換える抜け道もできる。
-  s.unlocked = unlockedOf(s);
-
   return s;
 }
 
@@ -441,12 +425,9 @@ export function recordRun(run) {
 
   // ---- 段位。腕前と稽古量の両方が要る。
   //
-  // 以前は「一本の CPM と正確率」だけで決めていた。それだと、たまたま出た一本で
-  // 最高段位に着いてしまい、二度と下がらないので段位が実力を指さなくなる。
-  // 実際、35文字を機械速度で一度打っただけで名人になった。
-  //
-  // RANKS には at（積み上げの閾値）と cpm/accuracy（腕前の閾値）の両方がある。
-  // 元々そう作られていたのに、積み上げ側が使われていなかった。両方を見る。
+  // 「一本の CPM と正確率」だけで決めると、たまたま出た一本で最高段位に着いてしまい、
+  // 二度と下がらないので段位が実力を指さなくなる（35文字を機械速度で一度打っただけで名人になった）。
+  // RANKS には at（積み上げの閾値）と cpm/accuracy（腕前の閾値）の両方があり、両方を見る。
   //   ・腕前 … その段位の CPM と正確率を「同じ一本で」出したことがある
   //   ・稽古量 … 積み上げスコアがその段位の at に届いている
   // 腕前は一度出せば消えない（bestRunRank）が、稽古量が足りなければ上がらない。
@@ -507,10 +488,10 @@ export function recordRun(run) {
     if (cmp.passed) s.romaji = { ...s.romaji, passedAt: today };
   }
 
-  // ---- 実績とアンロック。実績は取った日を残す（マイページで並べるため）
+  // ---- 実績。取った日を残す（マイページで並べるため）。打鍵音の解禁は保存せず、
+  // 使う側が unlockedOf(stats) で毎回計算する（条件を変えたときに印と食い違わないように）
   const earned = newlyEarned(s);
   for (const t of earned) s.earned[t.id] = today;
-  s.unlocked = unlockedOf(s);
 
   writeStats(s);
   return { stats: s, gained, earned, summary: r, records };
@@ -618,8 +599,7 @@ export const DEFAULT_SETTINGS = {
   // 配色。鍵の名前は index.html の <head> のインラインスクリプトと必ず揃える。
   // あちらは module より先に走って配色を先当てする（ちらつき防止）ため、
   // 同じ鍵を直接読んでいる。ここを theme などに変えると、色が保存されなくなる。
-  // 'system'（OS の明暗に合わせる）| 'light' | 'dark'。
-  // 以前の配色 4 種（midnight / matcha / plum / sumi）はどれも暗い地だったので 'dark' として読む
+  // 'system'（OS の明暗に合わせる）| 'light' | 'dark'
   tone: 'system',
   sound: 'off', // 打鍵音
   soundVolume: 0.4,
@@ -628,13 +608,12 @@ export const DEFAULT_SETTINGS = {
   showRomaji: true, // ローマ字時代との比較を出すか
   input: 'nicola', // 実文・自由入力をどちらで打つか。'nicola' | 'romaji'
   // 同じ字で 6 回続けて外したとき、その字を飛ばして先へ進めるか。
-  // 既定 on（これまでの挙動）。off にすると打てるまでそこで止まる
+  // 既定 on。off にすると打てるまでそこで止まる
   autoSkip: true,
 };
 
 /** 配色の値。index.html / game.html の <head> の先当てスクリプトと同じ並び */
 export const TONES = ['system', 'light', 'dark'];
-const OLD_DARK_TONES = ['midnight', 'matcha', 'plum', 'sumi'];
 
 /**
  * 設定の値（'system' | 'light' | 'dark'）を、画面に当てる明暗（data-tone）に解く。
@@ -685,7 +664,7 @@ function normalizeSettings(raw) {
   s.charTimeout = clamp(s.charTimeout, LIMITS.charTimeout, d.charTimeout);
   s.thumbTimeout = clamp(s.thumbTimeout, LIMITS.thumbTimeout, d.thumbTimeout);
   s.soundVolume = clamp(s.soundVolume, LIMITS.soundVolume, d.soundVolume);
-  s.tone = TONES.includes(s.tone) ? s.tone : OLD_DARK_TONES.includes(s.tone) ? 'dark' : d.tone;
+  s.tone = TONES.includes(s.tone) ? s.tone : d.tone;
   s.sound = typeof s.sound === 'string' ? s.sound : d.sound;
   s.showKeyboard = s.showKeyboard !== false;
   s.showMeter = s.showMeter !== false;

@@ -32,15 +32,13 @@
   // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
   // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
-  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 値は 'system' | 'light' | 'dark'。
   // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
   (function () {
-    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
     var t = 'system';
     try {
       var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
       if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
-      else if (old[s.tone]) t = 'dark';
     } catch (e) {
       /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
     }

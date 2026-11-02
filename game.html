@@ -20,15 +20,13 @@
   // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
   // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
-  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 値は 'system' | 'light' | 'dark'。
   // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
   (function () {
-    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
     var t = 'system';
     try {
       var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
       if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
-      else if (old[s.tone]) t = 'dark';
     } catch (e) {
       /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
     }
@@ -53,8 +51,7 @@
   <p class="nav__others" data-for="game"><span data-icon="others">ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
 </header>
 
-<!-- 2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → pt、コースの値段 → ノルマ）。
-     遊びの仕組みは同じ。画面は札を重ねず、ふつうのページとして縦に置く（入口・鍛えると同じ計器の見た目） -->
+<!-- 画面は札を重ねず、ふつうのページとして縦に置く（門・鍛えると同じ計器の見た目） -->
 <main class="g-main">
 
   <!-- 狭い画面だけに出る断り書き（app.css の .kbnote をそのまま使う。出し入れは @media だけ）。

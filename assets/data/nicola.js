@@ -1,10 +1,9 @@
 // NICOLA（親指シフト）配列表。
 //
 // なぜ JSON ではなく JS モジュールなのか。
-// JSON を fetch で読むと CSP の connect-src を 'self' に緩めることになる。この app は
-// 外へ一切出ていかないのが売りで、connect-src 'none' を置くと「うっかり CDN を書いた
-// 時点でブラウザが止める」という不変条件になる。宣言を宣言のままにしないため、
-// 配列表は import で読める JS にしてある。ビルドも要らない。
+// JSON を fetch で読むと CSP の connect-src に 'self' を足すことになる。connect-src は
+// ランキング API のオリジン一つだけにしてあり、「それ以外へ出ようとした時点でブラウザが止める」
+// という不変条件を崩さないため、配列表は import で読める JS にしてある。ビルドも要らない。
 //
 // 出典: KeyLogicKit の nicola.json（MIT License, Copyright (c) msonrm）
 //   https://github.com/msonrm/KeyLogicKit

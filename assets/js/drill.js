@@ -29,28 +29,24 @@
 
 import { loadLayout, shiftKindOf } from './layout.js';
 import { offsetSummary } from './trophies.js';
+import { CURRICULUM } from './curriculum.js';
 
 const LAYOUT = loadLayout();
 
 // ---------------------------------------------------------------- 面の一覧
 //
-// 教程順（lessons.js の basic-1〜basic-7 の順）を面ごとに持たせる。
-// これは「弱さが同点のときにどちらを先に出すか」を決めるためのもので、
-// 未踏破の面が大量にある初心者（統計が空）のときに効く。
+// 覚えるのレッスン順（curriculum.js の CURRICULUM。単独 → 同側 → 交差、その中は
+// レッスンで覚える順）を面ごとに持たせる。これは「弱さが同点のときにどちらを先に
+// 出すか」を決めるためのもので、未踏破の面が大量にある初心者（統計が空）のときに効く。
 // 同点をキーの ID 順で切ると、いきなり交差シフトから出題される。
 
-/** キーの並び。lessons.js の教程順（左ホーム → 右ホーム → 句読点 → 右上下段 → 左上下段） */
-const KEY_ORDER = [
-  'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG',
-  'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon',
-  'KeyQ', 'KeyP',
-  'KeyY', 'KeyU', 'KeyI', 'KeyO',
-  'KeyN', 'KeyM', 'Comma', 'Period', 'Slash',
-  'KeyW', 'KeyE', 'KeyR', 'KeyT',
-  'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyZ',
-];
+/** 面 → 覚えるのレッスンで出てくる順 */
+const LESSON_ORDER = new Map();
+for (const l of CURRICULUM) {
+  for (const k of l.newKeys) LESSON_ORDER.set(`${k.code}:${k.thumb ?? 'none'}`, LESSON_ORDER.size);
+}
 
-/** 面の種類の学習順。単独 → 同側 → 交差。lessons.js のコース順と同じ */
+/** 面の種類の学習順。単独 → 同側 → 交差。覚えるの単元の順と同じ */
 const KIND_RANK = { none: 0, same: 1, cross: 2 };
 
 /** 区切りに使える字。語の中には入れない */
@@ -58,12 +54,8 @@ const PUNCT = new Set(['。', '、', '．', '・']);
 
 function buildFaces() {
   const keys = LAYOUT.keys;
-  const codes = [
-    ...KEY_ORDER.filter((c) => keys[c]),
-    ...Object.keys(keys).filter((c) => !KEY_ORDER.includes(c)),
-  ];
   const out = [];
-  codes.forEach((charCode, keyRank) => {
+  Object.keys(keys).forEach((charCode, keyRank) => {
     const key = keys[charCode];
     for (const thumb of ['none', 'left', 'right']) {
       const kana = thumb === 'none' ? key.none : key[thumb];
@@ -76,7 +68,8 @@ function buildFaces() {
         kana,
         hand: key.hand,
         shiftKind, // null | 'same' | 'cross'
-        teachOrder: KIND_RANK[shiftKind || 'none'] * 100 + keyRank,
+        // レッスンに出ない面（«ぁ» のように別の親指で先に覚えたかな）は、同じ種類の面の後ろに回す
+        teachOrder: KIND_RANK[shiftKind || 'none'] * 1000 + (LESSON_ORDER.get(`${charCode}:${thumb}`) ?? 500 + keyRank),
       });
     }
   });
@@ -460,7 +453,7 @@ const VOWEL_LIKE = new Set(['あ', 'い', 'う', 'え', 'お', 'ん', 'ー', '�
 /**
  * ホームポジションの単独打鍵。統計が空の人でも擬似語の接着に使えるよう、
  * 常に使ってよいかなとして持っておく。ここが無いと、狙った面が
- * 小書き一字だけのときに語を組み立てられない。lessons.js の basic-1/2 と同じ十字。
+ * 小書き一字だけのときに語を組み立てられない。覚えるのレッスン 1・2（左右のホーム）と同じ十字。
  */
 const BASE_KANA = ['う', 'し', 'て', 'け', 'せ', 'は', 'と', 'き', 'い', 'ん'];
 

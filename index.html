@@ -6,11 +6,11 @@
 <title>親指シフトマスター ～0から覚えてトレーニングまで～</title>
 <meta name="description" content="親指シフト（NICOLA配列）の練習サイト。文字キーと親指キーを押した時刻の差を1打ごとに測り、親指が早いか遅いかを出します。">
 <meta name="color-scheme" content="light dark">
-<!-- 外部への発信は一切しない。フォントは OS の和文書体を名前で当てるだけ（app.css の冒頭）、
-     アイコンは自前の SVG / PNG。
-     配列表も fetch せず JS モジュールとして import しているので connect-src は
-     'none' で締められる。CSP は配信側のヘッダ（_headers）で当てる。 -->
-<!-- アイコンは弓道の霞的。«道場» の看板で、的の真ん中を狙う «ぴったり» とも重なる。
+<!-- このページは外へ何も送らない（外へ出るのは game.html のランキングだけ）。
+     フォントは OS の和文書体を名前で当てるだけ（app.css の冒頭）、アイコンは自前の SVG / PNG。
+     配列表も fetch せず JS モジュールとして import する。CSP は配信側のヘッダ（_headers）で当て、
+     connect-src はランキング API のオリジン一つだけ。 -->
+<!-- アイコンは弓道の霞的。的の真ん中を狙うのが、親指のズレの «ぴったり» と重なる。
      キーボードの絵は 16px に縮めると何の形か読めなくなるのでやめた。
      的の輪の比率は実寸（近的・直径36cm）どおり。中身は assets/img/favicon.svg の注記 -->
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
@@ -22,15 +22,13 @@
   // module は遅れて走る。ここで配色を当てないと、一瞬だけ逆の明暗が見えてちらつく。
   // 保存先は storage.js の loadSettings() と同じ鍵を直接読む。
   // 二重に持つと必ず食い違うので、鍵は 'oyayubi-dojo:settings:v1' の .tone 一本。
-  // 値は 'system' | 'light' | 'dark'。以前の配色 4 種はどれも暗い地なので 'dark' として読む。
+  // 値は 'system' | 'light' | 'dark'。
   // 'system' は OS の明暗で決める。OS の設定が変わったときの追従は app.js / game の main.js が受け持つ。
   (function () {
-    var old = { midnight: 1, matcha: 1, plum: 1, sumi: 1 };
     var t = 'system';
     try {
       var s = JSON.parse(localStorage.getItem('oyayubi-dojo:settings:v1') || '{}');
       if (s.tone === 'light' || s.tone === 'dark') t = s.tone;
-      else if (old[s.tone]) t = 'dark';
     } catch (e) {
       /* 読めなくても OS の明暗で動く。ここで転ぶと画面が出ない */
     }
@@ -44,8 +42,8 @@
 </head>
 <body data-area="gate">
 
-<header class="nav" id="nav">
-  <!-- 場所ごとに «別のサイト» に見せる（2026-11-02）。
+<header class="nav">
+  <!-- 場所ごとに «別のサイト» に見せる。
        覚える・鍛える・腕試しは来る人がまるで違う。共通のナビに三つを並べると、
        どこに居ても «全部入りの一つのサイト» に見え、上級者は入門の看板を見て帰ってしまう。
        body[data-area] を app.js が付け替え、看板（銘）・帯の色・ナビの中身を CSS で場所ごとに切り替える。
@@ -90,8 +88,8 @@
 
 
 <!-- ================================================================ #/setup
-     最初に必ず通す画面。親指キーの code はキーボードと OS で違うので、
-     「押して覚えさせる」以外に確実な方法がない。 -->
+     設定。親指キーの code はキーボードと OS で違うので、
+     「押して覚えさせる」以外に確実な方法がない。どの場所からもナビの右で開ける。 -->
 <section class="screen screen--setup" id="screenSetup" hidden>
   <div class="page">
     <h1 class="page__title">設定</h1>
@@ -174,7 +172,7 @@
     </div>
 
     <!-- 練習の進み方。飛ばしは «打てない字の前で完全に止まる» のを防ぐための逃げ道だが、
-         «勝手に進んだ» と感じる打ち方もある。既定はこれまでどおり on -->
+         «勝手に進んだ» と感じる打ち方もある。既定は on -->
     <div class="card">
       <h2 class="card__head" data-icon="skip">進み方</h2>
 
@@ -187,10 +185,10 @@
       </label>
     </div>
 
-    <!-- 配色。以前は上の帯に常に出していたが、毎回触るものではないのでここへ移した。
-         明暗だけを選ぶ（2026-11-02）。色味は場所ごとの色（覚える・鍛える・ゲーム）が受け持つ。
+    <!-- 配色。毎回触るものではないので、上の帯ではなく設定に置く。
+         明暗だけを選ぶ。色味は場所ごとの色（覚える・鍛える・ゲーム）が受け持つ。
          値は storage.js の TONES と同じ。押し下げは app.js の applyTone が付け直す -->
-    <div class="card" id="toneCard">
+    <div class="card">
       <h2 class="card__head">配色</h2>
       <div class="tones" role="group" aria-label="配色">
         <button type="button" class="tones__opt" data-tone-set="light" aria-pressed="false"><i></i><span>ライト</span></button>
@@ -200,7 +198,7 @@
     </div>
 
     <!-- 打鍵音。既定は «無音» なので、ここを置かないと sound.js は一度も鳴らない。
-         この道場の芯は «押下の時間差を 1 打ごとに返すこと» で、音はそれを
+         このサイトの芯は «押下の時間差を 1 打ごとに返すこと» で、音はそれを
          «画面を見ずに» 受け取れる唯一の道。同時打鍵の練習では手元と画面を往復せずに済む。
 
          音色の一覧・説明文は sound.js の SOUND_KINDS と、
@@ -213,38 +211,38 @@
              見た目は class でも disabled でも同じに落ちるが、«選べない» を効かせるのは disabled のほう
            - 音量 … #soundVolume は 0〜100。settings.soundVolume は 0〜1 なので 100 で割る。
              現在値は #soundVolumeOut に入れる -->
-    <div class="card" id="soundCard">
+    <div class="card">
       <h2 class="card__head" data-icon="tone">打鍵音</h2>
       <p class="note">親指が先なら低い音から高い音へ、遅れなら高い音から低い音へ。ぴったりで一つの音。</p>
 
-      <fieldset class="sounds" id="soundKinds">
+      <fieldset class="sounds">
         <legend class="sounds__legend">音色</legend>
 
-        <label class="sound" id="soundOptOff" data-sound-opt="off">
-          <input type="radio" class="sound__radio" name="soundKind" id="soundOff" value="off" checked>
+        <label class="sound" data-sound-opt="off">
+          <input type="radio" class="sound__radio" name="soundKind" value="off" checked>
           <b class="sound__name">無音</b>
           <span class="sound__note">音を出さない（既定）</span>
         </label>
 
-        <label class="sound" id="soundOptTsuzumi" data-sound-opt="tsuzumi">
-          <input type="radio" class="sound__radio" name="soundKind" id="soundTsuzumi" value="tsuzumi">
+        <label class="sound" data-sound-opt="tsuzumi">
+          <input type="radio" class="sound__radio" name="soundKind" value="tsuzumi">
           <b class="sound__name">鼓</b>
           <span class="sound__note">皮の低い響き。長く打っても疲れない</span>
-          <span class="sound__lock" id="soundLockTsuzumi">課題をひとつ打ち切る</span>
+          <span class="sound__lock">課題をひとつ打ち切る</span>
         </label>
 
-        <label class="sound" id="soundOptHyoshigi" data-sound-opt="hyoshigi">
-          <input type="radio" class="sound__radio" name="soundKind" id="soundHyoshigi" value="hyoshigi">
+        <label class="sound" data-sound-opt="hyoshigi">
+          <input type="radio" class="sound__radio" name="soundKind" value="hyoshigi">
           <b class="sound__name">拍子木</b>
           <span class="sound__note">硬く短い。ズレの輪郭がいちばん立つ</span>
-          <span class="sound__lock" id="soundLockHyoshigi">ぴったり判定を通算50回出す</span>
+          <span class="sound__lock">ぴったり判定を通算50回出す</span>
         </label>
 
-        <label class="sound" id="soundOptTypewriter" data-sound-opt="typewriter">
-          <input type="radio" class="sound__radio" name="soundKind" id="soundTypewriter" value="typewriter">
+        <label class="sound" data-sound-opt="typewriter">
+          <input type="radio" class="sound__radio" name="soundKind" value="typewriter">
           <b class="sound__name">和文タイプ</b>
           <span class="sound__note">機械の音。打っている実感が出る</span>
-          <span class="sound__lock" id="soundLockTypewriter">交差シフト（濁音・半濁音）で20キー打つ</span>
+          <span class="sound__lock">交差シフト（濁音・半濁音）で20キー打つ</span>
         </label>
       </fieldset>
 
@@ -271,16 +269,14 @@
 
 
 <!-- ================================================================ #/
-     玄関。ここは «選ぶ» だけの画面で、課題の一覧は置かない。
-
-     以前はこの画面が «玄関» と «入門コースの一覧» を兼ねていた。だから
-     «コース» と «稽古» と «腕試し» が同じ面に並び、どれが何なのか読み取れなかった。
-     一覧は #/learn に出して、ここには «目的ごとの入口三つ» と «自分の数字» だけを置く。
-     配列表と設定はナビの右（共通の道具）から入る。玄関に札を並べ直すと、また入口が五つに見える。 -->
+     門。ここは «選ぶ» だけの画面で、課題の一覧は置かない。
+     一覧まで置くと、どれが入口でどれが中身なのか読み取れなくなる。
+     ここには «目的ごとの入口三つ» と «自分の数字» だけを置き、一覧は #/learn・#/train に出す。
+     配列表と設定はナビの右（共通の道具）から入る。門に札を並べ直すと、入口が五つに見える。 -->
 <section class="screen screen--home" id="screenHome" hidden>
   <!-- 門。左に名前、右に計器、下に三つの場所への扉。
        親指シフトの説明は置かない。説明から入ると «初心者向けのサイト» と読まれ、
-       もう打てる人がその場で離れる（2026-11-02 の指摘）。
+       もう打てる人がその場で離れる。
        代わりに、このサイトにしか無い数字（親指のズレの ms）を最初に見せる。
        まだ一本も打っていない人には、計器は空のまま «何を測るか» だけを見せる。
        扉は札ではなく行。三つを同じ重さで並べ、どれか一つだけを目立たせない -->
@@ -290,7 +286,7 @@
         <h1 class="gate__title">親指シフト<br>マスター</h1>
         <p class="gate__sub">0から覚えてトレーニングまで</p>
       </div>
-      <figure class="inst" id="gateInst">
+      <figure class="inst">
         <figcaption class="inst__label">親指のズレ<span id="gateSample"></span></figcaption>
         <p class="inst__read">
           <b id="gateOffset">—</b><small>ms</small>
@@ -302,7 +298,7 @@
       </figure>
     </div>
 
-    <ol class="doors" id="gateDoors">
+    <ol class="doors">
       <li><a class="door" data-area="learn" href="#/learn">
         <span class="door__no">01</span>
         <span class="door__main"><b class="door__name">覚える</b><span class="door__site">親指シフト入門</span></span>
@@ -334,12 +330,8 @@
 
 
 <!-- ================================================================ #/learn
-     覚える。配列を順に覚える場所。以前の «入門コース» の一覧がそのまま来る。
-
-     玄関から一覧を切り離した。玄関に一覧を置くと、玄関が «選ぶ画面» と
-     «第一課の入口» を兼ねてしまい、«鍛える» と «コース» が同じ重さに見えなくなる。
-     続きから打つだけの人は玄関の «つづきから» で直行できるので、
-     ここへ来るのは «全体のどこに居るか» を見たいときだけでよい。 -->
+     覚える。配列をレッスンの順に覚える場所。レッスンは curriculum.js が配列表から組む。
+     上の «つづきから» が次に打つ段階へ直行し、下の一覧で «全体のどこに居るか» を見せる。 -->
 <section class="screen screen--learn" id="screenLearn" hidden>
   <div class="page">
     <!-- 見出しの右に、いくつ終えたかと修了の特典。«何をすれば何がもらえるか» を最初に見せる -->
@@ -409,16 +401,13 @@
       <!-- 何のための一本かを一語で出す。鍛える・自由入力でもこの画面を流用するので、
            これが無いと «いま何を打たされているのか» が分からなくなる。
            «覚える» の課題を打っているときは、右の課題名がそのまま答えになるので
-           app.js が hidden のままにする。
-           app.js への申し送り: mode の文言は «鍛える» / «自由入力» の二つになった
-           （'check' は廃止） -->
+           app.js が hidden のままにする。文言は «鍛える» / «自由入力» の二つ -->
       <span class="play__badge" id="playBadge" hidden>鍛える</span>
-      <span class="play__lesson" id="playLesson">第一課 · ホームポジション</span>
+      <span class="play__lesson" id="playLesson"></span>
 
       <!-- 課題の狙い（lesson.note）。空の受け皿で、app.js が入れる。
-           これが読めないと «メーターが黙る回»（basic-4 / basic-5 は親指を休ませて
-           場所だけ覚える回）が、ただの故障に見える。打鍵中に読ませるものではないので
-           小さく静かに置く。中身が無いときは CSS 側の :empty で行ごと消える。
+           これが読めないと、単独打鍵だけのレッスンで «メーターが黙る» のがただの故障に見える。
+           打鍵中に読ませるものではないので小さく静かに置く。中身が無いときは CSS 側の :empty で行ごと消える。
 
            バーの中で «自分の一段» を占める（CSS で flex-basis:100%）。
            数値や «やり直す» と横に並べると幅が 1/3 しか取れず、
@@ -521,8 +510,8 @@
     <!-- 節目だけ派手にする。ふだんは出さない -->
     <div class="finish" id="finish" hidden>
       <div class="finish__card">
-        <p class="finish__eyebrow" id="finishEyebrow">第一課</p>
-        <h2 class="finish__title" id="finishTitle">ホームポジション</h2>
+        <p class="finish__eyebrow" id="finishEyebrow"></p>
+        <h2 class="finish__title" id="finishTitle"></h2>
 
         <p class="finish__hero">
           <b id="finishCpm">0</b><small>cpm</small>
@@ -562,15 +551,9 @@
      鍛える。もう打てる字を、速く正確にする場所。
 
      «覚える» と違って段階的な解禁は無い。ここは最初から全部開いている。
-     以前は «腕試しを受けるまで閉じる» という門を置いていたが、
      測らないと弱点が出せないのは «弱点集中» の一つだけで、
      残り（総ざらい・速度・実文・自由入力）は最初から成立する。
-     一つのために全部を閉じるのは重すぎたので、門ごとやめた。
-     弱点がまだ出せないときは、下の «いまの弱点» が自分でそう言う。
-
-     «何をやらされるか» ではなく «いま自分の何が弱いか» から始まるように、
-     弱点の表示を選択肢より上に置いてある。順番を逆にすると、
-     ただのメニュー画面になって、選ぶ理由が自分の中に残らない。
+     いまの弱点の一覧は記録（#/record）に置き、ここでは見出しの数字に弱い面の数だけ出す。
 
      内側の id は drill* のままにしてある。画面の名前は変わったが、
      ここでやっていること（適応出題＝drill）は変わっていないので、
@@ -581,7 +564,7 @@
          弱い面の数は記録の弱点一覧へのリンクを兼ねる -->
     <header class="train-head">
       <h1 class="page__title">鍛える</h1>
-      <dl class="stats" id="trainStats">
+      <dl class="stats">
         <div><dt>段位</dt><dd id="trainRank">—</dd></div>
         <div><dt>速さ</dt><dd><span id="trainCpm">—</span><small>cpm</small></dd></div>
         <div><dt>ぴったり率</dt><dd><span id="trainPerfect">—</span><small>%</small></dd></div>
@@ -599,7 +582,7 @@
     </aside>
 
     <!-- 三つのモード。札を三枚並べず、罫で区切った一本の帯にする。説明は一行だけ -->
-    <div class="modes" id="drillModes">
+    <div class="modes">
       <button type="button" class="mode" id="btnDrillWeak">
         <span class="mode__go" data-icon="play"></span>
         <span class="mode__text"><b class="mode__name">弱点集中</b><span class="mode__note">落としている面とズレの大きいキー</span></span>
@@ -651,16 +634,8 @@
 
 
 <!-- ================================================================ #/record
-     記録。打った結果が貯まるところ。以前の «マイページ»。
-
-     «マイページ» をやめたのは、それが «この場所に何があるか» を何も言っていないから。
-     会員証のような語で、中身（段位・ズレの分布・ヒートマップ・カレンダー・実績）と
-     結び付かない。«記録» なら、打てば増えることが名前だけで分かる。
-
-     玄関に «ふりかえる» という札は置いていない。ここへは玄関の «自分の数字»
-     （.mine）とヘッダーの連続日数から入る。数字そのものが札より強い入口になる。
-
-     内側の id は元のまま。画面の名前は変えたが中身は変えていない。 -->
+     記録。打った結果が貯まるところ。«記録» と名乗るのは、打てば増えることが名前だけで分かるから。
+     ここへは鍛えるのナビと、見出しの数字（弱い面の数）・ヘッダーの連続日数から入る。 -->
 <section class="screen screen--record" id="screenRecord" hidden>
   <div class="page page--narrowish">
     <p class="area-head__site">親指シフト トレーニング</p>
@@ -669,12 +644,12 @@
     <div class="card card--rank">
       <h2 class="card__head">段位</h2>
       <div class="rank">
-        <b class="rank__name" id="rankName">白帯</b>
+        <b class="rank__name" id="rankName">素振り</b>
         <span class="rank__score" id="rankScore">稽古量 0</span>
       </div>
       <div class="rank__bar"><i id="rankFill"></i></div>
       <p class="rank__next" id="rankNext">次の段位まで —</p>
-      <!-- 段位の決まり。以前は名前と数字だけで、何をすれば上がるのかがどこにも書かれていなかった（2026-11-02）。
+      <!-- 段位の決まり。名前と数字だけでは何をすれば上がるのかが分からないので、
            決まりは一行で言い、十段の条件ははしごの各段にマウスを乗せると出す（app.js が trophies.js の RANKS から組む） -->
       <p class="rank__rule">二つが揃うと上がる。<b>稽古量</b>（打つたびに貯まる）がその段の値に届くこと。<b>30 字以上の一本</b>で、その段の速さと正確率を両方出すこと。</p>
       <ol class="ladder" id="rankLadder" aria-label="段位のはしご"></ol>
@@ -721,7 +696,7 @@
     </div>
 
     <!-- 記録が無いあいだ #romajiCard は隠れるので、入れる欄は別の札にして常に出す -->
-    <div class="card" id="romajiSetCard">
+    <div class="card">
       <h2 class="card__head">ローマ字の速さ<span class="card__count" id="checkRomajiState">未記録</span></h2>
       <p class="note"><a class="link" href="#/train">鍛える</a>の実文をローマ字で打つと測れます。手で入れることもできます。</p>
       <div class="romaji__set">
@@ -742,15 +717,13 @@
     </div>
 
     <!-- 得意・苦手。配列の上に柱を立てる（iso.js）。高さと色＝平均と比べたミス率。
-         以前は平面のヒートマップで、ミスの «回数» を 0〜1 の濃さとしてそのまま渡していたため、
-         一度でも外したキーが全部最大の濃さになっていた -->
+         ミスの «回数» をそのまま濃さにすると、一度でも外したキーが全部最大の濃さになる -->
     <div class="card">
       <h2 class="card__head">得意・苦手</h2>
       <div class="iso" id="isoBoard"></div>
     </div>
 
-    <!-- いま何が弱いか。以前は «鍛える» の頭に置いていたが、自分の記録を読む場所はここ（2026-11-02）。
-         «鍛える» には一行の案内だけ残す -->
+    <!-- いま何が弱いか。自分の記録を読む場所はここ。«鍛える» には見出しの数字（弱い面の数）だけ置く -->
     <div class="card" id="drillWeakCard">
       <h2 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h2>
 

@@ -15,8 +15,8 @@
 //   秘密の照合は timingSafeEqual で行う（一致した長さで処理時間が変わらないように）。
 //
 // ・スコアは「人間に出せない値」を弾く。上限は「コースの制限時間＋延長の上限」の間、
-//   毎分 600 かな（親指シフトの上級者でも届かない速さ）で打ち続け、全部の字でそのコースの一字の点と
-//   ぴったりの上乗せ（ローマ字には無い）を取った点数。これを超えたら改ざんと見なして 400 を返す。
+//   毎分 600 かな（親指シフトの上級者でも届かない速さ）で打ち続け、全部の字でそのコースの
+//   «一字あたりいちばん高い値段» を取った点数。これを超えたら改ざんと見なして 400 を返す。
 //   正直に遊んだ人を誤って弾かないよう、上限はわざと緩めに取ってある。
 //
 // ・エラーは { error } の JSON とステータスコードで返す。想定外の例外は中身を返さず 500 にする
@@ -26,43 +26,69 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 
 // ---------------------------------------------------------------- コースの数値
 //
-// assets/js/game/courses.js と揃えること。
+// assets/js/game/courses.js と揃えること。採点は寿司打と比べられるよう、数値と算出方法を
+// そのまま写している（単位だけ円→pt）。入力方式による上乗せは無い。
 // サーバーはブラウザのファイルを import できない（配置先が違う）ので、上限計算に要る数値だけを
-// ここに写してある。courses.js 側で時間・一字の点・上乗せを上げたら、ここも同じだけ上げる。
+// ここに写してある。courses.js 側で時間・値段・延長を上げたら、ここも同じだけ上げる。
 // 下げる分には放っておいても害は無い（上限が緩いままになるだけ）。
 // 上げ忘れると、正直に遊んだ上手な人のスコアが 400 で弾かれる。tools/game.test.mjs が突き合わせる。
-// 写した値（2026-11-02 時点の courses.js）:
-//   COURSES の timeMs と一字の点、PERFECT_BONUS、COMBO_STEP、COMBO_TIME_BONUS_MS
+// 写した値（2026-11-02 時点の courses.js）: COURSES の timeMs と値段の表、METER_STEPS
 
-/** コースの id → { 制限時間（ms）, かな一字の点 }。id はランキングの鍵なので三つで固定 */
+/**
+ * コースの id → { 制限時間（ms）, 値段の表 }。id はランキングの鍵なので三つで固定。
+ * 値段は語の «かなの字数» で決まる。minLen〜maxLen 字の語を打ち切ると price pt。
+ */
 export const COURSE_LIMITS = Object.freeze({
-  p3000: Object.freeze({ timeMs: 60_000, ptPerKana: 20 }),
-  p5000: Object.freeze({ timeMs: 90_000, ptPerKana: 20 }),
-  p10000: Object.freeze({ timeMs: 120_000, ptPerKana: 25 }),
+  p3000: Object.freeze({
+    timeMs: 60_000,
+    prices: Object.freeze([
+      Object.freeze({ minLen: 2, maxLen: 4, price: 100 }),
+      Object.freeze({ minLen: 5, maxLen: 6, price: 180 }),
+      Object.freeze({ minLen: 7, maxLen: 7, price: 240 }),
+    ]),
+  }),
+  p5000: Object.freeze({
+    timeMs: 90_000,
+    prices: Object.freeze([
+      Object.freeze({ minLen: 5, maxLen: 6, price: 180 }),
+      Object.freeze({ minLen: 7, maxLen: 9, price: 240 }),
+      Object.freeze({ minLen: 10, maxLen: 10, price: 380 }),
+    ]),
+  }),
+  p10000: Object.freeze({
+    timeMs: 120_000,
+    prices: Object.freeze([
+      Object.freeze({ minLen: 9, maxLen: 9, price: 240 }),
+      Object.freeze({ minLen: 10, maxLen: 12, price: 380 }),
+      Object.freeze({ minLen: 13, maxLen: 14, price: 500 }),
+    ]),
+  }),
 });
 export const COURSE_IDS = Object.freeze(Object.keys(COURSE_LIMITS));
 
-/** courses.js の PERFECT_BONUS（ぴったり一打ごとの上乗せ・点） */
-export const PERFECT_BONUS = 10;
-/** courses.js の COMBO_STEP（この打数ごとに延長） */
-export const COMBO_STEP = 20;
-/** courses.js の COMBO_TIME_BONUS_MS（一回の延長） */
-export const COMBO_TIME_BONUS_MS = 1000;
+/**
+ * 時間延長（連打メーター）。ミスなしで続けて正しく打ったキーの数が keys に届くたびに ms 延びる。
+ * 最後（130）で一周して 0 から数え直す。ミスで 0 に戻る。courses.js の METER_STEPS と同じ値
+ */
+export const METER_STEPS = Object.freeze([
+  Object.freeze({ keys: 28, ms: 1000 }),
+  Object.freeze({ keys: 59, ms: 1000 }),
+  Object.freeze({ keys: 92, ms: 2000 }),
+  Object.freeze({ keys: 130, ms: 3000 }),
+]);
 
 /** 入力方式。ランキングはコースごとに、方式ごとの部門の表と、両方をまとめた総合の表を持つ */
 export const INPUTS = Object.freeze(['nicola', 'romaji']);
 /** 順位表。all は総合（各人の毎分の自己ベスト一行）、ほかは部門（各人の点数の自己ベスト一行） */
 export const BOARDS = Object.freeze(['all', ...INPUTS]);
 
-/** ぴったりの上乗せ（点）。ローマ字には同時打鍵が無いので上乗せも無い */
-export function perfectBonusOf(input) {
-  if (input === 'nicola') return PERFECT_BONUS;
-  if (input === 'romaji') return 0;
-  throw new Error(`未知の入力方式: ${input}`);
-}
-
 /** 人間の打鍵速度の上限（かな／分）。親指シフトの上級者でも続けては届かない速さ */
 export const HUMAN_MAX_KPM = 600;
+/**
+ * 人間の打鍵速度の上限（キー／分）。延長はかなではなくキーで数えるので、こちらで見積もる。
+ * ローマ字は一字に 2 キーほど押すので、かなの上限より高く取る。ローマ字の上級者でも続けては届かない速さ
+ */
+export const HUMAN_MAX_KEYS_PER_MIN = 900;
 
 /** 遊んだ時間の測りのぶれ（ms）。終わりの判定はフレーム単位なので、少しだけ超えうる */
 export const DURATION_SLACK_MS = 1000;
@@ -70,14 +96,17 @@ export const DURATION_SLACK_MS = 1000;
 /**
  * 延長を含めた、遊べる時間の上限（ms）。
  *
- * 上限の速さで一度も間違えずに打ち続けると、遊んだ 1ms ごとに
- *   r = (HUMAN_MAX_KPM / 60000) × COMBO_TIME_BONUS_MS / COMBO_STEP
- * ms ずつ延長が付く（いまの値で r = 0.5）。延長で伸びた時間にもさらに延長が付くので、
+ * 上限の速さで一度も間違えずに打ち続けると、メーター一周（130 キー）ごとに合計 7000ms 延びる。
+ * 遊んだ 1ms ごとに付く延長は
+ *   r = (HUMAN_MAX_KEYS_PER_MIN / 60000) × 一周の延長 / 一周のキー数
+ * ms（いまの値で r ≈ 0.81）。延長で伸びた時間にもさらに延長が付くので、
  * 合計の時間 D は D ≤ 制限時間 + r × D を満たす。よって D ≤ 制限時間 / (1 − r)。
- * コンボの延長は 20 打目ちょうどで付く（端数は切り捨て）ので、この連続近似は必ず上側に外れる。
+ * 延長は区切りのキー数に届いてから付くので、この連続近似は必ず上側に外れる。
  * r が 1 以上だと延長が時間の流れに追いついて終わらないゲームになるので、起動時に止める。
  */
-const EXTENSION_RATE = ((HUMAN_MAX_KPM / 60_000) * COMBO_TIME_BONUS_MS) / COMBO_STEP;
+const METER_CYCLE_KEYS = METER_STEPS[METER_STEPS.length - 1].keys;
+const METER_CYCLE_MS = METER_STEPS.reduce((sum, s) => sum + s.ms, 0);
+const EXTENSION_RATE = ((HUMAN_MAX_KEYS_PER_MIN / 60_000) * METER_CYCLE_MS) / METER_CYCLE_KEYS;
 if (!(EXTENSION_RATE < 1)) throw new Error('延長が速すぎて上限の時間が決まらない（courses.js の値を確かめる）');
 
 export function maxDurationMsOf(course) {
@@ -87,16 +116,25 @@ export function maxDurationMsOf(course) {
 }
 
 /**
- * コースと入力方式ごとの上限の点数。
- * 延長込みの時間いっぱい、上限の速さで打ち、全部の字で一字の点とぴったりの上乗せを取った点数。
- * 親指シフトはいまの値で 3000点 36,000 / 5000点 54,000 / 10000点 84,000。
- * ローマ字は上乗せが無いぶん低い。
+ * そのコースの «一字あたりの値段» のいちばん高いもの（pt、切り上げ）。
+ * 値段の表の各段の price / minLen の最大。3000 は 100/2 = 50、5000 は 380/10 = 38、10000 は 500/13 → 39。
+ * 短い語ほど一字あたりが高いとは限らない（5000 と 10000 は長い段の方が高い）ので、全部の段で比べる。
+ * 打ち切った語の値段は、その語の字数 × これを超えない。
  */
-export function maxScoreOf(course, input) {
+export function maxPricePerKanaOf(course) {
   const c = COURSE_LIMITS[course];
   if (!c) throw new Error(`未知のコース: ${course}`);
+  return Math.max(...c.prices.map((p) => Math.ceil(p.price / p.minLen)));
+}
+
+/**
+ * コースごとの上限の点数。
+ * 延長込みの時間いっぱい、上限の速さで打ち、全部の字で一字あたりいちばん高い値段を取った点数。
+ * 入力方式による違いは無い（上乗せが無いので）。
+ */
+export function maxScoreOf(course) {
   const maxKana = Math.ceil((HUMAN_MAX_KPM * maxDurationMsOf(course)) / 60_000);
-  return maxKana * (c.ptPerKana + perfectBonusOf(input));
+  return maxKana * maxPricePerKanaOf(course);
 }
 
 // ---------------------------------------------------------------- 定数
@@ -190,17 +228,17 @@ export function validateScore(body) {
   // ありえない値。どれか一つでも超えたら記録しない
   if (durationMs > maxDurationMsOf(course) + DURATION_SLACK_MS) throw bad('ありえない記録です（時間）');
   if (kpm > HUMAN_MAX_KPM) throw bad('ありえない記録です（速さ）');
-  if (score > maxScoreOf(course, input)) throw bad('ありえない記録です（点数）');
+  if (score > maxScoreOf(course)) throw bad('ありえない記録です（点数）');
 
   // 値どうしの突き合わせ。上の三つは一つずつ上限と比べるだけなので、
   // 「点数だけ上限ぴったり・速さ 1・時間 1ms」のような矛盾した組を通してしまう。
   // ゲームは時間切れでしか終わらない（途中でやめた回は送らない）ので、時間は制限時間を下回らない
   const c = COURSE_LIMITS[course];
   if (durationMs < c.timeMs - DURATION_SLACK_MS) throw bad('ありえない記録です（時間が短い）');
-  // 取った点は「打った字数 ×（一字の点＋ぴったりの上乗せ）」を超えない。
+  // 取った点は「打った字数 × 一字あたりいちばん高い値段」を超えない。
   // 字数は kpm と時間から戻せる。送る側で速さと時間を丸めるので一字ぶんの余裕を持たせる
   const kanaTyped = Math.ceil((kpm * durationMs) / 60_000 + 1);
-  if (score > kanaTyped * (c.ptPerKana + perfectBonusOf(input))) throw bad('ありえない記録です（速さと点数が合わない）');
+  if (score > kanaTyped * maxPricePerKanaOf(course)) throw bad('ありえない記録です（速さと点数が合わない）');
 
   return { course, input, score, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
 }
@@ -225,8 +263,7 @@ export function periodKey(period, date) {
 
 /**
  * 順位表の並べ方。部門の表は点数、総合の表（board = all）は毎分の打鍵数。
- * ローマ字にはぴったりの上乗せが無く、一字の最大点が親指シフトの 3 分の 1 なので、
- * 点数で混ぜると入力方式どうしを比べられない。総合は速さだけで比べる（本人が選んだ）。
+ * 総合を速さで並べるのは本人が選んだ。
  */
 export function orderOf(board) {
   return board === 'all' ? 'kpm' : 'score';

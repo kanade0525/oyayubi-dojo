@@ -64,13 +64,14 @@
   <section class="g-screen g-title" id="scTitle" aria-labelledby="titleHead">
     <div class="g-hero">
       <div>
+        <p class="g-eyebrow">タイピングゲーム</p>
         <h1 class="g-title__head" id="titleHead">検品ライン</h1>
-        <p class="g-lead">ラインを流れてくる作業品の語を打って、検品を通す。時間のうちにノルマの点を越えれば達成。<span id="perfectNote">親指を使う字が <b class="g-ok">ぴったり（±15ms）</b>なら、その作業品の点が上がる。</span></p>
+        <p class="g-lead">ラインを流れてくる作業品の語を打つと、検品を通してその作業品の値段（pt）が入る。<br>時間内に通した合計がノルマを越えれば «お得»、届かなければ «損»。</p>
       </div>
       <dl class="g-rule" id="ruleTable">
-        <div class="is-plain"><dt>一字</dt><dd id="ruleUnit">20 点</dd></div>
-        <div data-nicola class="is-ok"><dt>ぴったり一打</dt><dd id="ruleBonus">10 点</dd></div>
-        <div><dt>ミスなし 20 打</dt><dd id="ruleCombo">1 秒</dd></div>
+        <div><dt>作業品の値段（字数で決まる）</dt><dd>100〜500</dd></div>
+        <div><dt>ミスなしで続けて打つと</dt><dd>+1〜3 秒</dd></div>
+        <div><dt>結果</dt><dd>合計 − ノルマ</dd></div>
       </dl>
     </div>
 
@@ -79,7 +80,7 @@
         <button type="button" data-input="nicola" aria-pressed="true">親指シフト</button>
         <button type="button" data-input="romaji" aria-pressed="false">ローマ字</button>
       </div>
-      <span class="g-dim" id="romajiNote">ローマ字にはぴったりの上乗せが無い。ランキングは入力方式ごとに分けて並べる</span>
+      <span class="g-dim" id="romajiNote">採点はどちらも同じ。ランキングは入力方式ごとに分けて並べる</span>
     </div>
 
     <div class="g-courses" id="courseList" role="list"><!-- main.js が courses.js から作る --></div>
@@ -94,15 +95,16 @@
       <button type="button" class="btn" id="btnRankingFromTitle" data-icon="ranking">ランキングを見る</button>
       <button type="button" class="btn" id="btnSfx" aria-pressed="true">効果音：オン</button>
     </div>
+    <p class="g-support" data-support hidden></p>
   </section>
 
   <!-- ============================================================ 検品中 -->
   <section class="g-screen g-play" id="scPlay" aria-label="検品中" hidden>
     <div class="g-hud">
       <div><span>残り</span><b id="hudTime">60.0</b><small>秒</small></div>
-      <div><span>点</span><b id="hudScore">0</b><small id="hudTarget">/ 3,000</small></div>
-      <div><span>コンボ</span><b id="hudCombo">0</b></div>
-      <div><span>速さ</span><b id="hudKpm">0</b><small>cpm</small></div>
+      <div><span>獲得</span><b id="hudScore">0</b><small id="hudTarget">/ 3,000 pt</small></div>
+      <div><span>連打メーター</span><b id="hudMeter">0</b><small id="hudMeterNext">/ 28</small></div>
+      <div><span>平均キータイプ数</span><b id="hudKps">0.0</b><small>回/秒</small></div>
     </div>
     <p class="g-ime" id="imeWarn" role="alert" hidden>日本語入力がオンです。<kbd>英数</kbd>で切り替えてください</p>
     <!-- ライン。作業品は main.js が左から右へ流す（位置は engine.js の x）。右端が検品の出口 -->
@@ -123,14 +125,14 @@
   <section class="g-screen g-result" id="scResult" aria-labelledby="resultHead" hidden>
     <div class="g-res">
       <div>
-        <p class="g-eyebrow" id="resultMode">ノルマ 3,000 点・60 秒・親指シフト</p>
-        <h2 class="g-res__score" id="resultHead"><b id="resultScore">0</b><small>点</small></h2>
+        <p class="g-eyebrow" id="resultMode">ノルマ 3,000 pt・60 秒・親指シフト</p>
+        <h2 class="g-res__score" id="resultHead"><b id="resultScore">0</b><small>pt</small></h2>
         <p class="g-res__balance" id="resultBalance"></p>
         <p class="g-res__best" id="resultBest" hidden></p>
         <dl class="stats g-res__stats" id="resultTally"><!-- main.js が埋める --></dl>
       </div>
       <figure class="inst" id="resultInst" data-nicola>
-        <figcaption class="inst__label">この回の親指のズレ<span id="resultScopeNote"></span></figcaption>
+        <figcaption class="inst__label">参考：この回の親指のズレ（点には入らない）<span id="resultScopeNote"></span></figcaption>
         <p class="inst__read"><b id="resultOffset">—</b><small>ms</small><span class="inst__sub">ぴったり率 <b id="resultPerfect">—</b>%</span></p>
         <div class="inst__scope" id="resultScope"></div>
         <p class="inst__axis"><span>← 親指が先</span><span class="inst__ok">±15ms がぴったり</span><span>親指が遅れ →</span></p>
@@ -199,9 +201,6 @@
       </div>
     </section>
 
-  <footer class="g-foot">
-    <p class="g-support" data-support hidden></p>
-  </footer>
 </main>
 
 <script type="module" src="assets/js/game/main.js"></script>

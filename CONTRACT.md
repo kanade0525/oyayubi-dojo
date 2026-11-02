@@ -232,35 +232,38 @@ export function showJudgement(container, { offsetMs, tier })
 
 `game.html` は独立したページ。ゲームのために `index.html` / `app.js` へ足すのはナビのリンク一本だけ。
 練習（覚える・鍛える）は**静か**、ゲームは**派手**。この対比は崩さない。
+画面では必ず «タイピングゲーム» と名乗る（名前の «検品ライン» だけではゲームだと読まれない）。
 
-遊びの仕組みは回転ずしのときと同じ。**題材だけ**替えた（皿 → ラインを流れる作業品、取る → 検品を通す、
-取り逃し → 検品漏れ、円 → 点、コースの値段 → ノルマ）。寿司・皿・円は使わない。
+**採点は寿司打と同じ数値・同じ算出方法**（単位だけ 円 → pt）。寿司打の記録とそのまま比べられることがこのゲームの値打ちなので、
+独自の加点・独自の数値を入れない。同時打鍵のズレ（ぴったり等）は結果画面に «参考» として出すだけで、点には入れない。
+題材だけ替えた（皿 → ラインを流れる作業品、取る → 検品を通す、取り逃し → 検品漏れ、コースの値段 → ノルマ）。
 
-### 遊び方の骨格
+### 遊び方の骨格（寿司打と同じ）
 
-- ラインを作業品が流れる。作業品には**かなの語**が付いている。先頭（出口に一番近い）の作業品の語を打ち切ると、検品を通して点が入る
-- 打ち切る前に作業品が出口まで流れたら検品漏れ（点は入らない、ミスにも数えない）
-- **制限時間が尽きたら終わり**。通した点の合計とノルマを比べて「達成／未達」を出す
-- **ここだけの味付け：同時打鍵のズレ**。シフトを使う一打が `perfect`（±15ms）なら「ぴったり」でその作業品の点に上乗せ。
-  単打（シフトなし）の字には加点もしない、減点もしない。ローマ字には上乗せが無い
-- 連続正打（コンボ）が一定数ごとに残り時間が延びる
-- 打ち間違い・不発（`misfire`）はミス。その字は進まない（打ち直し）。コンボは切れる
+- 作業品には**かなの語**が付いている。先頭（出口に一番近い）の作業品の語を打ち切ると、その値段（pt）が入る
+- 作業品の値段は語の字数で決まる。語は字数の順（最小 → 最大 → 最小の一つ上）に、一つの字数で 3 枚ずつ出る
+- 打ち切る前に出口まで流れたら検品漏れ（点は入らない、ミスにも数えない）
+- **制限時間が尽きたら終わり**。通した値段の合計 − ノルマ を «お得 / 損» として出す
+- 連打メーター：ミスなしで続けて正しく打ったキーが 28 / 59 / 92 / 130 に届くたびに +1 / +1 / +2 / +3 秒。130 で一周、ミスで 0
+- 結果の項目：お得 / 損、正しく打ったキーの数、平均キータイプ数（正しく打ったキー ÷ 延長込みの秒数、小数一桁切り捨て）、ミスタイプ数
+- キーは «実際に押したキー»：親指シフトは一字 1 キー、ローマ字は綴りのキー数
 
 ### `assets/js/game/courses.js`（ゲーム企画）
 
 ```js
 export const COURSES = [
-  { id: 'p3000', name: '3,000 点', target: 3000, timeMs: 60000, laneMs: 8000, minLen: 2, maxLen: 7 },
-  { id: 'p5000', name: '5,000 点', target: 5000, timeMs: 90000, laneMs: 10000, minLen: 5, maxLen: 10 },
-  { id: 'p10000', name: '10,000 点', target: 10000, timeMs: 120000, laneMs: 12000, minLen: 9, maxLen: 14 },
+  { id: 'p3000', name: '3,000 pt', target: 3000, timeMs: 60000, laneMs: 8000, minLen: 2, maxLen: 7,
+    prices: [{ minLen: 2, maxLen: 4, price: 100 }, { minLen: 5, maxLen: 6, price: 180 }, { minLen: 7, maxLen: 7, price: 240 }] },
+  { id: 'p5000', ..., timeMs: 90000, minLen: 5, maxLen: 10, prices: 5〜6 字 180 / 7〜9 字 240 / 10 字 380 },
+  { id: 'p10000', ..., timeMs: 120000, minLen: 9, maxLen: 14, prices: 9 字 240 / 10〜12 字 380 / 13〜14 字 500 },
 ];   // id はランキングの鍵なので変えない
-export const PT_PER_KANA = { p3000: 20, p5000: 20, p10000: 25 }   // かな一字の点
-export function itemValue(course, word)   // 作業品一つの点 = 一字の点 × 字数
-export const PERFECT_BONUS = 10           // ぴったり一打ごとの上乗せ（点）
-export const COMBO_STEP = 20, COMBO_TIME_BONUS_MS = 1000
+export function itemValue(course, word)   // 作業品一つの値段
+export function lengthCycle(course)       // 字数の順（一周ぶん）
+export const SAME_LEN_RUN = 3
+export const METER_STEPS = [{ keys: 28, ms: 1000 }, { keys: 59, ms: 1000 }, { keys: 92, ms: 2000 }, { keys: 130, ms: 3000 }]
 ```
 
-`server/src/core.mjs` に同じ数（`COURSE_LIMITS` / `PERFECT_BONUS` / `COMBO_STEP` / `COMBO_TIME_BONUS_MS`）を写してある。`tools/game.test.mjs` が突き合わせる。
+数値の出どころは courses.js の注記に書いた。`server/src/core.mjs` に同じ数（`COURSE_LIMITS` / `METER_STEPS`）を写してある。`tools/game.test.mjs` が調べた値そのものと、サーバーの値の両方を確かめる。
 
 ### `assets/js/game/words.js`（ゲーム企画）
 
@@ -282,20 +285,20 @@ export function createGame({ course, words, rng })
 {
   start(t), input(result, t), tick(t),       // input / tick の返り値は events の配列
   get state(),   // { phase, remainingMs, items: [{ id, word, value, typed, perfect, x /* 0..1 */ }], score, combo, maxCombo,
-                 //   missStreak, cleared, lost, misses, perfect, good, shifted, offsets, strokes, elapsedMs, target }
+                 //   missStreak, cleared, lost, misses, perfect, good, shifted, offsets, strokes, correctKeys, meterKeys, meterNext, elapsedMs, target }
   summary(),     // 終わる前に呼んだら throw
 }
 
 // events
-{ type: 'hit', itemId, kana, tier }   { type: 'perfect', itemId, bonus }   { type: 'miss', itemId, expected, got, misfire }
-{ type: 'clear', itemId, value }      { type: 'lost', itemId }             { type: 'combo', combo, bonusMs }   { type: 'over' }
+{ type: 'hit', itemId, kana, tier, keys }   { type: 'miss', itemId, expected, got, misfire }
+{ type: 'clear', itemId, value }      { type: 'lost', itemId }   { type: 'meter', step, bonusMs }   { type: 'over' }
 
 // summary()
-{ course, score, balance /* score - target */, cleared, lost, strokes, misses, misfires, accuracy, kpm,
-  perfect, good, shifted, offsets, bonus, timeBonusMs, maxCombo, durationMs }
+{ course, score, balance /* score - target */, cleared, lost, strokes, correctKeys, keysPerSec, misses, misfires, accuracy, kpm,
+  perfect, good, shifted, offsets /* 参考 */, timeBonusMs, maxCombo, durationMs }
 ```
 
-- `clear.value` はぴったりの上乗せを**含む**。上乗せは作業品に積むので、検品漏れになれば一緒に流れる
+- `input(result)` の `result.keys` はその字に要ったキーの数（無ければ 1）。ローマ字は main.js が綴りのキー数を渡す
 - 連続シフトで出た一打（`continued`）はズレを測れないので、ぴったりにもシフト打鍵の数にも入れない
 - 自己ベストは `oyayubi-dojo:gamebest:v3` に入力方式×コースごと、この端末だけに残す。回転ずしの v1 / v2（円）は読まない
 - 入力方式は `oyayubi-dojo:gameinput:v1`（`nicola` / `romaji`）。ローマ字は `romaji.js` で綴りを判定し、かなを打ち切るたびに `input({ kana, charCode: 'Romaji', thumb: null, offsetMs: null })`、合わない字は `kana: null` で渡す
@@ -339,7 +342,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | DELETE | `/players/me` | `Authorization: Bearer <token>`。本人の全記録を消す |
 
 - token はサーバーにハッシュでだけ残す
-- スコアは**ありえない値を弾く**（コースの時間・延長の上限・打鍵速度の上限から決まる上限の点を超えたら 400。ローマ字はぴったりの上乗せを 0 として計算）
+- スコアは**ありえない値を弾く**（コースの時間・延長の上限・打鍵速度の上限・一字あたりの値段の最大から決まる上限を超えたら 400）
 - スコアの `course` と `input`（`nicola` / `romaji`）は必須。無ければ 400。自己ベストはコースごとに、部門（点数）と総合（速さ）で一人一つずつ
 - 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。今はダミー値。本番値は石田さんが入れる
 - 判断ロジック（検証・ハッシュ・順位）は `server/src/core.mjs` に置き、DynamoDB を差し替えられる形にする。テストは手元の偽ストアで回す

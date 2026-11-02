@@ -13,17 +13,17 @@
 // ゲームの決まり（CONTRACT.md「ゲーム『検品ライン』」の節が正）
 //   - 打てるのは先頭の作業品（いちばん出口に近いもの）だけ
 //   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。コンボが切れる
-//   - シフトを使う一打が perfect（±15ms）なら、その作業品の点に PERFECT_BONUS を上乗せする。
-//     上乗せは «作業品に» 積む。検品漏れになれば上乗せも一緒に流れる。
-//     ぴったりを出したのに通し損ねると惜しい、という緊張をラインの上に作るため
-//   - 作業品が出口まで流れたら検品漏れ。点は入らないがミスにも数えず、コンボも切らない
-//     （遅いことと間違えることは別の失敗で、罰を重ねると初心者が二重に削られる）
-//   - コンボが COMBO_STEP の倍数に届くたびに残り時間が延びる
+//   - 作業品の値段は語の字数で決まる（courses.js の prices）。語は字数の順（lengthCycle）に、
+//     一つの字数で SAME_LEN_RUN 枚ずつ出る。数値と算出方法は寿司打と同じ（courses.js の注記）
+//   - 作業品が出口まで流れたら検品漏れ。点は入らないがミスにも数えず、メーターも切らない
+//   - 連打メーター：ミスなしで続けて正しく打ったキーの数が METER_STEPS に届くたびに時間が延びる。
+//     最後の段で一周。ミスで 0 に戻る。キーは result.keys（親指シフトは一字 1、ローマ字は綴りのキー数）
+//   - 同時打鍵のズレ（ぴったり等）は数えるだけで、点には入れない（寿司打と比べられなくなるので）
 //   2026-11-02 に «回転ずし» から題材だけ替えた（作業品 → 作業品、円 → 点、点 → ノルマ）
 
 import { tierOf } from '../meter.js';
 import { loadLayout } from '../layout.js';
-import { itemValue, PERFECT_BONUS, COMBO_STEP, COMBO_TIME_BONUS_MS } from './courses.js';
+import { itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } from './courses.js';
 
 /** 作業品どうしの間隔（ライン長に対する割合）。前の作業品がここまで進んだら次を流す。
     0.26 だとラインにおよそ 4 枚。多すぎると先頭がどれか分からなくなり、
@@ -69,14 +69,18 @@ export function createGame({ course, words, rng }) {
   }
   if (typeof rng !== 'function') throw new Error('createGame: rng が関数でない');
 
-  // コースの長さの帯に入る語だけを使う。一語も無いのはデータの誤りなので黙って続けない
-  const pool = (words ?? []).filter((w) => {
+  // 字数ごとに語を分けておく。出る順の字数に一語も無いのはデータの誤りなので黙って続けない
+  const cycle = lengthCycle(course);
+  const byLen = new Map();
+  for (const w of words ?? []) {
     const n = lenOf(w.kana);
-    return n >= course.minLen && n <= course.maxLen;
-  });
-  if (!pool.length) {
-    throw new Error(`createGame: ${course.id} の長さ（${course.minLen}〜${course.maxLen}字）に合う単語が無い`);
+    if (!byLen.has(n)) byLen.set(n, []);
+    byLen.get(n).push(w);
   }
+  for (const n of cycle) {
+    if (!byLen.get(n)?.length) throw new Error(`createGame: ${course.id} で出す ${n} 字の語が無い`);
+  }
+  let seq = 0;            // 何枚目の作業品か（0 から）。字数の順を決める
 
   let phase = 'ready';
   let startAt = 0;
@@ -90,6 +94,9 @@ export function createGame({ course, words, rng }) {
   const recent = [];
 
   let score = 0;
+  let correctKeys = 0;    // 正しく打ったキーの数（結果画面の «正しく打ったキーの数»）
+  let meterKeys = 0;      // 連打メーター。ミスなしで続けて正しく打ったキーの数（一周で 0 に戻る）
+  let meterStep = 0;      // 次に届く METER_STEPS の段
   let combo = 0;
   let maxCombo = 0;
   let missStreak = 0;     // 先頭の同じ字で続けて外した数。打ち方の案内を出す合図
@@ -102,10 +109,11 @@ export function createGame({ course, words, rng }) {
   let good = 0;
   const offsets = [];   // この回のズレ（ms）。結果の分布に使う。一回で数百個なので持っておける
   let shifted = 0;
-  let bonusTotal = 0;
   let timeBonusMs = 0;
 
   function pickWord() {
+    const pool = byLen.get(cycle[Math.floor(seq / SAME_LEN_RUN) % cycle.length]);
+    seq++;
     // 直近に出た語を避ける。プールが小さくて避けきれないときは避けるのをやめる
     // （止まるより重なるほうがまし）
     for (let i = 0; i < 20; i++) {
@@ -189,8 +197,10 @@ export function createGame({ course, words, rng }) {
       const expected = chars[head.typed];
 
       if (result.kana === expected) {
+        const keys = Number.isInteger(result.keys) && result.keys > 0 ? result.keys : 1;
         head.typed++;
         strokes++;
+        correctKeys += keys;
         combo++;
         missStreak = 0;
         if (combo > maxCombo) maxCombo = combo;
@@ -205,20 +215,25 @@ export function createGame({ course, words, rng }) {
           offsets.push(result.offsetMs);
           if (tier === 'good') good++;
         }
-        events.push({ type: 'hit', itemId: head.id, kana: expected, tier });
+        events.push({ type: 'hit', itemId: head.id, kana: expected, tier, keys });
 
         if (tier === 'perfect') {
           perfect++;
-          head.value += PERFECT_BONUS;
           head.perfect++;
-          bonusTotal += PERFECT_BONUS;
-          events.push({ type: 'perfect', itemId: head.id, bonus: PERFECT_BONUS });
         }
 
-        if (combo % COMBO_STEP === 0) {
-          endAt += COMBO_TIME_BONUS_MS;
-          timeBonusMs += COMBO_TIME_BONUS_MS;
-          events.push({ type: 'combo', combo, bonusMs: COMBO_TIME_BONUS_MS });
+        // 連打メーター。一打で二つの段をまたぐこともある（ローマ字の «っ» など）
+        meterKeys += keys;
+        while (meterKeys >= METER_STEPS[meterStep].keys) {
+          const step = METER_STEPS[meterStep];
+          endAt += step.ms;
+          timeBonusMs += step.ms;
+          events.push({ type: 'meter', step: meterStep, bonusMs: step.ms });
+          meterStep++;
+          if (meterStep === METER_STEPS.length) {
+            meterKeys -= step.keys;
+            meterStep = 0;
+          }
         }
 
         if (head.typed >= chars.length) {
@@ -236,6 +251,8 @@ export function createGame({ course, words, rng }) {
         if (misfire) misfires++;
         misses++;
         combo = 0;
+        meterKeys = 0;
+        meterStep = 0;
         missStreak++;
         events.push({ type: 'miss', itemId: head.id, expected, got: result.kana ?? null, misfire });
       }
@@ -255,6 +272,9 @@ export function createGame({ course, words, rng }) {
           x: phase === 'ready' ? 0 : xOf(p, now),
         })),
         score,
+        correctKeys,
+        meterKeys,
+        meterNext: METER_STEPS[meterStep].keys,
         combo,
         maxCombo,
         missStreak,
@@ -290,7 +310,9 @@ export function createGame({ course, words, rng }) {
         good,
         shifted,
         offsets: offsets.slice(),
-        bonus: bonusTotal,
+        correctKeys,
+        // 平均キータイプ数（回/秒）。正しく打ったキーを、延長込みの遊んだ秒数で割り、小数一桁で切り捨てる
+        keysPerSec: durationMs > 0 ? Math.floor((correctKeys / (durationMs / 1000)) * 10) / 10 : 0,
         timeBonusMs,
         maxCombo,
         durationMs,

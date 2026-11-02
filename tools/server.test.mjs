@@ -91,8 +91,8 @@ function setup() {
     assert.equal(res.status, 201, JSON.stringify(res.body));
     return res.body;
   };
-  // 3000 点コース（60 秒・一字 20 点）。毎分 120 かな × 60 秒 → 字数は 121 字まで見る。
-  // 親指シフトは 121 × (20 + 10) = 3,630 点、ローマ字は 121 × 20 = 2,420 点まで通る
+  // 3000 点コース（60 秒・一字あたり最大 50 pt）。毎分 120 かな × 60 秒 → 字数は 121 字まで見る。
+  // 入力方式によらず 121 × 50 = 6,050 pt まで通る
   const score = (points, extra = {}) => ({ course: 'p3000', input: 'nicola', score: points, kpm: 120, accuracy: 0.95, durationMs: 60000, ...extra });
   const post = async (token, body) => {
     const res = await req('POST', '/scores', { token, body });
@@ -258,27 +258,31 @@ describe('自己ベスト', () => {
 // ---------------------------------------------------------------- 検証
 
 describe('ありえない記録', () => {
-  test('上限は延長込みの時間 × 毎分 600 かな × (一字の点 + ぴったり)', () => {
-    // 延長率 r = 10 かな/秒 × 1000ms / 20 打 = 0.5 → 遊べる時間は最大で制限時間の 2 倍
-    assert.equal(maxDurationMsOf('p3000'), 120_000);
-    assert.equal(maxDurationMsOf('p5000'), 180_000);
-    assert.equal(maxDurationMsOf('p10000'), 240_000);
-    assert.equal(maxScoreOf('p3000', 'nicola'), 1200 * (20 + 10));
-    assert.equal(maxScoreOf('p5000', 'nicola'), 1800 * (20 + 10));
-    assert.equal(maxScoreOf('p10000', 'nicola'), 2400 * (25 + 10));
-    assert.equal(maxScoreOf('p3000', 'romaji'), 1200 * 20); // ローマ字はぴったりの上乗せが無い
-    assert.throws(() => maxScoreOf('otegaru', 'nicola'));
-    assert.throws(() => maxScoreOf('p3000', 'qwerty'));
+  test('一字あたりの値段の最大は、値段の表の全部の段の price / minLen の最大（切り上げ）', () => {
+    assert.equal(core.maxPricePerKanaOf('p3000'), 50); // 100 / 2
+    assert.equal(core.maxPricePerKanaOf('p5000'), 38); // 380 / 10（180 / 5 = 36 より高い）
+    assert.equal(core.maxPricePerKanaOf('p10000'), 39); // 500 / 13 = 38.46…（240 / 9 = 26.7 より高い）
+    assert.throws(() => core.maxPricePerKanaOf('otegaru'));
+  });
+
+  test('上限は延長込みの時間 × 毎分 600 かな × 一字あたりの値段の最大', () => {
+    // 延長率 r = 15 キー/秒 × 7000ms / 130 キー ≈ 0.8077 → 遊べる時間は最大で制限時間の 5.2 倍
+    assert.equal(maxDurationMsOf('p3000'), 312_000);
+    assert.ok(Math.abs(maxDurationMsOf('p5000') - 468_000) <= 1);
+    assert.equal(maxDurationMsOf('p10000'), 624_000);
+    assert.equal(maxScoreOf('p3000'), 3120 * 50);
+    assert.equal(maxScoreOf('p10000'), 6240 * 39);
+    assert.throws(() => maxScoreOf('otegaru'));
   });
 
   test('時間は制限時間 − 1 秒から、延長込みの上限 + 1 秒まで', async () => {
     const { req, register, score, store } = setup();
     const { token } = await register('a');
-    for (const [course, durationMs] of [['p3000', 58_999], ['p3000', 121_001], ['p5000', 60_000], ['p10000', 241_001], ['p3000', 0], ['p3000', 60_000.5]]) {
+    for (const [course, durationMs] of [['p3000', 58_999], ['p3000', 313_001], ['p5000', 88_999], ['p10000', 625_001], ['p3000', 0], ['p3000', 60_000.5]]) {
       assert.equal((await req('POST', '/scores', { token, body: score(100, { course, durationMs }) })).status, 400, `${course} ${durationMs}`);
     }
     assert.equal(store.bests.size, 0);
-    for (const [course, durationMs] of [['p3000', 59_000], ['p3000', 121_000], ['p5000', 89_000], ['p10000', 241_000]]) {
+    for (const [course, durationMs] of [['p3000', 59_000], ['p3000', 313_000], ['p5000', 89_000], ['p10000', 625_000]]) {
       assert.equal((await req('POST', '/scores', { token, body: score(100, { course, durationMs }) })).status, 200, `${course} ${durationMs}`);
     }
   });
@@ -300,40 +304,43 @@ describe('ありえない記録', () => {
     assert.equal(store.bests.size, 0);
   });
 
-  test('点数は打った字数 × (一字の点 + ぴったり) まで（字数は速さと時間から戻す）', async () => {
+  test('点数は打った字数 × 一字あたりの値段の最大まで（字数は速さと時間から戻す。入力方式で差は無い）', async () => {
     const { req, register, score, store } = setup();
     const { token } = await register('a');
     // 毎分 120 かな × 60 秒 → 121 字まで見る
-    assert.equal((await req('POST', '/scores', { token, body: score(3631) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(2421, { input: 'romaji' }) })).status, 400);
-    // 一字の点はコースで違う。1 万点コースの 120 秒 → 241 字 × (25 + 10) = 8,435 点
-    assert.equal((await req('POST', '/scores', { token, body: score(8436, { course: 'p10000', durationMs: 120_000 }) })).status, 400);
+    for (const input of ['nicola', 'romaji']) {
+      assert.equal((await req('POST', '/scores', { token, body: score(6051, { input }) })).status, 400, input);
+    }
+    // 一字あたりの値段はコースで違う。1 万点コースの 120 秒 → 241 字 × 39 = 9,399 pt
+    assert.equal((await req('POST', '/scores', { token, body: score(9400, { course: 'p10000', durationMs: 120_000 }) })).status, 400);
     // 点数だけ上限ちょうど・速さ 1
-    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola'), { kpm: 1 }) })).status, 400);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000'), { kpm: 1 }) })).status, 400);
     assert.equal(store.bests.size, 0);
-    assert.equal((await req('POST', '/scores', { token, body: score(3630) })).status, 200);
-    assert.equal((await req('POST', '/scores', { token, body: score(2420, { input: 'romaji' }) })).status, 200);
-    assert.equal((await req('POST', '/scores', { token, body: score(8435, { course: 'p10000', durationMs: 120_000 }) })).status, 200);
+    for (const input of ['nicola', 'romaji']) {
+      assert.equal((await req('POST', '/scores', { token, body: score(6050, { input }) })).status, 200, input);
+    }
+    assert.equal((await req('POST', '/scores', { token, body: score(9399, { course: 'p10000', durationMs: 120_000 }) })).status, 200);
   });
 
   test('上限ちょうどは、速さと時間が見合っていれば通り、一つ超えると断る', async () => {
     const { req, register, score } = setup();
     const { token } = await register('a');
     const top = { kpm: 600, durationMs: maxDurationMsOf('p3000') };
-    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola') + 1, top) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'romaji') + 1, { ...top, input: 'romaji' }) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola'), top) })).status, 200);
-    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'romaji'), { ...top, input: 'romaji' }) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000') + 1, top) })).status, 400);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000'), top) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000'), { ...top, input: 'romaji' }) })).status, 200);
   });
 
   // courses.js 側との突き合わせは tools/game.test.mjs が持つ（ブラウザ側の担当）。ここでは写した値そのものを固定する
   test('写したコースの数値', () => {
+    const tier = (minLen, maxLen, price) => ({ minLen, maxLen, price });
     assert.deepEqual(core.COURSE_LIMITS, {
-      p3000: { timeMs: 60_000, ptPerKana: 20 },
-      p5000: { timeMs: 90_000, ptPerKana: 20 },
-      p10000: { timeMs: 120_000, ptPerKana: 25 },
+      p3000: { timeMs: 60_000, prices: [tier(2, 4, 100), tier(5, 6, 180), tier(7, 7, 240)] },
+      p5000: { timeMs: 90_000, prices: [tier(5, 6, 180), tier(7, 9, 240), tier(10, 10, 380)] },
+      p10000: { timeMs: 120_000, prices: [tier(9, 9, 240), tier(10, 12, 380), tier(13, 14, 500)] },
     });
-    assert.deepEqual([core.PERFECT_BONUS, core.COMBO_STEP, core.COMBO_TIME_BONUS_MS], [10, 20, 1000]);
+    assert.deepEqual(core.METER_STEPS, [{ keys: 28, ms: 1000 }, { keys: 59, ms: 1000 }, { keys: 92, ms: 2000 }, { keys: 130, ms: 3000 }]);
+    for (const name of ['PERFECT_BONUS', 'COMBO_STEP', 'COMBO_TIME_BONUS_MS', 'perfectBonusOf']) assert.equal(core[name], undefined, name);
   });
 });
 
@@ -477,8 +484,8 @@ describe('順位表', () => {
       { score: 9, kpm: 99.9, at: '2026-11-02T00:00:00.000Z' },
       { score: 10, kpm: 100, at: '2026-11-02T00:00:00.000Z' },
       { score: 10, kpm: 100, at: '2026-11-01T00:00:00.000Z' },
-      { score: 84000, kpm: 12.3, at: '2026-12-31T23:59:59.999Z' },
-      { score: 84000, kpm: 600, at: '2026-01-01T00:00:00.000Z' },
+      { score: 243360, kpm: 12.3, at: '2026-12-31T23:59:59.999Z' },
+      { score: 243360, kpm: 600, at: '2026-01-01T00:00:00.000Z' },
     ];
     for (const by of ['score', 'kpm']) {
       const bySortKey = [...rows].sort((x, y) => {

@@ -58,7 +58,9 @@
   padding: 8px 0 16px;
 }
 
+.g-hero .g-eyebrow { margin-bottom: 10px; }
 .g-hero .g-lead { margin-top: 20px; font-size: 15px; }
+.g-rule dt { padding-right: 16px; }
 
 /* 点の表。罫で区切った三行。右の数字がその字で入る点 */
 .g-rule {
@@ -81,20 +83,12 @@
 
 .g-rule dd {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
-.g-rule dd::before {
-  content: "+";
-  margin-right: 2px;
-  font-size: 14px;
-  color: var(--fg-dim);
-}
 
-.g-rule .is-ok dd { color: var(--perfect); }
-.g-rule .is-plain dd::before { content: none; }
 
 .g-bar {
   display: flex;

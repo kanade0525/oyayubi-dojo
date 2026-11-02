@@ -242,7 +242,7 @@ export function renderIso(container, { layout, stats }) {
     const ys = seen.map((c) => c[1]);
     const pad = 12;
     const vb = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) - Math.min(...xs) + pad * 2, Math.max(...ys) - Math.min(...ys) + pad * 2];
-    const label = `得意・苦手の柱。${FACES.find((f) => f.id === state.face).name}。高さと色は、自分の平均と比べたミス率。高く赤いほど苦手。`;
+    const label = `得意・苦手の柱。${FACES.find((f) => f.id === state.face).name}。高さと色は、自分の平均と比べたミス率。高いほど苦手。`;
     return html('div', { class: 'iso-fig viz' },
       svg('svg', { viewBox: vb.map((v) => v.toFixed(1)).join(' '), role: 'group', 'aria-label': label, class: 'iso-svg' }, g));
   };
@@ -253,7 +253,7 @@ export function renderIso(container, { layout, stats }) {
       html('span', { class: 'iso-leg__end' }, '得意'),
       html('span', { class: 'iso-leg__ramp' }, ...['g3', 'g2', 'g1', 'mid', 'b1', 'b2', 'b3'].map((lv) => sw(lv, LEVEL_WORD[lv]))),
       html('span', { class: 'iso-leg__end' }, '苦手'),
-      html('span', { class: 'iso-leg__note' }, `高さと色は、自分の平均ミス率との比。高く赤いほど苦手、低く青いほど得意。縁が点線の柱は、まだ ${LOW_HITS} 打に満たず言い切れない面`));
+      html('span', { class: 'iso-leg__note' }, `高さと色は、自分の平均ミス率との比。高いほど苦手、低いほど得意。縁が点線の柱は、まだ ${LOW_HITS} 打に満たず言い切れない面`));
   };
 
   const lists = (data) => {

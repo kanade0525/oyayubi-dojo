@@ -4,7 +4,8 @@
 //   キー入力 → nicola.js（同時打鍵の判定）→ engine.js（ゲームの決まり）→ 画面と音
 //   をつなぎ、タイトル・カウントダウン・検品中・結果・ランキング・参加の同意の画面を切り替える。
 //   判断は持たない。ゲームの決まりは engine.js、送受信は ranking.js にある。
-//   2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → 点、コースの値段 → ノルマ）。
+//   2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → pt、コースの値段 → ノルマ）。
+//   採点（値段・出る順・連打メーター・結果の項目）は寿司打と同じ数値と算出方法。courses.js の注記を見よ
 //
 // なぜ app.js と同じやり方で入力を取るのか
 //   同時打鍵の判定は「押した時刻」と「離した時刻」の両方が要る。練習画面と同じ設定
@@ -29,7 +30,7 @@ import { createSound } from '../sound.js';
 import { offsetBinOf, OFFSET_BINS } from '../trophies.js';
 import { renderScope } from '../charts.js';
 import { createSfx, loadSfxOn, saveSfxOn } from './sfx.js';
-import { COURSES, PT_PER_KANA, PERFECT_BONUS, COMBO_STEP, COMBO_TIME_BONUS_MS } from './courses.js';
+import { COURSES } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
 import { icon, fillIcons } from '../icons.js';
@@ -101,11 +102,7 @@ const el = {
   scRanking: $('scRanking'),
   scConsent: $('scConsent'),
   inputPick: $('inputPick'),
-  perfectNote: $('perfectNote'),
   romajiNote: $('romajiNote'),
-  ruleUnit: $('ruleUnit'),
-  ruleBonus: $('ruleBonus'),
-  ruleCombo: $('ruleCombo'),
   courseList: $('courseList'),
   thumbNote: $('thumbNote'),
   thumbNames: $('thumbNames'),
@@ -115,8 +112,9 @@ const el = {
   hudTime: $('hudTime'),
   hudScore: $('hudScore'),
   hudTarget: $('hudTarget'),
-  hudCombo: $('hudCombo'),
-  hudKpm: $('hudKpm'),
+  hudMeter: $('hudMeter'),
+  hudMeterNext: $('hudMeterNext'),
+  hudKps: $('hudKps'),
   line: $('line'),
   lineItems: $('lineItems'),
   cueCount: $('cueCount'),
@@ -240,15 +238,8 @@ function paintTitle() {
     b.setAttribute('aria-pressed', String(b.dataset.input === inputMode));
   }
   showNicolaParts(el.scTitle, nicolaMode);
-  el.perfectNote.hidden = !nicolaMode;
   el.thumbNote.hidden = !nicolaMode;
   el.thumbNames.textContent = `左 ${nameOfCodes(thumbKeys.left)} ／ 右 ${nameOfCodes(thumbKeys.right)}`;
-  // 点の表は courses.js の数から組む（説明と実際の点がずれないように）
-  const units = [...new Set(Object.values(PT_PER_KANA))];
-  el.ruleUnit.textContent = `${units.join('〜')} 点`;
-  el.ruleBonus.textContent = `${PERFECT_BONUS} 点`;
-  el.ruleCombo.textContent = `${COMBO_TIME_BONUS_MS / 1000} 秒`;
-  el.ruleCombo.previousElementSibling.textContent = `ミスなし ${COMBO_STEP} 打`;
 
   const best = loadBest()[inputMode];
   el.courseList.replaceChildren(
@@ -258,9 +249,9 @@ function paintTitle() {
         h('span', { class: 'g-course__go', dataset: { icon: 'play' } }),
         h('span', { class: 'g-course__main' },
           h('small', { class: 'g-course__label' }, 'ノルマ'),
-          h('b', { class: 'g-course__target' }, num(c.target), h('small', {}, '点')),
-          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字の語・一字 ${PT_PER_KANA[c.id]} 点`),
-          h('span', { class: 'g-course__best' }, b ? `自己ベスト ${num(b.score)} 点` : 'まだ打っていません')),
+          h('b', { class: 'g-course__target' }, num(c.target), h('small', {}, 'pt')),
+          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字・作業品 ${c.prices[0].price}〜${c.prices[c.prices.length - 1].price}`),
+          h('span', { class: 'g-course__best' }, b ? `自己ベスト ${num(Math.abs(b.score - c.target))} pt ${b.score >= c.target ? 'お得' : '損'}` : 'まだ打っていません')),
         h('kbd', {}, KEY_OF[i] ?? ''),
       );
       btn.addEventListener('click', () => begin(c));
@@ -312,6 +303,7 @@ let game = null;
 let nicola = null;
 let romaji = null;      // ローマ字で遊んでいるときだけ
 let romajiItem = null;  // romaji の打ちかけが、どの作業品のものか
+let romajiKeys = 0;     // ローマ字で、まだかなになっていない正しいキーの数。かなを打ち切ったときに engine へ渡す
 let playInput = 'nicola'; // この回の入力方式。遊んでいる途中でタイトルの選択が変わっても動かない
 let countdownEnd = 0;
 let curT = 0;           // いま処理している入力の時刻。onOutput には時刻が付かないので預けておく
@@ -356,6 +348,7 @@ function startCountdown(c) {
   nicola = playInput === 'nicola' ? buildNicola() : null;
   romaji = playInput === 'romaji' ? createRomaji() : null;
   romajiItem = null;
+  romajiKeys = 0;
   countdownEnd = performance.now() + 3000;
   perfectItems = new Set();
   lastCount = 0;
@@ -364,7 +357,7 @@ function startCountdown(c) {
   lastPainted = '';
   flash.clear();
   el.lineItems.replaceChildren();
-  el.hudTarget.textContent = `/ ${num(c.target)}`;
+  el.hudTarget.textContent = `/ ${num(c.target)} pt`;
   show('countdown');
   // ボタンに残ったフォーカスで、スペースや Enter が «もう一度押した» にならないように
   document.activeElement?.blur?.();
@@ -387,11 +380,12 @@ function handle(events, t) {
         sound.hit();
       }
       hitView = { kind: 'hit', ...e, thumb: lastResult?.thumb ?? null, offsetMs: lastResult?.offsetMs ?? null };
+      if (e.tier === 'perfect') perfectItems.add(e.itemId);
     } else if (e.type === 'miss') {
       if (e.misfire) sound.misfire();
       else sound.miss();
       hitView = { kind: 'miss', ...e };
-    } else if (e.type === 'perfect') {
+    } else if (e.type === 'hit' && e.tier === 'perfect') {
       perfectItems.add(e.itemId);
     } else if (e.type === 'clear') {
       // 通した音は sfx.js が受け持つ（打鍵音の設定が無音でも鳴る）
@@ -400,7 +394,7 @@ function handle(events, t) {
     } else if (e.type === 'lost') {
       sfx.lost();
       flash.set(e.itemId, { kind: 'lost', at: t, x: 1 });
-    } else if (e.type === 'combo') {
+    } else if (e.type === 'meter') {
       sfx.combo();
     } else if (e.type === 'over') {
       sfx.end();
@@ -416,6 +410,7 @@ function pressRomaji(ch, t) {
   if (head.id !== romajiItem) {
     romaji.reset();
     romajiItem = head.id;
+    romajiKeys = 0;
   }
   const chars = [...head.word.kana];
   const res = romaji.press(chars, head.typed, ch);
@@ -424,9 +419,14 @@ function pressRomaji(ch, t) {
     handle(game.input({ kana: null, charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
     return;
   }
+  // 寿司打と同じく «キー» で数える（正しく打ったキーの数・連打メーター）。
+  // 打ち切ったかなの一つ目に、それまでに押したキーをまとめて渡す
+  romajiKeys++;
   const from = head.typed;
   for (let i = 0; i < res.done; i++) {
-    handle(game.input({ kana: chars[from + i], charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
+    const keys = i === 0 ? romajiKeys : 0;
+    romajiKeys = 0;
+    handle(game.input({ kana: chars[from + i], charCode: 'Romaji', thumb: null, offsetMs: null, keys: keys || undefined }, t), t);
     if (screen !== 'play') return;
   }
 }
@@ -507,8 +507,7 @@ function paintHit() {
   }
   el.cueHit.replaceChildren(...[
     h('span', { class: 'g-cue__kana' }, v.kana),
-    v.tier === 'perfect' ? h('b', { class: 'g-ok' }, `ぴったり +${PERFECT_BONUS}`) : null,
-    v.tier ? h('small', {}, `${THUMB_NAME[v.thumb] ?? ''} ${fmtMs(v.offsetMs)}${v.tier === 'perfect' ? '' : ` ${TIER_NAME[v.tier]}`}`) : null,
+    v.tier ? h('small', { class: v.tier === 'perfect' ? 'g-ok' : '' }, `${THUMB_NAME[v.thumb] ?? ''} ${fmtMs(v.offsetMs)} ${TIER_NAME[v.tier]}`) : null,
   ].filter(Boolean));
 }
 
@@ -593,8 +592,9 @@ function paintPlay(t) {
     el.cueCount.textContent = String(Math.max(1, Math.ceil((countdownEnd - t) / 1000)));
     el.hudTime.textContent = (course.timeMs / 1000).toFixed(1);
     el.hudScore.textContent = '0';
-    el.hudCombo.textContent = '0';
-    el.hudKpm.textContent = '0';
+    el.hudMeter.textContent = '0';
+    el.hudMeterNext.textContent = '';
+    el.hudKps.textContent = '0.0';
     el.cueWord.replaceChildren();
     el.cueRomaji.hidden = true;
     el.cueHit.replaceChildren();
@@ -604,8 +604,9 @@ function paintPlay(t) {
   el.hudTime.textContent = (st.remainingMs / 1000).toFixed(1);
   el.hudScore.textContent = num(st.score);
   el.hudScore.classList.toggle('g-ok', st.score >= course.target);
-  el.hudCombo.textContent = String(st.combo);
-  el.hudKpm.textContent = st.elapsedMs > 1000 ? String(Math.round((st.strokes * 60000) / st.elapsedMs)) : '0';
+  el.hudMeter.textContent = String(st.meterKeys);
+  el.hudMeterNext.textContent = `/ ${st.meterNext}`;
+  el.hudKps.textContent = st.elapsedMs > 1000 ? (Math.floor((st.correctKeys / (st.elapsedMs / 1000)) * 10) / 10).toFixed(1) : '0.0';
   paintLine(st, t);
   // 語と返しは変わったときだけ組み直す（毎フレーム DOM を作り直さない）
   const head = st.items[0];
@@ -634,28 +635,26 @@ function paintResult() {
   const s = summary;
   const nicolaMode = s.input === 'nicola';
   showNicolaParts(el.scResult, nicolaMode);
-  el.resultMode.textContent = `ノルマ ${num(course.target)} 点・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}`;
+  el.resultMode.textContent = `ノルマ ${num(course.target)} pt・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}`;
   el.resultScore.textContent = num(s.score);
 
   const done = s.balance >= 0;
   const avg = s.cleared ? s.score / s.cleared : 0;
   // replaceChildren は null を «null» という文字にして入れる（h() と違って飛ばさない）
   el.resultBalance.replaceChildren(...[
-    h('b', { class: done ? 'g-ok' : 'is-short' }, done ? `ノルマ達成 +${num(s.balance)} 点` : `ノルマまで あと ${num(-s.balance)} 点`),
-    !done && avg ? h('small', {}, `（作業品 ${Math.ceil(-s.balance / avg)} 個ほど）`) : null,
+    h('b', { class: done ? 'g-ok' : 'is-short' }, done ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`),
+    !done && avg ? h('small', {}, `（あと作業品 ${Math.ceil(-s.balance / avg)} 個ほど）`) : null,
   ].filter(Boolean));
 
   el.resultBest.hidden = !bestInfo?.isBest;
-  el.resultBest.textContent = bestInfo?.prev ? `自己ベスト更新（前回 ${num(bestInfo.prev.score)} 点）` : 'はじめての記録';
+  el.resultBest.textContent = bestInfo?.prev ? `自己ベスト更新（前回 ${num(bestInfo.prev.score)} pt）` : 'はじめての記録';
 
   const cell = (k, v, unit, cls) => h('div', {}, h('dt', {}, k), h('dd', cls ? { class: cls } : {}, v, unit ? h('small', {}, unit) : null));
   el.resultTally.replaceChildren(...[
-    cell('通した', String(s.cleared), '個'),
-    cell('検品漏れ', String(s.lost), '個'),
-    nicolaMode ? cell('ぴったり', String(s.perfect), '回', 'g-ok') : null,
-    cell('速さ', String(Math.round(s.kpm)), 'cpm'),
-    cell('正確さ', String(Math.round(s.accuracy * 100)), '%'),
-    cell('最大コンボ', String(s.maxCombo), ''),
+    cell('正しく打ったキーの数', String(s.correctKeys), '回'),
+    cell('平均キータイプ数', s.keysPerSec.toFixed(1), '回/秒'),
+    cell('ミスタイプ数', String(s.misses), '回'),
+    cell('通した作業品', String(s.cleared), '個'),
   ].filter(Boolean));
 
   if (nicolaMode) {
@@ -673,10 +672,8 @@ function paintResult() {
 
 /** X の投稿画面を開く URL。投稿するかは本人が決める。こちらからは何も送らない */
 function shareUrl(s) {
-  const rate = s.shifted ? Math.round((s.perfect / s.shifted) * 100) : null;
-  const res = s.balance >= 0 ? 'ノルマ達成' : 'ノルマ未達';
-  const detail = s.input === 'nicola' && rate != null ? `ぴったり率 ${rate}%・${Math.round(s.kpm)} cpm` : `${Math.round(s.kpm)} cpm`;
-  const text = `検品ライン（ノルマ ${num(course.target)} 点・${INPUT_NAME[s.input]}）で ${num(s.score)} 点、${res}。${detail}`;
+    const res = s.balance >= 0 ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`;
+  const text = `タイピングゲーム「検品ライン」${num(course.target)} pt コース（${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
   const q = new URLSearchParams({ text, url: SHARE_URL, hashtags: '親指シフト' });
   return `https://x.com/intent/tweet?${q}`;
 }
@@ -725,7 +722,7 @@ async function sendSummary() {
       kind: 'ok',
       msg: r?.isBest
         ? `送りました。${div}・${all}（自己ベスト更新）`
-        : `送りました。自己ベストは ${num(r?.best ?? 0)} 点で、${div}・${all}`,
+        : `送りました。自己ベストは ${num(r?.best ?? 0)} pt で、${div}・${all}`,
     };
   } catch (err) {
     if (summary !== sent) return;
@@ -754,7 +751,7 @@ function openRanking(from) {
 function paintRankingTabs() {
   el.rankCourseTabs.replaceChildren(
     ...COURSES.map((c) => {
-      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `ノルマ ${c.name}`);
+      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `${c.name} コース`);
       b.setAttribute('aria-selected', String(c.id === rankCourse));
       return b;
     }),
@@ -767,7 +764,7 @@ function paintRankingTabs() {
   }
   el.rankOrder.textContent = rankBoard === 'all'
     ? '総合は速さ（1 分あたりのかな）の順。一人一行で、入力方式を問わず速いほうの記録'
-    : `${BOARD_NAME[rankBoard]}は点数の順。一人一行`;
+    : `${BOARD_NAME[rankBoard]}は獲得 pt の順。一人一行`;
   const me = currentPlayer();
   const on = rankingEnabled();
   el.btnRegister.hidden = !on || !!me;
@@ -810,7 +807,7 @@ function paintLeaders(leaders) {
   if (!leaders) { el.rankLeaders.hidden = true; return; }
   const one = (input) => {
     const l = leaders[input];
-    return h('span', {}, h('small', {}, `${BOARD_NAME[input]} 1 位`), l ? [h('b', {}, l.nickname), ` ${num(l.score)} 点`] : 'まだいません');
+    return h('span', {}, h('small', {}, `${BOARD_NAME[input]} 1 位`), l ? [h('b', {}, l.nickname), ` ${num(l.score)} pt`] : 'まだいません');
   };
   el.rankLeaders.replaceChildren(one('nicola'), one('romaji'));
   el.rankLeaders.hidden = false;
@@ -824,7 +821,7 @@ function paintBoard(rows, me) {
   el.rankList.dataset.order = rankBoard === 'all' ? 'kpm' : 'score';
   el.rankList.replaceChildren(
     h('li', { class: 'is-head', 'aria-hidden': 'true' },
-      h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, '点'),
+      h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, 'pt'),
       h('span', { class: 'k' }, '速さ'), h('span', { class: 'a' }, '正確さ')),
     ...rows.map((r) => h('li', { class: me && r.nickname === me.nickname ? 'is-me' : '' },
       h('span', { class: 'r' }, String(r.rank)),
@@ -949,7 +946,7 @@ function paintSupport() {
       slot.textContent = '支援リンクの設定（config.js の SUPPORT_URL）が https の URL になっていません';
       continue;
     }
-    slot.replaceChildren(h('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer' }, '☕ 開発を応援する（Buy Me a Coffee）'));
+    slot.replaceChildren(h('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer' }, '開発を応援する（Buy Me a Coffee）'));
   }
 }
 
@@ -1121,7 +1118,7 @@ function runDemo(kind) {
     game.start(0);
     const t = simulate(game, 0, 24_000);
     romaji = input === 'romaji' ? createRomaji() : null;
-    el.hudTarget.textContent = `/ ${num(course.target)}`;
+    el.hudTarget.textContent = `/ ${num(course.target)} pt`;
     show('play');
     paintPlay(t);
     screen = 'demo';

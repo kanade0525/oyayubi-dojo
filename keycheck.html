@@ -166,10 +166,10 @@ function cardsInit() {
     marks.className = 'marks';
     const d = document.createElement('span');
     d.className = s && s.down ? 'yes' : 'no';
-    d.textContent = (s && s.down ? '✓' : '×') + ' 押下' + (s && s.down ? `(${s.down})` : '');
+    d.textContent = (s && s.down ? '○' : '×') + ' 押下' + (s && s.down ? `(${s.down})` : '');
     const u = document.createElement('span');
     u.className = s && s.up ? 'yes' : 'no';
-    u.textContent = (s && s.up ? '✓' : '×') + ' 解放' + (s && s.up ? `(${s.up})` : '');
+    u.textContent = (s && s.up ? '○' : '×') + ' 解放' + (s && s.up ? `(${s.up})` : '');
     marks.append(d, document.createTextNode('　'), u);
     div.append(marks);
 
@@ -251,7 +251,7 @@ function recordCombo(thumbCode, e) {
   }
   const verdict = tr.lastElementChild;
   verdict.className = row.ok ? 'yes' : 'no';
-  verdict.textContent = row.ok ? '文字キーが届いた' : '✗ 229 に化けた';
+  verdict.textContent = row.ok ? '文字キーが届いた' : '× 229 に化けた';
   elCombo.prepend(tr);
 }
 
@@ -309,7 +309,7 @@ document.getElementById('copy').addEventListener('click', async () => {
   if (!combos.length) lines.push('（記録なし）');
   for (const c of combos) {
     lines.push(`- ${c.thumb} + ${c.charCode}: keyCode=${c.keyCode} 差=${c.offset}ms `
-      + (c.ok ? '→ 文字キーが届いた' : '→ ✗ 229 に化けた（このキーは使えない）'));
+      + (c.ok ? '→ 文字キーが届いた' : '→ × 229 に化けた（このキーは使えない）'));
   }
   lines.push('');
   lines.push('## timeStamp の粒度');

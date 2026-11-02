@@ -29,6 +29,7 @@ import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './d
 import { renderIso } from './iso.js';
 import { svg } from './viz.js';
 import { medal } from './medal.js';
+import { icon, fillIcons } from './icons.js';
 import { renderTrend, renderOffsetHist, renderCalendar } from './charts.js';
 import { createSound } from './sound.js';
 
@@ -389,6 +390,7 @@ function paintCue() {
     // 打ちかけの綴りと、その続き。親指と面の案内は出さない
     const h = romaji.hint(run.chars, run.index);
     el.cueHow.hidden = true;
+    el.cueKind.hidden = false;
     el.cueKind.className = 'cue__kind cue__kind--romaji';
     const typed = document.createElement('b');
     typed.textContent = h?.typed ?? '';
@@ -398,6 +400,7 @@ function paintCue() {
   if (!how) {
     // 課題データにこの配列で打てない字が混ざっている。黙って詰まらせない
     el.cueHow.hidden = true;
+    el.cueKind.hidden = false;
     el.cueKind.textContent = 'この配列では打てません';
     return;
   }
@@ -405,6 +408,8 @@ function paintCue() {
   el.cueKey.textContent = keyLegend(how.code);
   el.cueThumb.textContent = how.thumb === 'left' ? '左親指' : how.thumb === 'right' ? '右親指' : '単独';
   el.cueThumb.className = 'cue__thumb' + (how.thumb ? ` cue__thumb--${how.thumb}` : '');
+  // 単独打鍵は左の «単独» で足りる。札を重ねて二度言わない
+  el.cueKind.hidden = !how.shiftKind;
   el.cueKind.textContent = how.shiftKind === 'cross' ? '交差 · 濁音'
     : how.shiftKind === 'same' ? '同側 · 別のかな' : '単独打鍵';
   el.cueKind.className = 'cue__kind' + (how.shiftKind ? ` cue__kind--${how.shiftKind}` : '');
@@ -604,7 +609,7 @@ function finishRun() {
   // 分からないのでは、いま何段で次に何が足りないのかが伝わらない
   const gap = nextRankGap(stats);
   el.finishEyebrow.textContent = gap
-    ? `${stats.rank}　→　${gap.next.name} まで ${rankNeedText(gap)}`
+    ? `${stats.rank}　次の ${gap.next.name} まで ${rankNeedText(gap)}`
     : `${stats.rank}（最高段位）`;
 
   el.finishPerfect.textContent = String(run.timing.perfect);
@@ -941,17 +946,23 @@ function paintLearn() {
 
   // unlockedOf は { course, theme, sound, items } を返す。course だけ見る
   const open = unlockedOf(stats).course ?? [];
-  const cards = COURSES.map(c => {
+  const rows = COURSES.map(c => {
     const list = lessonsOf(c.id);
     const done = list.filter(l => (stats.cleared?.[l.id] ?? 0) > 0).length;
     const unlocked = open.includes(c.id) || c.id === 'basic';
     const first = list.find(l => !(stats.cleared?.[l.id] > 0)) ?? list[0];
+    const complete = list.length > 0 && done === list.length;
 
     const a = document.createElement('a');
-    a.className = 'course'
-      + (unlocked ? '' : ' is-locked')
-      + (list.length && done === list.length ? ' is-done' : '');
-    a.href = unlocked && first ? `#/play/${first.id}` : '#/';
+    a.className = 'course' + (unlocked ? '' : ' is-locked') + (complete ? ' is-done' : '');
+    a.href = unlocked && first ? `#/play/${first.id}` : '#/learn';
+    if (!unlocked) a.setAttribute('aria-disabled', 'true');
+
+    // 済み・閉じているは形で言う。色だけにしない
+    const mark = document.createElement('span');
+    mark.className = 'course__mark';
+    if (complete) mark.append(icon('check'));
+    else if (!unlocked) mark.append(icon('lock'));
 
     const h = document.createElement('b');
     h.className = 'course__name';
@@ -961,17 +972,16 @@ function paintLearn() {
     p.className = 'course__note';
     p.textContent = c.note ?? '';
 
-    // 進捗は閉じている札にも出す。0/5 が見えること自体に意味がある
     const bar = document.createElement('span');
-    bar.className = 'course__bar';
+    bar.className = 'course__progBar';
+    bar.append(document.createElement('i'));
     bar.style.setProperty('--p', String(list.length ? done / list.length : 0));
 
     const count = document.createElement('span');
-    count.className = 'course__count';
-    count.textContent = `${list.length}課題中 ${done}`;
+    count.className = 'course__progText';
+    count.textContent = `${done} / ${list.length}`;
 
-    a.append(h, p, bar, count);
-
+    a.append(mark, h, p);
     // 閉じている理由と、開ける条件。見えないと何をすればいいか分からない
     if (!unlocked) {
       const lock = document.createElement('span');
@@ -980,9 +990,12 @@ function paintLearn() {
       lock.textContent = u?.hint ?? 'まだ開いていません';
       a.append(lock);
     }
-    return a;
+    a.append(bar, count);
+    const li = document.createElement('li');
+    li.append(a);
+    return li;
   });
-  el.courseList.replaceChildren(...cards);
+  el.courseList.replaceChildren(...rows);
 }
 
 /**
@@ -1136,7 +1149,7 @@ function paintTrophies(stats) {
   if (nodes.length === 1) {
     const p = document.createElement('p');
     p.className = 'trophies__none';
-    p.textContent = trophyFilter === 'got' ? 'まだ一つも取っていません。課題を一つ打ち切ると «初稽古» が開きます。' : 'すべて取りました。';
+    p.textContent = trophyFilter === 'got' ? 'まだありません。' : 'すべて取りました。';
     nodes.push(p);
   }
   el.trophies.replaceChildren(...nodes);
@@ -1535,6 +1548,7 @@ function materialRows(list, stats) {
       pop.append(tags);
     }
 
+    if (times) name.prepend(icon('check'));
     b.append(name, len, pop);
     return b;
   });
@@ -1840,5 +1854,6 @@ el.btnFreeStart?.addEventListener('click', () => {
 window.addEventListener('hashchange', route);
 
 applyTone(settings.tone ?? 'midnight');
+fillIcons();
 paintNav();
 route();

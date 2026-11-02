@@ -26,6 +26,7 @@ import { COURSES } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
 import { createRenderer } from './render.js';
+import { icon, fillIcons } from '../icons.js';
 import {
   rankingEnabled, currentPlayer, register, submitScore, fetchRanking, forgetMe, CONSENT_VERSION,
 } from './ranking.js';
@@ -238,10 +239,12 @@ function paintTitle() {
   el.thumbNames.textContent = `左 ${nameOf(thumbKeys.left)} ／ 右 ${nameOf(thumbKeys.right)}`;
 
   paintSfx();
+  // 打鍵音はズレを耳で返すもの。ローマ字ではズレが無いので出さない
+  el.soundNote.hidden = inputMode !== 'nicola';
   el.soundNote.replaceChildren(
-    ...(settings.sound && settings.sound !== 'off'
-      ? ['打鍵音は練習の設定（', h('b', {}, settings.sound), '）で鳴ります。']
-      : ['打鍵音はいま無音です。', h('a', { class: 'link', href: 'index.html#/setup' }, '設定'), 'で音色を選ぶと、ズレが耳でも分かります。']),
+    '打鍵音：',
+    settings.sound && settings.sound !== 'off' ? settings.sound : '無音',
+    '（', h('a', { class: 'link', href: 'index.html#/setup' }, '設定'), '）',
   );
 }
 
@@ -249,11 +252,11 @@ function paintSfx() {
   const b = el.btnSfx;
   if (!sfx.available) {
     b.disabled = true;
-    b.textContent = '効果音：この環境では鳴りません';
+    b.replaceChildren(icon('soundOff'), '効果音：この環境では鳴りません');
     return;
   }
   b.setAttribute('aria-pressed', String(sfx.enabled));
-  b.textContent = sfx.enabled ? '効果音：オン' : '効果音：オフ';
+  b.replaceChildren(icon(sfx.enabled ? 'soundOn' : 'soundOff'), sfx.enabled ? '効果音：オン' : '効果音：オフ');
 }
 
 el.inputPick.addEventListener('click', (e) => {
@@ -444,14 +447,6 @@ function abortToTitle() {
 
 // ---------------------------------------------------------------- 結果
 
-function verdictOf(s, price) {
-  const r = s.money / price;
-  if (r >= 1.5) return '大満足。お店が泣いています';
-  if (r >= 1.0) return '元は取れました';
-  if (r >= 0.7) return 'もう少しで元が取れました';
-  return 'まずは一皿ずつ、確実に';
-}
-
 function paintResult() {
   const s = summary;
   const gain = s.balance >= 0;
@@ -463,9 +458,8 @@ function paintResult() {
   el.resultBalance.replaceChildren(
     h('span', { class: gain ? 'is-gain' : 'is-loss' },
       gain ? `${yen(s.balance)}円 お得！` : `${yen(-s.balance)}円 損しました`),
-    h('small', {}, gain || !avg
-      ? verdictOf(s, course.price)
-      : `${verdictOf(s, course.price)}（あと ${Math.ceil(-s.balance / avg)} 皿ほど）`),
+    // 損したときだけ、あと何皿で元が取れたかを出す
+    gain || !avg ? null : h('small', {}, `あと ${Math.ceil(-s.balance / avg)} 皿ほど`),
   );
 
   el.resultBest.hidden = !bestInfo?.isBest;
@@ -502,7 +496,7 @@ function paintSubmit() {
     const btn = h('button', { type: 'button', class: 'btn' }, '参加して送る');
     btn.addEventListener('click', () => openConsent('result'));
     box.replaceChildren(
-      h('p', {}, 'ランキングに参加すると、この結果を送れます。送るのはニックネームと結果だけです。'),
+      h('p', {}, 'ランキングに参加すると、この結果を送れます。'),
       h('div', { class: 'g-row' }, btn),
       status,
     );
@@ -622,6 +616,8 @@ function paintBoard(rows, me) {
   for (const r of rows) {
     if (!INPUTS.includes(r.input)) throw new Error(`順位表の入力方式が違う: ${r.input}`);
   }
+  // 両方を混ぜた表は毎分の順に並んで届く（サーバーの orderOf）。並べた列を太くする
+  el.rankList.dataset.order = rankInput === 'all' ? 'kpm' : 'money';
   el.rankList.replaceChildren(
     h('li', { class: 'is-head', 'aria-hidden': 'true' },
       h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, '金額'),
@@ -996,6 +992,7 @@ function runDemo(kind) {
 
 // ---------------------------------------------------------------- 起動
 
+fillIcons();
 paintTitle();
 paintSupport();
 if (DEMO) {

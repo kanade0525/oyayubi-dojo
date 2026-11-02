@@ -39,10 +39,10 @@
        練習の場所（入門・道場）へは右の «ほかの入口» から -->
   <a class="nav__brand" href="game.html">回転ずし</a>
   <nav class="nav__links" aria-label="回転ずし">
-    <a href="game.html" aria-current="page">コースを選ぶ</a>
-    <button type="button" class="nav__btn" id="navRanking">ランキング</button>
+    <a href="game.html" aria-current="page" data-icon="sushi">コースを選ぶ</a>
+    <button type="button" class="nav__btn" id="navRanking" data-icon="ranking">ランキング</button>
   </nav>
-  <p class="nav__others" data-for="game"><span>ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
+  <p class="nav__others" data-for="game"><span data-icon="others">ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
 </header>
 
 <main class="g-main">
@@ -50,11 +50,10 @@
   <!-- 狭い画面だけに出る断り書き（app.css の .kbnote をそのまま使う。出し入れは @media だけ）。
        ゲームも親指キーと文字キーの押下時刻の差を測るので、タッチ画面では原理的に打てない -->
   <aside class="kbnote g-kbnote">
-    <b class="kbnote__head">このゲームは物理キーボードで遊びます</b>
-    <p class="kbnote__body">文字キーと親指キーを押した時刻の差を測るので、画面上のソフトキーボードでは皿を取れません。ランキングは見られます。</p>
+    <b class="kbnote__head" data-icon="keyboard">打つには物理キーボードが要ります</b>
     <p class="kbnote__acts">
-      <a class="link" href="index.html#/layout">配列表を見る →</a>
-      <a class="link" href="index.html">入口に戻る →</a>
+      <a class="link" href="index.html#/layout">配列表を見る</a>
+      <a class="link" href="index.html">入口に戻る</a>
     </p>
   </aside>
 
@@ -62,13 +61,13 @@
     <canvas class="g-canvas" id="canvas" aria-label="回転ずしのレーン"></canvas>
 
     <!-- 日本語入力がオンのまま打たれたとき。黙って何も起きないのがいちばん困る -->
-    <p class="g-ime" id="imeWarn" role="alert" hidden>日本語入力がオンです。<b>英数</b>に切り替えてください（親指キーの<kbd>英数</kbd>でも切り替わります）</p>
+    <p class="g-ime" id="imeWarn" role="alert" hidden>日本語入力がオンです。<kbd>英数</kbd>で切り替えてください</p>
 
     <!-- ============================================================ タイトル -->
     <section class="g-sheet g-title" id="scTitle" aria-labelledby="titleHead">
       <div class="g-card">
         <h1 class="g-title__head" id="titleHead">回転ずし</h1>
-        <p class="g-lead">流れてくる皿の単語を打ち切ると、その皿が取れます。<b>時間内にコースの値段より多く食べれば得</b>です。<span id="perfectNote">親指の同時打鍵が<b class="g-perfect">ぴったり</b>（±15ms）なら、皿の値段が上がります。</span></p>
+        <p class="g-lead">皿の単語を打って取る。コースの値段より多く食べれば得。<span id="perfectNote">同時打鍵が<b class="g-perfect">ぴったり</b>（±15ms）なら皿の値段が上がる。</span></p>
 
         <div class="g-input" role="group" aria-label="入力方式" id="inputPick">
           <button type="button" data-input="nicola" aria-pressed="true">親指シフト</button>
@@ -77,15 +76,14 @@
         <div class="g-courses" id="courseList" role="list"><!-- main.js が courses.js から作る --></div>
 
         <ul class="g-notes">
-          <li>日本語入力は<b>オフ（英数）</b>にしてから始めてください。</li>
-          <li id="thumbNote">親指キーは <span id="thumbNames">左 英数 ／ 右 かな</span>。変えるときは <a class="link" href="index.html#/setup">設定</a> で。</li>
-          <li>打てるのは<b>先頭の皿</b>（▼の印）だけ。ミスせず続けると残り時間が延びます。<kbd>Esc</kbd> で中断。</li>
+          <li>日本語入力は <b>オフ（英数）</b></li>
+          <li id="thumbNote">親指キー：<span id="thumbNames">左 英数 ／ 右 かな</span>（<a class="link" href="index.html#/setup">設定</a>）</li>
+          <li>打てるのは先頭の皿（▼）だけ。ミスせず続けると時間が延びる。<kbd>Esc</kbd> で中断</li>
           <li id="soundNote">打鍵音は練習の設定に従います。</li>
-          <li>皿を取った・取り逃した・残り時間の効果音は、下の «効果音» で切り替えられます。</li>
         </ul>
 
         <div class="g-row">
-          <button type="button" class="btn" id="btnRankingFromTitle">ランキングを見る</button>
+          <button type="button" class="btn" id="btnRankingFromTitle" data-icon="ranking">ランキングを見る</button>
           <button type="button" class="btn" id="btnSfx" aria-pressed="true">効果音：オン</button>
         </div>
       </div>
@@ -102,9 +100,9 @@
         <dl class="g-tally" id="resultTally"><!-- main.js が埋める --></dl>
 
         <div class="g-row">
-          <button type="button" class="btn btn--primary btn--big" id="btnAgain">もう一度（Enter）</button>
-          <button type="button" class="btn" id="btnCourses">コースを選ぶ</button>
-          <button type="button" class="btn btn--quiet" id="btnRankingFromResult">ランキングを見る</button>
+          <button type="button" class="btn btn--primary btn--big" id="btnAgain" data-icon="retry">もう一度（Enter）</button>
+          <button type="button" class="btn" id="btnCourses" data-icon="sushi">コースを選ぶ</button>
+          <button type="button" class="btn btn--quiet" id="btnRankingFromResult" data-icon="ranking">ランキングを見る</button>
         </div>
 
         <!-- ランキングへの送信。準備中・未登録・登録済みの三通りを出し分ける -->
@@ -131,7 +129,7 @@
         <p class="g-status" id="rankStatus" role="status"></p>
         <ol class="g-board" id="rankList"></ol>
         <div class="g-row">
-          <button type="button" class="btn" id="btnRankBack">戻る</button>
+          <button type="button" class="btn" id="btnRankBack" data-icon="back">戻る</button>
           <button type="button" class="btn btn--quiet" id="btnRegister" hidden>ランキングに参加する</button>
           <button type="button" class="btn btn--danger" id="btnForget" hidden>自分の記録を消す</button>
         </div>
@@ -167,7 +165,7 @@
   </div>
 
   <footer class="g-foot">
-    <p>打つのは札に出るかなです。漢字は読むための目印です。記録はこの端末の中だけに残ります（ランキングに参加した場合を除く）。</p>
+    <p>打つのは札のかな。漢字は読むための目印。</p>
     <p class="g-support" data-support hidden></p>
   </footer>
 </main>

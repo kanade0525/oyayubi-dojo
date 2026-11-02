@@ -741,3 +741,13 @@
     transition: none;
   }
 }
+
+/* 両方の入力方式を混ぜた表は毎分の順。太くする列を入れ替え、狭い画面では金額の代わりに毎分を出す */
+.g-board[data-order="kpm"] .m { font-weight: 400; color: var(--fg-mid); }
+.g-board[data-order="kpm"] .k { font-weight: 800; color: var(--fg); }
+.g-board[data-order="kpm"] li.is-head .k { color: var(--fg); }
+
+@media (max-width: 700px) {
+  .g-board[data-order="kpm"] .k { display: block; }
+  .g-board[data-order="kpm"] .m { display: none; }
+}

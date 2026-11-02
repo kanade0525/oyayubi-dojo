@@ -224,23 +224,36 @@ export function periodKey(period, date) {
 }
 
 /**
- * 順位の並び。金額の多い順、同額なら先に出した人が上。
- * 同額を同順位にしないのは、50 件で切ったときに境目が曖昧にならないようにするため。
+ * 順位表の並べ方。入力方式ごとの表は金額、両方を混ぜた表（input = all）は毎分の打鍵数。
+ * ローマ字には「ぴったり」の上乗せが無いので、金額で混ぜると入力方式どうしを比べられない。
+ * 混ぜた表に載るのは各人の「金額の自己ベスト」の一本で、その一本の毎分で並べる。
+ */
+export function orderOf(input) {
+  return input === 'all' ? 'kpm' : 'money';
+}
+
+const orderValue = (e, by) => (by === 'kpm' ? Math.round(e.kpm * 10) : e.money);
+
+/**
+ * 順位の並び。by の値の多い順、同じなら先に出した人が上。
+ * 同じ値を同順位にしないのは、50 件で切ったときに境目が曖昧にならないようにするため。
  * 負なら a が上。
  */
-export function compareEntries(a, b) {
-  if (a.money !== b.money) return b.money - a.money;
+export function compareEntries(a, b, by = 'money') {
+  const x = orderValue(a, by);
+  const y = orderValue(b, by);
+  if (x !== y) return y - x;
   return Date.parse(a.at) - Date.parse(b.at);
 }
 
 /**
  * compareEntries と同じ並びになる文字列。DynamoDB の GSI のソートキーに使い、降順で引く。
- * 金額を前に 0 埋めし、後ろに「遠い未来 − 時刻」を 0 埋めして付けると、
- * 文字列の降順＝金額の降順、同額なら時刻の昇順になる。
+ * 値を前に 0 埋めし、後ろに「遠い未来 − 時刻」を 0 埋めして付けると、
+ * 文字列の降順＝値の降順、同じなら時刻の昇順になる。毎分は 10 倍して整数にする。
  */
 const FAR_FUTURE_MS = 9_999_999_999_999;
-export function boardSortKey(money, at) {
-  return `${String(money).padStart(10, '0')}#${String(FAR_FUTURE_MS - Date.parse(at)).padStart(13, '0')}`;
+export function boardSortKey(entry, by = 'money') {
+  return `${String(orderValue(entry, by)).padStart(10, '0')}#${String(FAR_FUTURE_MS - Date.parse(entry.at)).padStart(13, '0')}`;
 }
 
 // ---------------------------------------------------------------- ストアの約束
@@ -256,8 +269,8 @@ export function boardSortKey(money, at) {
 //       読んでから書くと、同時に二つ送られたときに低い方が勝ちうる。
 //       プレイヤーが消えていたら HttpError(401) を投げる（消した直後の送信で記録を蘇らせない）。
 //   getBest(playerId, course, input, period)    → entry | null
-//   countAhead(board, entry)                    → board の中で compareEntries により entry より上にいる件数
-//   topEntries(board, limit)                    → board の中を compareEntries の順に上位 limit 件
+//   countAhead(board, entry)                    → board の中で compareEntries(…, orderOf(board.input)) により entry より上にいる件数
+//   topEntries(board, limit)                    → board の中を同じ並びで上位 limit 件
 //       board = { course, period, input }。input は BOARD_INPUTS のどれか（all は両方を混ぜた表。
 //       同じ人が親指シフトとローマ字の二行で並びうる）
 //   deletePlayer(playerId)                      → 本人のアイテムを全部消す

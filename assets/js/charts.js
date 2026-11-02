@@ -226,7 +226,7 @@ function drawTrend(container, history) {
   const head = html(
     'div',
     { class: 'chart-head' },
-    html('p', { class: 'chart-sum' }, `直近 ${N} 本（${validDay(first)} 〜 ${validDay(last)}）。左が古く、右が新しい`),
+    html('p', { class: 'chart-sum' }, `直近 ${N} 本（${validDay(first)} 〜 ${validDay(last)}）`),
     html(
       'p',
       { class: 'chart-key' },
@@ -318,7 +318,7 @@ function drawTrend(container, history) {
       for (const t of ticks) {
         g.append(svg('text', { class: 'tick', x: x(t - 1), y: ax + 14, 'text-anchor': 'middle' }, String(t)));
       }
-      g.append(svg('text', { class: 'tick tick--title', x: M.l + pw, y: ax + 30, 'text-anchor': 'end' }, '何本目 →'));
+      g.append(svg('text', { class: 'tick tick--title', x: M.l + pw, y: ax + 30, 'text-anchor': 'end' }, '何本目'));
     }
 
     // 十字線（3 枚とも同じ回を指す）
@@ -586,7 +586,7 @@ function drawOffsetHist(container, offset) {
   }
 
   container.replaceChildren(
-    html('p', { class: 'chart-sum' }, '同時打鍵で、親指キーが文字キーより何 ms 早かったか・遅かったか。縦は各親指の打鍵のうちの割合'),
+    html('p', { class: 'chart-sum' }, '親指キーが文字キーより何 ms 早いか遅いか。縦は打鍵の割合'),
     ...blocks,
   );
 }

@@ -151,9 +151,9 @@ export function renderMeter(container) {
 
   const ends = el('div', 'meter__ends');
   ends.append(
-    el('span', 'meter__end meter__end--early', '◀ 先行（親指が先）'),
+    el('span', 'meter__end meter__end--early', '親指が先'),
     el('span', 'meter__end meter__end--mid', 'ぴったり'),
-    el('span', 'meter__end meter__end--late', '遅れ（親指が後）▶'),
+    el('span', 'meter__end meter__end--late', '親指が後'),
   );
 
   const scale = el('div', 'meter__scale');

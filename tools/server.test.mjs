@@ -22,7 +22,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const load = (p) => import(pathToFileURL(join(ROOT, p)).href);
 
 const core = await load('server/src/core.mjs');
-const { createApi, compareEntries, boardSortKey, maxMoneyOf, normalizeNickname, HttpError, monthKey } = core;
+const { createApi, compareEntries, boardSortKey, orderOf, maxMoneyOf, normalizeNickname, HttpError, monthKey } = core;
 
 const PEPPER = 'test-pepper-0123456789abcdef0123456789abcdef';
 
@@ -53,12 +53,12 @@ function fakeStore() {
       return bests.get(`${id}|${course}|${input}|${period}`) ?? null;
     },
     async countAhead(board, entry) {
-      return [...bests.values()].filter((e) => onBoard(e, board) && compareEntries(e, entry) < 0).length;
+      return [...bests.values()].filter((e) => onBoard(e, board) && compareEntries(e, entry, orderOf(board.input)) < 0).length;
     },
     async topEntries(board, limit) {
       return [...bests.values()]
         .filter((e) => onBoard(e, board))
-        .sort(compareEntries)
+        .sort((a, b) => compareEntries(a, b, orderOf(board.input)))
         .slice(0, limit);
     },
     async deletePlayer(id) {
@@ -287,7 +287,7 @@ describe('順位表', () => {
     const rc = await req('POST', '/scores', { token: c.token, body: score(1000) });
     assert.equal(rc.body.rank, 3); // 同額のあは先に出しているので上
 
-    const res = await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input: 'all' } });
+    const res = await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input: 'nicola' } });
     assert.equal(res.status, 200);
     assert.deepEqual(res.body.entries.map((e) => [e.rank, e.nickname, e.money]), [
       [1, 'い', 2000], [2, 'あ', 1000], [3, 'う', 1000],
@@ -311,7 +311,7 @@ describe('順位表', () => {
       const p = await register(`p${i}`);
       await req('POST', '/scores', { token: p.token, body: score(100 + i) });
     }
-    const res = await req('GET', '/ranking', { query: { course: 'otegaru', input: 'all' } });
+    const res = await req('GET', '/ranking', { query: { course: 'otegaru', input: 'nicola' } });
     assert.equal(res.body.entries.length, 50);
     assert.equal(res.body.entries[0].money, 154);
   });
@@ -324,19 +324,27 @@ describe('順位表', () => {
 
   test('boardSortKey の文字列降順は compareEntries の並びと一致する（DynamoDB 側の並び）', () => {
     const rows = [
-      { money: 0, at: '2026-11-02T00:00:00.000Z' },
-      { money: 9, at: '2026-11-02T00:00:00.000Z' },
-      { money: 10, at: '2026-11-02T00:00:00.000Z' },
-      { money: 10, at: '2026-11-01T00:00:00.000Z' },
-      { money: 123456, at: '2026-12-31T23:59:59.999Z' },
-      { money: 123456, at: '2026-01-01T00:00:00.000Z' },
+      { money: 0, kpm: 300.5, at: '2026-11-02T00:00:00.000Z' },
+      { money: 9, kpm: 99.9, at: '2026-11-02T00:00:00.000Z' },
+      { money: 10, kpm: 100, at: '2026-11-02T00:00:00.000Z' },
+      { money: 10, kpm: 100, at: '2026-11-01T00:00:00.000Z' },
+      { money: 123456, kpm: 12.3, at: '2026-12-31T23:59:59.999Z' },
+      { money: 123456, kpm: 450, at: '2026-01-01T00:00:00.000Z' },
     ];
-    const bySortKey = [...rows].sort((x, y) => {
-      const a = boardSortKey(x.money, x.at);
-      const b = boardSortKey(y.money, y.at);
-      return a < b ? 1 : a > b ? -1 : 0;
-    });
-    assert.deepEqual(bySortKey, [...rows].sort(compareEntries));
+    for (const by of ['money', 'kpm']) {
+      const bySortKey = [...rows].sort((x, y) => {
+        const a = boardSortKey(x, by);
+        const b = boardSortKey(y, by);
+        return a < b ? 1 : a > b ? -1 : 0;
+      });
+      assert.deepEqual(bySortKey, [...rows].sort((a, b) => compareEntries(a, b, by)), by);
+    }
+  });
+
+  test('混ぜた表は毎分の順、入力方式ごとの表は金額の順', () => {
+    assert.equal(orderOf('all'), 'kpm');
+    assert.equal(orderOf('nicola'), 'money');
+    assert.equal(orderOf('romaji'), 'money');
   });
 });
 
@@ -374,14 +382,15 @@ describe('入力方式', () => {
     const ra2 = await req('POST', '/scores', { token: a.token, body: score(1000, { input: 'romaji' }) });
     assert.deepEqual(ra2.body, { rank: 1, best: 1000, isBest: true });
     clock.ms += 1000;
-    const rb = await req('POST', '/scores', { token: b.token, body: score(1500, { input: 'romaji' }) });
+    const rb = await req('POST', '/scores', { token: b.token, body: score(1500, { input: 'romaji', kpm: 150 }) });
     assert.deepEqual(rb.body, { rank: 1, best: 1500, isBest: true }); // ローマ字の表で 1 位
     assert.equal((await store.getBest(a.playerId, 'otegaru', 'nicola', 'all')).money, 2000);
     assert.equal((await store.getBest(a.playerId, 'otegaru', 'romaji', 'all')).money, 1000);
 
     const rows = async (input) => (await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input } })).body.entries
       .map((e) => [e.rank, e.nickname, e.input, e.money]);
-    assert.deepEqual(await rows('all'), [[1, 'あ', 'nicola', 2000], [2, 'い', 'romaji', 1500], [3, 'あ', 'romaji', 1000]]);
+    // 混ぜた表は毎分の順。いは金額では あ の親指シフトに負けるが、毎分（150）で上に来る
+    assert.deepEqual(await rows('all'), [[1, 'い', 'romaji', 1500], [2, 'あ', 'nicola', 2000], [3, 'あ', 'romaji', 1000]]);
     assert.deepEqual(await rows('nicola'), [[1, 'あ', 'nicola', 2000]]);
     assert.deepEqual(await rows('romaji'), [[1, 'い', 'romaji', 1500], [2, 'あ', 'romaji', 1000]]);
   });

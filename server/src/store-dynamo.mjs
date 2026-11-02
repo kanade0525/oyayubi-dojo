@@ -8,7 +8,8 @@
 //                                                           period は 'all' か 'YYYY-MM'
 //       GSI1PK = BOARD#<course>#all#<period>      … 両方の入力方式を混ぜた順位表
 //       GSI2PK = BOARD#<course>#<input>#<period>  … 入力方式ごとの順位表
-//       GSI1SK = GSI2SK = core.boardSortKey(money, at)
+//       GSI1SK = core.boardSortKey(entry, 'kpm')    … 混ぜた表は毎分の順
+//       GSI2SK = core.boardSortKey(entry, 'money')  … 入力方式ごとの表は金額の順
 //
 // 一つの自己ベストが二つの順位表に載るので、索引を二つ持つ。
 // 順位表は該当する索引を降順に引くだけで出る。本人の記録は PK が同じなので、消すときは
@@ -32,7 +33,7 @@ import {
   TransactWriteCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { HttpError, boardSortKey } from './core.mjs';
+import { HttpError, boardSortKey, orderOf } from './core.mjs';
 
 /** board.input → 引く索引と、その索引の鍵の名前 */
 const indexOf = (input) => (input === 'all'
@@ -81,14 +82,13 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
 
     async putBestIfHigher(entry) {
       const { playerId, course, input, period, money, at } = entry;
-      const sortKey = boardSortKey(money, at);
       const item = {
         PK: pk(playerId),
         SK: bestSk(course, input, period),
         GSI1PK: boardPk({ course, input: 'all', period }),
-        GSI1SK: sortKey,
+        GSI1SK: boardSortKey(entry, orderOf('all')),
         GSI2PK: boardPk({ course, input, period }),
-        GSI2SK: sortKey,
+        GSI2SK: boardSortKey(entry, orderOf(input)),
         ...entry,
       };
       if (period !== 'all') item.expiresAt = Math.floor(Date.parse(at) / 1000) + MONTH_TTL_SECONDS;
@@ -147,7 +147,7 @@ export function createDynamoStore({ tableName, client = new DynamoDBClient({}) }
           TableName: tableName,
           IndexName,
           KeyConditionExpression: `${pkName} = :pk AND ${skName} > :sk`,
-          ExpressionAttributeValues: { ':pk': boardPk(board), ':sk': boardSortKey(entry.money, entry.at) },
+          ExpressionAttributeValues: { ':pk': boardPk(board), ':sk': boardSortKey(entry, orderOf(board.input)) },
           Select: 'COUNT',
           ExclusiveStartKey,
         }));

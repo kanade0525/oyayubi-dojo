@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /*
- * assets/js/game/engine.js（ゲーム「回転ずし」の判断部分）の単体テスト。
+ * assets/js/game/engine.js・courses.js・words.js（ゲーム「検品ライン」）の単体テスト。
+ *
+ * 2026-11-02 に «回転ずし» から題材だけ替えた（皿 → 作業品、円 → 点、値段 → ノルマ）。決まりは同じなので、
+ * 回転ずしのときのテストを言葉だけ置き換えて使っている。テスト名の «皿» は作業品のこと。
  *
  * 実装と並行して、CONTRACT.md の「ゲーム「回転ずし」」の節だけを見て書いた。
  * 実装を読んでから書くと、実装の癖をそのまま正解として写してしまう。
@@ -17,7 +20,7 @@
  *     どのキーで出るかは本物の配列表（layout.js の loadLayout('nicola')）から引く。
  *     状態機械（nicola.js）は通さない。あちらの正しさは tools/nicola.test.mjs が見ている。
  *
- * (3) 金額や時間の数字は courses.js の export から取る（plateValue / PERFECT_BONUS /
+ * (3) 金額や時間の数字は courses.js の export から取る（itemValue / PERFECT_BONUS /
  *     COMBO_STEP / COMBO_TIME_BONUS_MS）。値を決めるのはゲーム企画で、ここが見るのは
  *     «その値どおりに足し引きされるか» だけ。値を決め打ちすると、企画が調整するたびに落ちる。
  *
@@ -52,7 +55,7 @@ const layoutMod = await load(LAYOUT_PATH);
 function ready() {
   for (const [what, got, needs] of [
     [ENGINE_PATH, engine, 'export function createGame({ course, words, rng })'],
-    [COURSES_PATH, courses, 'export const COURSES / plateValue / PERFECT_BONUS / COMBO_STEP / COMBO_TIME_BONUS_MS'],
+    [COURSES_PATH, courses, 'export const COURSES / itemValue / PERFECT_BONUS / COMBO_STEP / COMBO_TIME_BONUS_MS'],
     [LAYOUT_PATH, layoutMod, 'export function loadLayout(name)'],
   ]) {
     if (got.error) {
@@ -62,7 +65,7 @@ function ready() {
   assert.equal(typeof engine.mod.createGame, 'function', 'engine.js が createGame を export していない');
   const c = courses.mod;
   assert.ok(Array.isArray(c.COURSES), 'courses.js が COURSES を export していない');
-  assert.equal(typeof c.plateValue, 'function', 'courses.js が plateValue を export していない');
+  assert.equal(typeof c.itemValue, 'function', 'courses.js が itemValue を export していない');
   for (const k of ['PERFECT_BONUS', 'COMBO_STEP', 'COMBO_TIME_BONUS_MS']) {
     assert.ok(Number.isFinite(c[k]) && c[k] > 0, `courses.js の ${k} が正の数でない（${c[k]}）`);
   }
@@ -72,10 +75,10 @@ function ready() {
 
 const T0 = 10_000; // 開始時刻。0 にしないのは «0 を未設定扱いする» 実装を見逃さないため
 
-/** お手軽コース。無ければ先頭 */
+/** 3,000 点のコース。無ければ先頭 */
 function course() {
   const list = courses.mod.COURSES;
-  return list.find((c) => c.id === 'otegaru') ?? list[0];
+  return list.find((c) => c.id === 'p3000') ?? list[0];
 }
 
 /**
@@ -167,11 +170,11 @@ function input(run, res, dt = 40) {
 /** 先頭の皿が出るまで時間を少しずつ進める。皿がいつ出るかは契約に無いので待つ */
 function front(run) {
   const limit = run.t + course().laneMs;
-  while (!run.g.state.plates.length) {
+  while (!run.g.state.items.length) {
     assert.ok(run.t < limit, `レーンを一周する時間（${course().laneMs}ms）待っても皿が一枚も出ない`);
     tickTo(run, run.t + 20);
   }
-  return run.g.state.plates[0];
+  return run.g.state.items[0];
 }
 
 /** 先頭の皿の残りを全部正しく打つ。返り値はその間の events */
@@ -190,11 +193,11 @@ function finishFront(run, opts = {}) {
  * 書くかどうかは契約側の話で、ここで落とすとテストが契約より厳しくなる
  */
 const EVENT_KEYS = {
-  hit: ['type', 'plateId', 'kana', 'tier'],
-  perfect: ['type', 'plateId', 'bonus'],
-  miss: ['type', 'plateId', 'expected', 'got'],
-  clear: ['type', 'plateId', 'value'],
-  lost: ['type', 'plateId'],
+  hit: ['type', 'itemId', 'kana', 'tier'],
+  perfect: ['type', 'itemId', 'bonus'],
+  miss: ['type', 'itemId', 'expected', 'got'],
+  clear: ['type', 'itemId', 'value'],
+  lost: ['type', 'itemId'],
   combo: ['type', 'combo', 'bonusMs'],
   over: ['type'],
 };
@@ -205,7 +208,7 @@ const contracted = (e) => {
   return Object.fromEntries(keys.map((k) => [k, e[k]]));
 };
 const only = (ev, type) => ev.filter((e) => e.type === type).map(contracted);
-const plateById = (run, id) => run.g.state.plates.find((p) => p.id === id);
+const itemById = (run, id) => run.g.state.items.find((p) => p.id === id);
 
 // ---------------------------------------------------------------- 始まり
 
@@ -217,19 +220,19 @@ describe('始まり', () => {
     g.start(T0);
     assert.equal(g.state.phase, 'playing');
     assert.equal(g.state.remainingMs, course().timeMs);
-    assert.equal(g.state.money, 0);
+    assert.equal(g.state.score, 0);
     assert.equal(g.state.combo, 0);
     assert.equal(g.state.maxCombo, 0);
   });
 
-  test('皿は words の語を載せ、値段は plateValue(course, word)、位置は 0..1', () => {
+  test('皿は words の語を載せ、値段は itemValue(course, word)、位置は 0..1', () => {
     const w = wordOf();
     const run = play([w]);
     const p = front(run);
     assert.equal(p.word.kana, w.kana);
     assert.equal(p.word.label, w.label);
     assert.equal(p.typed, 0);
-    assert.equal(p.value, courses.mod.plateValue(course(), w));
+    assert.equal(p.value, courses.mod.itemValue(course(), w));
     assert.ok(p.x >= 0 && p.x <= 1, `x が 0..1 の外: ${p.x}`);
     assert.ok(p.id != null, '皿に id が無い');
   });
@@ -257,35 +260,35 @@ describe('正しい字', () => {
     const run = play([wordOf('かき')]);
     const p = front(run);
     const ev = input(run, result('か'));
-    assert.deepEqual(only(ev, 'hit'), [{ type: 'hit', plateId: p.id, kana: 'か', tier: null }]);
+    assert.deepEqual(only(ev, 'hit'), [{ type: 'hit', itemId: p.id, kana: 'か', tier: null }]);
     assert.equal(only(ev, 'miss').length, 0);
-    assert.equal(plateById(run, p.id).typed, 1);
+    assert.equal(itemById(run, p.id).typed, 1);
     assert.equal(run.g.state.combo, 1);
   });
 
-  test('打ち切ると clear が出て、皿の値段が money に入り、皿はレーンから消える', () => {
+  test('打ち切ると clear が出て、皿の値段が score に入り、皿はレーンから消える', () => {
     const w = wordOf('かき');
     const run = play([w]);
     const p = front(run);
     const ev = finishFront(run);
     const clears = only(ev, 'clear');
     assert.equal(clears.length, 1, `clear がちょうど一つでない: ${JSON.stringify(ev)}`);
-    assert.equal(clears[0].plateId, p.id);
-    assert.equal(clears[0].value, courses.mod.plateValue(course(), w));
-    assert.equal(run.g.state.money, courses.mod.plateValue(course(), w));
-    assert.equal(plateById(run, p.id), undefined, '取った皿がレーンに残っている');
+    assert.equal(clears[0].itemId, p.id);
+    assert.equal(clears[0].value, courses.mod.itemValue(course(), w));
+    assert.equal(run.g.state.score, courses.mod.itemValue(course(), w));
+    assert.equal(itemById(run, p.id), undefined, '取った皿がレーンに残っている');
     // 起きた順。最後の一字の hit が先で、clear はその後
     const lastHit = ev.map((e) => e.type).lastIndexOf('hit');
     assert.ok(lastHit >= 0 && lastHit < ev.findIndex((e) => e.type === 'clear'), `hit → clear の順でない: ${ev.map((e) => e.type)}`);
   });
 
-  test('単打だけの皿には上乗せが無い（perfect は出ない、money は皿の値段ちょうど）', () => {
+  test('単打だけの皿には上乗せが無い（perfect は出ない、score は皿の値段ちょうど）', () => {
     const w = wordOf('かきし');
     const run = play([w]);
     const ev = finishFront(run);
     assert.equal(only(ev, 'perfect').length, 0);
     assert.ok(only(ev, 'hit').every((e) => e.tier === null), '単打の hit に tier が付いている');
-    assert.equal(run.g.state.money, courses.mod.plateValue(course(), w));
+    assert.equal(run.g.state.score, courses.mod.itemValue(course(), w));
   });
 });
 
@@ -295,14 +298,14 @@ describe('ぴったり（同時打鍵のズレ）', () => {
     const run = play([w]);
     const p = front(run);
     const ev = input(run, result('が', { offsetMs: -8 }));
-    assert.deepEqual(only(ev, 'hit'), [{ type: 'hit', plateId: p.id, kana: 'が', tier: 'perfect' }]);
-    assert.deepEqual(only(ev, 'perfect'), [{ type: 'perfect', plateId: p.id, bonus: courses.mod.PERFECT_BONUS }]);
+    assert.deepEqual(only(ev, 'hit'), [{ type: 'hit', itemId: p.id, kana: 'が', tier: 'perfect' }]);
+    assert.deepEqual(only(ev, 'perfect'), [{ type: 'perfect', itemId: p.id, bonus: courses.mod.PERFECT_BONUS }]);
     assert.ok(ev.findIndex((e) => e.type === 'hit') < ev.findIndex((e) => e.type === 'perfect'), 'hit → perfect の順でない');
 
     const rest = finishFront(run);
-    const base = courses.mod.plateValue(course(), w);
-    assert.equal(run.g.state.money, base + courses.mod.PERFECT_BONUS, '取った後の money が «皿の値段 + 上乗せ» でない');
-    // clear.value に上乗せを含めるかは契約が決めていない。どちらでも money は合っていること
+    const base = courses.mod.itemValue(course(), w);
+    assert.equal(run.g.state.score, base + courses.mod.PERFECT_BONUS, '取った後の score が «皿の値段 + 上乗せ» でない');
+    // clear.value に上乗せを含めるかは契約が決めていない。どちらでも score は合っていること
     const cv = only(rest, 'clear')[0]?.value;
     assert.ok(cv === base || cv === base + courses.mod.PERFECT_BONUS, `clear.value が ${cv}`);
   });
@@ -311,7 +314,7 @@ describe('ぴったり（同時打鍵のズレ）', () => {
     const run = play([wordOf('みか')]); // み = KeyH × 右親指
     const p = front(run);
     const ev = input(run, result('み', { offsetMs: 0 }));
-    assert.deepEqual(only(ev, 'perfect'), [{ type: 'perfect', plateId: p.id, bonus: courses.mod.PERFECT_BONUS }]);
+    assert.deepEqual(only(ev, 'perfect'), [{ type: 'perfect', itemId: p.id, bonus: courses.mod.PERFECT_BONUS }]);
   });
 
   test('ズレが good / off なら hit の tier はそれで、上乗せは無い（減点も無い）', () => {
@@ -321,7 +324,7 @@ describe('ぴったり（同時打鍵のズレ）', () => {
       const ev = finishFront(run, { offsetMs });
       assert.equal(only(ev, 'hit')[0].tier, tier, `offsetMs ${offsetMs} の tier`);
       assert.equal(only(ev, 'perfect').length, 0, `offsetMs ${offsetMs} で perfect が出た`);
-      assert.equal(run.g.state.money, courses.mod.plateValue(course(), w), `offsetMs ${offsetMs} の money`);
+      assert.equal(run.g.state.score, courses.mod.itemValue(course(), w), `offsetMs ${offsetMs} の score`);
     }
   });
 });
@@ -333,9 +336,9 @@ describe('ミス', () => {
     input(run, result('か'));
     assert.equal(run.g.state.combo, 1);
     const ev = input(run, result('め'));
-    assert.deepEqual(only(ev, 'miss'), [{ type: 'miss', plateId: p.id, expected: 'き', got: 'め' }]);
+    assert.deepEqual(only(ev, 'miss'), [{ type: 'miss', itemId: p.id, expected: 'き', got: 'め' }]);
     assert.equal(only(ev, 'hit').length, 0);
-    assert.equal(plateById(run, p.id).typed, 1, '打ち間違いで字が進んだ');
+    assert.equal(itemById(run, p.id).typed, 1, '打ち間違いで字が進んだ');
     assert.equal(run.g.state.combo, 0, 'コンボが切れていない');
     // 打ち直せば進む
     const again = input(run, result('き'));
@@ -347,9 +350,9 @@ describe('ミス', () => {
     const run = play([wordOf('がき')]);
     const p = front(run);
     const ev = input(run, misfire('が')); // が のつもりが か
-    assert.deepEqual(only(ev, 'miss'), [{ type: 'miss', plateId: p.id, expected: 'が', got: 'か' }]);
+    assert.deepEqual(only(ev, 'miss'), [{ type: 'miss', itemId: p.id, expected: 'が', got: 'か' }]);
     assert.equal(only(ev, 'hit').length, 0);
-    assert.equal(plateById(run, p.id).typed, 0);
+    assert.equal(itemById(run, p.id).typed, 0);
     assert.equal(run.g.state.combo, 0);
   });
 
@@ -358,7 +361,7 @@ describe('ミス', () => {
     front(run);
     input(run, result('め'));
     input(run, result('め'));
-    assert.equal(run.g.state.money, 0);
+    assert.equal(run.g.state.score, 0);
   });
 });
 
@@ -374,8 +377,8 @@ describe('流れる皿', () => {
     while (!lost) {
       assert.ok(run.t < appeared + course().laneMs + 2000, `レーンを流れ切る時間（${course().laneMs}ms）を過ぎても lost が出ない`);
       const ev = tickTo(run, run.t + 100);
-      lost = only(ev, 'lost').find((e) => e.plateId === p.id) ?? null;
-      const still = plateById(run, p.id);
+      lost = only(ev, 'lost').find((e) => e.itemId === p.id) ?? null;
+      const still = itemById(run, p.id);
       if (still) {
         assert.ok(still.x >= lastX, `皿が逆に流れた: ${lastX} → ${still.x}`);
         assert.ok(still.x >= 0 && still.x <= 1, `x が 0..1 の外: ${still.x}`);
@@ -383,9 +386,9 @@ describe('流れる皿', () => {
       }
     }
     assert.ok(run.t - appeared >= course().laneMs * 0.5, `出てから ${run.t - appeared}ms で lost（早すぎる）`);
-    assert.deepEqual(lost, { type: 'lost', plateId: p.id });
-    assert.equal(plateById(run, p.id), undefined, '取り逃した皿がレーンに残っている');
-    assert.equal(run.g.state.money, 0);
+    assert.deepEqual(lost, { type: 'lost', itemId: p.id });
+    assert.equal(itemById(run, p.id), undefined, '取り逃した皿がレーンに残っている');
+    assert.equal(run.g.state.score, 0);
 
     tickTo(run, T0 + course().timeMs + 1);
     const s = run.g.summary();
@@ -488,10 +491,10 @@ describe('summary', () => {
 
     const s = run.g.summary();
     assert.equal(s.course, c.id);
-    assert.equal(s.money, run.g.state.money);
-    assert.equal(s.money, courses.mod.plateValue(c, w) + courses.mod.PERFECT_BONUS);
-    assert.equal(s.balance, s.money - c.price, 'balance は money - course.price');
-    assert.equal(s.plates, only(run.events, 'clear').length);
+    assert.equal(s.score, run.g.state.score);
+    assert.equal(s.score, courses.mod.itemValue(c, w) + courses.mod.PERFECT_BONUS);
+    assert.equal(s.balance, s.score - c.target, 'balance は score - course.target');
+    assert.equal(s.cleared, only(run.events, 'clear').length);
     assert.equal(s.lost, only(run.events, 'lost').length);
     assert.equal(s.misses, misses);
     // strokes が «正しい打鍵» か «全打鍵» かは契約が書いていない。どちらかではあること
@@ -512,8 +515,8 @@ describe('summary', () => {
     const s = run.g.summary();
     assert.ok(Number.isFinite(s.accuracy) && s.accuracy >= 0 && s.accuracy <= 1, `accuracy が ${s.accuracy}`);
     assert.equal(s.kpm, 0);
-    assert.equal(s.money, 0);
-    assert.equal(s.balance, -course().price);
+    assert.equal(s.score, 0);
+    assert.equal(s.balance, -course().target);
   });
 
   test('コンボで延びた時間は durationMs に入る', () => {
@@ -578,7 +581,7 @@ describe('ローマ字の入力', () => {
     const events = [];
     let plate = null;
     for (const ch of 'shashinn') { // 語末の「ん」は nn
-      const head = g.state.plates[0];
+      const head = g.state.items[0];
       if (head.id !== plate) { r.reset(); plate = head.id; }
       const chars = [...head.word.kana];
       const res = r.press(chars, head.typed, ch);
@@ -602,6 +605,52 @@ describe('ローマ字の入力', () => {
     assert.ok(miss);
     assert.equal(miss.misfire, false);
     assert.equal(g.state.misses, 1);
-    assert.equal(g.state.plates[0].typed, 0);
+    assert.equal(g.state.items[0].typed, 0);
+  });
+});
+
+// ---------------------------------------------------------------- 出す語（words.js）
+
+const wordsMod = await load(join(ROOT, 'assets/js/game/words.js'));
+
+describe('出す語', () => {
+  test('どのコースの長さの帯にも 100 語以上ある', () => {
+    ready();
+    for (const c of courses.mod.COURSES) {
+      const n = wordsMod.mod.WORDS.filter((w) => [...w.kana].length >= c.minLen && [...w.kana].length <= c.maxLen).length;
+      assert.ok(n >= 100, `${c.id}（${c.minLen}〜${c.maxLen}字）に ${n} 語しか無い`);
+    }
+  });
+
+  test('どの語も配列で打ち切れ、親指を使う字を含む。重なりが無い', () => {
+    const { WORDS, shiftedCount, MIN_SHIFTED } = wordsMod.mod;
+    assert.equal(new Set(WORDS.map((w) => w.kana)).size, WORDS.length);
+    for (const w of WORDS) {
+      const sh = shiftedCount(w.kana);
+      assert.ok(sh != null, `「${w.kana}」に配列に無い字がある`);
+      assert.ok(sh >= MIN_SHIFTED, `「${w.kana}」に親指を使う字が無い`);
+    }
+  });
+
+  test('面を覚えるための並び（小書きだけの列など）は入っていない', () => {
+    for (const w of wordsMod.mod.WORDS) assert.doesNotMatch(w.kana, /^[ぁぃぅぇぉゃゅょっ]+$/u, w.kana);
+  });
+});
+
+// ---------------------------------------------------------------- サーバーと同じ物差し
+
+describe('サーバーの検算と同じ数', () => {
+  test('コースの時間・一字の点・ぴったりの上乗せ・コンボの延長が server/src/core.mjs と同じ', async () => {
+    ready();
+    const core = await import(pathToFileURL(join(ROOT, 'server/src/core.mjs')).href);
+    const c = courses.mod;
+    assert.deepEqual(Object.keys(core.COURSE_LIMITS).sort(), c.COURSES.map((x) => x.id).sort(), 'コースの id が違う');
+    for (const x of c.COURSES) {
+      assert.equal(core.COURSE_LIMITS[x.id].timeMs, x.timeMs, `${x.id} の時間`);
+      assert.equal(core.COURSE_LIMITS[x.id].ptPerKana, c.PT_PER_KANA[x.id], `${x.id} の一字の点`);
+    }
+    assert.equal(core.PERFECT_BONUS, c.PERFECT_BONUS);
+    assert.equal(core.COMBO_STEP, c.COMBO_STEP);
+    assert.equal(core.COMBO_TIME_BONUS_MS, c.COMBO_TIME_BONUS_MS);
   });
 });

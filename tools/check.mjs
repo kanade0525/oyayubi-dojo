@@ -1103,28 +1103,29 @@ async function browserChecks(chromeBin) {
     if (over > 1) ng('見た目', `横に溢れている（${over}px）`);
 
     // ---- ゲーム（game.html）。独立したページなので、読み込みだけで壊れていないかを見る。
-    //      canvas が置かれていること、読み込みでエラーも CSP 違反も出ないこと。
+    //      main.js が走ってタイトルにノルマのコース（#courseList）を並べたこと、
+    //      読み込みでエラーも CSP 違反も出ないこと。
     //      ゲームを最後まで遊ばせる検査はここではしない（判断は engine.js の単体テストが見る）
     if (has('game.html')) {
       await send('Runtime.enable');
       await send('Log.enable');
       consoleErrors.length = 0;
       await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/game.html` });
-      let canvas = null;
+      let title = null;
       for (let i = 0; i < 30; i++) {
-        canvas = await evaluate(
-          `(() => { const c = document.querySelector('canvas'); return c ? { w: c.getBoundingClientRect().width, h: c.getBoundingClientRect().height } : null; })()`
+        title = await evaluate(
+          `(() => { const l = document.getElementById('courseList'); const b = l && l.querySelector('button'); return b ? { w: b.getBoundingClientRect().width, n: l.children.length } : null; })()`
         ).catch(() => null);
-        if (canvas) break;
+        if (title) break;
         await new Promise((r) => setTimeout(r, 150));
       }
-      // module の読み込み失敗や初回描画の例外は、canvas が出た後に来ることもあるので少し待つ
+      // module の読み込み失敗や初回の例外は、タイトルが出た後に来ることもあるので少し待つ
       await new Promise((r) => setTimeout(r, 600));
-      if (!canvas) {
+      if (!title) {
         const why = await evaluate('window.__err || "(見当たらない)"').catch(() => '(読めない)');
-        ng('描画', `game.html に canvas が無い。読み込みで落ちている疑い: ${why}`);
-      } else if (!(canvas.w > 0 && canvas.h > 0)) {
-        ng('描画', `game.html の canvas の大きさが ${canvas.w}×${canvas.h}（見えていない）`);
+        ng('描画', `game.html のノルマのコースが並ばない（main.js が走っていない疑い）: ${why}`);
+      } else if (!(title.w > 0) || title.n !== 3) {
+        ng('描画', 'game.html のノルマのコースが見えていない');
       }
       const err = await evaluate('window.__err').catch(() => null);
       if (err) ng('描画', `game.html の読み込みでエラー: ${err}`);

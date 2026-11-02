@@ -15,8 +15,8 @@
 //   秘密の照合は timingSafeEqual で行う（一致した長さで処理時間が変わらないように）。
 //
 // ・スコアは「人間に出せない値」を弾く。上限は「コースの制限時間＋延長の上限」の間、
-//   毎分 600 かな（親指シフトの上級者でも届かない速さ）で打ち続け、全部の字でそのコースの単価と
-//   ぴったりの上乗せ（ローマ字には無い）を取った金額。これを超えたら改ざんと見なして 400 を返す。
+//   毎分 600 かな（親指シフトの上級者でも届かない速さ）で打ち続け、全部の字でそのコースの一字の点と
+//   ぴったりの上乗せ（ローマ字には無い）を取った点数。これを超えたら改ざんと見なして 400 を返す。
 //   正直に遊んだ人を誤って弾かないよう、上限はわざと緩めに取ってある。
 //
 // ・エラーは { error } の JSON とステータスコードで返す。想定外の例外は中身を返さず 500 にする
@@ -28,33 +28,33 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 //
 // assets/js/game/courses.js と揃えること。
 // サーバーはブラウザのファイルを import できない（配置先が違う）ので、上限計算に要る数値だけを
-// ここに写してある。courses.js 側で時間・単価・上乗せを上げたら、ここも同じだけ上げる。
+// ここに写してある。courses.js 側で時間・一字の点・上乗せを上げたら、ここも同じだけ上げる。
 // 下げる分には放っておいても害は無い（上限が緩いままになるだけ）。
-// 上げ忘れると、正直に遊んだ上手な人のスコアが 400 で弾かれる。
+// 上げ忘れると、正直に遊んだ上手な人のスコアが 400 で弾かれる。tools/game.test.mjs が突き合わせる。
 // 写した値（2026-11-02 時点の courses.js）:
-//   COURSES の timeMs、YEN_PER_KANA、PERFECT_BONUS、COMBO_STEP、COMBO_TIME_BONUS_MS
+//   COURSES の timeMs と一字の点、PERFECT_BONUS、COMBO_STEP、COMBO_TIME_BONUS_MS
 
-/** コースの id → { 制限時間（ms）, かな一字の単価（円） }。id はランキングの鍵なので三つで固定 */
+/** コースの id → { 制限時間（ms）, かな一字の点 }。id はランキングの鍵なので三つで固定 */
 export const COURSE_LIMITS = Object.freeze({
-  otegaru: Object.freeze({ timeMs: 60_000, yenPerKana: 30 }),
-  osusume: Object.freeze({ timeMs: 90_000, yenPerKana: 40 }),
-  koukyu: Object.freeze({ timeMs: 120_000, yenPerKana: 45 }),
+  p3000: Object.freeze({ timeMs: 60_000, ptPerKana: 20 }),
+  p5000: Object.freeze({ timeMs: 90_000, ptPerKana: 20 }),
+  p10000: Object.freeze({ timeMs: 120_000, ptPerKana: 25 }),
 });
 export const COURSE_IDS = Object.freeze(Object.keys(COURSE_LIMITS));
 
-/** courses.js の PERFECT_BONUS（ぴったり一打ごとの上乗せ・円） */
-export const PERFECT_BONUS = 20;
+/** courses.js の PERFECT_BONUS（ぴったり一打ごとの上乗せ・点） */
+export const PERFECT_BONUS = 10;
 /** courses.js の COMBO_STEP（この打数ごとに延長） */
 export const COMBO_STEP = 20;
 /** courses.js の COMBO_TIME_BONUS_MS（一回の延長） */
 export const COMBO_TIME_BONUS_MS = 1000;
 
-/** 入力方式。ランキングは方式ごとの順位表と、両方を混ぜた順位表を持つ */
+/** 入力方式。ランキングはコースごとに、方式ごとの部門の表と、両方をまとめた総合の表を持つ */
 export const INPUTS = Object.freeze(['nicola', 'romaji']);
-/** 順位表の絞り込み。all は両方を混ぜた表 */
-export const BOARD_INPUTS = Object.freeze(['all', ...INPUTS]);
+/** 順位表。all は総合（各人の毎分の自己ベスト一行）、ほかは部門（各人の点数の自己ベスト一行） */
+export const BOARDS = Object.freeze(['all', ...INPUTS]);
 
-/** ぴったりの上乗せ（円）。ローマ字には同時打鍵が無いので上乗せも無い */
+/** ぴったりの上乗せ（点）。ローマ字には同時打鍵が無いので上乗せも無い */
 export function perfectBonusOf(input) {
   if (input === 'nicola') return PERFECT_BONUS;
   if (input === 'romaji') return 0;
@@ -87,17 +87,16 @@ export function maxDurationMsOf(course) {
 }
 
 /**
- * コースごとの上限金額（円）。
- * 延長込みの時間いっぱい、上限の速さで打ち、全部の字で単価とぴったりの上乗せを取った金額。
- * 単語の途中で終わった字にはお金が入らないので、実際はこれより必ず低い。
- * 親指シフトはいまの値で お手軽 60,000円 / おすすめ 108,000円 / 高級 156,000円。
+ * コースと入力方式ごとの上限の点数。
+ * 延長込みの時間いっぱい、上限の速さで打ち、全部の字で一字の点とぴったりの上乗せを取った点数。
+ * 親指シフトはいまの値で 3000点 36,000 / 5000点 54,000 / 10000点 84,000。
  * ローマ字は上乗せが無いぶん低い。
  */
-export function maxMoneyOf(course, input) {
+export function maxScoreOf(course, input) {
   const c = COURSE_LIMITS[course];
   if (!c) throw new Error(`未知のコース: ${course}`);
   const maxKana = Math.ceil((HUMAN_MAX_KPM * maxDurationMsOf(course)) / 60_000);
-  return maxKana * (c.yenPerKana + perfectBonusOf(input));
+  return maxKana * (c.ptPerKana + perfectBonusOf(input));
 }
 
 // ---------------------------------------------------------------- 定数
@@ -175,15 +174,15 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
 /**
  * 送られた summary を検証し、残す値だけを取り出す。
- * 残すのは順位表に出す数（money / kpm / accuracy）と入力方式、検算に使う durationMs だけ。
- * 入力方式は必須。無いものを親指シフト扱いにすると、ローマ字の記録が親指シフトの表に混ざる。
+ * 残すのは順位表に出す数（score / kpm / accuracy）とコース・入力方式だけ。durationMs は検算にだけ使う。
+ * 入力方式は必須。無いものを親指シフト扱いにすると、ローマ字の記録が親指シフトの部門に混ざる。
  */
 export function validateScore(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad('スコアの形が違います');
-  const { course, input, money, kpm, accuracy, durationMs } = body;
+  const { course, input, score, kpm, accuracy, durationMs } = body;
   if (!COURSE_IDS.includes(course)) throw bad('コースが違います');
   if (!INPUTS.includes(input)) throw bad('入力方式が違います');
-  if (!isInt(money) || money < 0) throw bad('金額が違います');
+  if (!isInt(score) || score < 0) throw bad('点数が違います');
   if (!isNum(kpm) || kpm < 0) throw bad('打鍵速度が違います');
   if (!isNum(accuracy) || accuracy < 0 || accuracy > 1) throw bad('正確さが違います');
   if (!isInt(durationMs) || durationMs <= 0) throw bad('遊んだ時間が違います');
@@ -191,18 +190,19 @@ export function validateScore(body) {
   // ありえない値。どれか一つでも超えたら記録しない
   if (durationMs > maxDurationMsOf(course) + DURATION_SLACK_MS) throw bad('ありえない記録です（時間）');
   if (kpm > HUMAN_MAX_KPM) throw bad('ありえない記録です（速さ）');
-  if (money > maxMoneyOf(course, input)) throw bad('ありえない記録です（金額）');
+  if (score > maxScoreOf(course, input)) throw bad('ありえない記録です（点数）');
 
   // 値どうしの突き合わせ。上の三つは一つずつ上限と比べるだけなので、
-  // 「金額だけ上限ぴったり・速さ 1・時間 1ms」のような矛盾した組を通してしまう。
+  // 「点数だけ上限ぴったり・速さ 1・時間 1ms」のような矛盾した組を通してしまう。
   // ゲームは時間切れでしか終わらない（途中でやめた回は送らない）ので、時間は制限時間を下回らない
-  if (durationMs < COURSE_LIMITS[course].timeMs - DURATION_SLACK_MS) throw bad('ありえない記録です（時間が短い）');
-  // 取った金額は「正しく打った字数 ×（一字の単価＋ぴったりの上乗せ）」を超えない。
-  // 字数は kpm と時間から戻せる。送る側で時間を丸めるので一字ぶんの余裕を持たせる
+  const c = COURSE_LIMITS[course];
+  if (durationMs < c.timeMs - DURATION_SLACK_MS) throw bad('ありえない記録です（時間が短い）');
+  // 取った点は「打った字数 ×（一字の点＋ぴったりの上乗せ）」を超えない。
+  // 字数は kpm と時間から戻せる。送る側で速さと時間を丸めるので一字ぶんの余裕を持たせる
   const kanaTyped = Math.ceil((kpm * durationMs) / 60_000 + 1);
-  if (money > kanaTyped * (COURSE_LIMITS[course].yenPerKana + perfectBonusOf(input))) throw bad('ありえない記録です（速さと金額が合わない）');
+  if (score > kanaTyped * (c.ptPerKana + perfectBonusOf(input))) throw bad('ありえない記録です（速さと点数が合わない）');
 
-  return { course, input, money, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
+  return { course, input, score, kpm: Math.round(kpm * 10) / 10, accuracy: Math.round(accuracy * 1000) / 1000 };
 }
 
 // ---------------------------------------------------------------- 期間と順位
@@ -224,22 +224,23 @@ export function periodKey(period, date) {
 }
 
 /**
- * 順位表の並べ方。入力方式ごとの表は金額、両方を混ぜた表（input = all）は毎分の打鍵数。
- * ローマ字には「ぴったり」の上乗せが無いので、金額で混ぜると入力方式どうしを比べられない。
- * 混ぜた表に載るのは各人の「金額の自己ベスト」の一本で、その一本の毎分で並べる。
+ * 順位表の並べ方。部門の表は点数、総合の表（board = all）は毎分の打鍵数。
+ * ローマ字にはぴったりの上乗せが無く、一字の最大点が親指シフトの 3 分の 1 なので、
+ * 点数で混ぜると入力方式どうしを比べられない。総合は速さだけで比べる（本人が選んだ）。
  */
-export function orderOf(input) {
-  return input === 'all' ? 'kpm' : 'money';
+export function orderOf(board) {
+  return board === 'all' ? 'kpm' : 'score';
 }
 
-const orderValue = (e, by) => (by === 'kpm' ? Math.round(e.kpm * 10) : e.money);
+/** 並べる値を整数にする。毎分は 0.1 刻みで残すので 10 倍する（DynamoDB の条件とソートキーもこれを使う） */
+export const orderValue = (e, by) => (by === 'kpm' ? Math.round(e.kpm * 10) : e.score);
 
 /**
  * 順位の並び。by の値の多い順、同じなら先に出した人が上。
  * 同じ値を同順位にしないのは、50 件で切ったときに境目が曖昧にならないようにするため。
  * 負なら a が上。
  */
-export function compareEntries(a, b, by = 'money') {
+export function compareEntries(a, b, by) {
   const x = orderValue(a, by);
   const y = orderValue(b, by);
   if (x !== y) return y - x;
@@ -249,30 +250,32 @@ export function compareEntries(a, b, by = 'money') {
 /**
  * compareEntries と同じ並びになる文字列。DynamoDB の GSI のソートキーに使い、降順で引く。
  * 値を前に 0 埋めし、後ろに「遠い未来 − 時刻」を 0 埋めして付けると、
- * 文字列の降順＝値の降順、同じなら時刻の昇順になる。毎分は 10 倍して整数にする。
+ * 文字列の降順＝値の降順、同じなら時刻の昇順になる。
  */
 const FAR_FUTURE_MS = 9_999_999_999_999;
-export function boardSortKey(entry, by = 'money') {
+export function boardSortKey(entry, by) {
   return `${String(orderValue(entry, by)).padStart(10, '0')}#${String(FAR_FUTURE_MS - Date.parse(entry.at)).padStart(13, '0')}`;
 }
 
 // ---------------------------------------------------------------- ストアの約束
 //
 // store は次を持つ（すべて async）。
+// where = { course, board, period } で表を一つ指す。board は BOARDS のどれか、period は 'all' か 'YYYY-MM'。
 //
 //   createPlayer({ playerId, nickname, tokenHash, consentVersion, createdAt })
 //   getPlayer(playerId)                         → { playerId, nickname, tokenHash } | null
-//   putBestIfHigher(entry)                      → true（更新した）| false（自己ベストに届かない）
-//       entry = { playerId, nickname, course, input, period, money, kpm, accuracy, at }
-//       自己ベストはプレイヤー×コース×入力方式×期間で一つ。
-//       「今の自己ベストより金額が多いときだけ書く」を一回の条件付き書き込みで行うこと。
-//       読んでから書くと、同時に二つ送られたときに低い方が勝ちうる。
+//   putBestIfHigher(where, entry)               → true（更新した）| false（自己ベストに届かない）
+//       entry = { playerId, nickname, course, input, period, score, kpm, accuracy, at }
+//       自己ベストはプレイヤー×コース×表×期間で一つ（どの表も 1 人 1 行にするため）。
+//       部門の表は entry.input と同じ board にだけ書く。総合（all）にはどちらの入力方式でも書き、
+//       その一本の input と score もそのまま残す（表示に使う）。
+//       「今の自己ベストより orderValue(entry, orderOf(where.board)) が大きいときだけ書く」を
+//       一回の条件付き書き込みで行うこと。読んでから書くと、同時に二つ送られたときに低い方が勝ちうる。
+//       同じ値では書かない（先に出した時刻を残す。順位の並びと揃える）。
 //       プレイヤーが消えていたら HttpError(401) を投げる（消した直後の送信で記録を蘇らせない）。
-//   getBest(playerId, course, input, period)    → entry | null
-//   countAhead(board, entry)                    → board の中で compareEntries(…, orderOf(board.input)) により entry より上にいる件数
-//   topEntries(board, limit)                    → board の中を同じ並びで上位 limit 件
-//       board = { course, period, input }。input は BOARD_INPUTS のどれか（all は両方を混ぜた表。
-//       同じ人が親指シフトとローマ字の二行で並びうる）
+//   getBest(playerId, where)                    → entry | null
+//   countAhead(where, entry)                    → その表の中で compareEntries(…, orderOf(where.board)) により entry より上にいる件数
+//   topEntries(where, limit)                    → その表を同じ並びで上位 limit 件
 //   deletePlayer(playerId)                      → 本人のアイテムを全部消す
 
 // ---------------------------------------------------------------- 各エンドポイント
@@ -308,47 +311,62 @@ async function postPlayers(ctx, body) {
 async function postScores(ctx, headers, body) {
   const player = await authenticate(ctx.store, ctx.pepper, headers);
   const score = validateScore(body);
+  const { course, input } = score;
   const now = ctx.now();
-  const at = now.toISOString();
+  const entry = { playerId: player.playerId, nickname: player.nickname, ...score, at: now.toISOString() };
 
-  // 通算と今月の両方に出す。月の自己ベストは通算を更新しなくても更新されうる
+  // 通算と今月の両方、部門と総合の両方に出す。月の自己ベストは通算を更新しなくても更新されうるし、
+  // 部門（点数）と総合（毎分）は比べる値が違うので、片方だけ更新されることもある
   let isBest = false;
   for (const period of ['all', monthKey(now)]) {
-    const updated = await ctx.store.putBestIfHigher({
-      playerId: player.playerId,
-      nickname: player.nickname,
-      course: score.course,
-      period,
-      ...score,
-      at,
-    });
+    const updated = await ctx.store.putBestIfHigher({ course, board: input, period }, { ...entry, period });
+    await ctx.store.putBestIfHigher({ course, board: 'all', period }, { ...entry, period });
     if (period === 'all') isBest = updated;
   }
 
-  const best = await ctx.store.getBest(player.playerId, score.course, score.input, 'all');
-  if (!best) throw new Error('自己ベストを書いた直後に読めない');
-  // 順位は同じ入力方式の表の中で数える
-  const rank = (await ctx.store.countAhead({ course: score.course, period: 'all', input: score.input }, best)) + 1;
-  return { status: 200, body: { rank, best: best.money, isBest } };
+  // 順位はそのコースの通算の表の中で数える
+  const rankOf = async (board) => {
+    const where = { course, board, period: 'all' };
+    const best = await ctx.store.getBest(player.playerId, where);
+    if (!best) throw new Error('自己ベストを書いた直後に読めない');
+    return { best, rank: (await ctx.store.countAhead(where, best)) + 1 };
+  };
+  const dept = await rankOf(input);
+  const overall = await rankOf('all');
+  return {
+    status: 200,
+    body: { rank: dept.rank, best: dept.best.score, isBest, overallRank: overall.rank, overallBest: overall.best.kpm },
+  };
 }
+
+/** 順位表の一行。playerId と token に関わるものは出さない */
+const toRow = (r, i) => ({
+  rank: i + 1,
+  nickname: r.nickname,
+  input: r.input,
+  score: r.score,
+  kpm: r.kpm,
+  accuracy: r.accuracy,
+  at: r.at,
+});
 
 async function getRanking(ctx, query) {
   const course = query.course;
   if (!COURSE_IDS.includes(course)) throw bad('コースが違います');
+  const board = query.board;
+  if (!BOARDS.includes(board)) throw bad('順位表が違います');
   const period = periodKey(query.period ?? 'all', ctx.now());
-  const input = query.input;
-  if (!BOARD_INPUTS.includes(input)) throw bad('入力方式が違います');
-  const rows = await ctx.store.topEntries({ course, period, input }, RANKING_LIMIT);
-  const entries = rows.map((r, i) => ({
-    rank: i + 1,
-    nickname: r.nickname,
-    input: r.input,
-    money: r.money,
-    kpm: r.kpm,
-    accuracy: r.accuracy,
-    at: r.at,
-  }));
-  return { status: 200, body: { course, period, input, entries } };
+  const rows = await ctx.store.topEntries({ course, board, period }, RANKING_LIMIT);
+  const body = { course, board, period, entries: rows.map(toRow), leaders: null };
+  // 総合の表には、そのコースの各部門の 1 位も添える（「ローマ字ではこの人、親指シフトではこの人」を一画面で見せるため）
+  if (board === 'all') {
+    body.leaders = {};
+    for (const input of INPUTS) {
+      const [top] = await ctx.store.topEntries({ course, board: input, period }, 1);
+      body.leaders[input] = top ? { nickname: top.nickname, score: top.score } : null;
+    }
+  }
+  return { status: 200, body };
 }
 
 async function deleteMe(ctx, headers) {

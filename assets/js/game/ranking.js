@@ -1,8 +1,8 @@
-// 回転ずしのランキング。このアプリで唯一、外へ通信するファイル。
+// 検品ライン（ゲーム）のランキング。このアプリで唯一、外へ通信するファイル。
 //
 // なぜこの形か。
 //
-// ・送るのはニックネームとスコア（コース・入力方式・金額・速さ・正確さ・遊んだ時間）だけ。
+// ・送るのはニックネームとスコア（コース・入力方式・点数・速さ・正確さ・遊んだ時間）だけ。
 //   メールアドレスや本名は取らない。手元の練習記録（storage.js）は一切送らない。
 //   summary から送る項目をここで拾い直しているのは、summary に項目が増えたときに
 //   黙って外へ出ていかないようにするため。
@@ -19,11 +19,14 @@
 
 import { RANKING_API_URL } from './config.js';
 
-/** 同意文の版。同意文を変えたら上げる。サーバーに登録と一緒に残る */
-export const CONSENT_VERSION = '2026-11-02';
+/** 同意文の版。同意文を変えたら上げる。サーバーに登録と一緒に残る。
+    -2 は回転ずしから検品ラインに題材を替えて、送るものが「金額」から「点数」に変わった版 */
+export const CONSENT_VERSION = '2026-11-02-2';
 
 const PLAYER_KEY = 'oyayubi-dojo:player:v1';
 const INPUTS = ['nicola', 'romaji'];
+/** 表は三つ。all は総合（速さの順）、ほかは入力方式ごとの部門（点数の順）。どれも一人一行 */
+const BOARDS = ['all', ...INPUTS];
 const TIMEOUT_MS = 10_000;
 
 export class RankingError extends Error {
@@ -144,29 +147,44 @@ export async function register({ nickname, consent }) {
   return { playerId: player.playerId, nickname: player.nickname };
 }
 
-/** 結果を送る。登録済みでなければ throw。→ { rank, best, isBest } */
+/**
+ * 結果を送る。登録済みでなければ throw。
+ * → { rank, best, isBest, overallRank, overallBest }（rank / best は部門、overall は総合の速さ）
+ */
 export async function submitScore(summary) {
   const p = loadPlayer();
   if (!p) throw new RankingError('ランキングに登録していません');
-  const { course, input, money, kpm, accuracy, durationMs } = summary;
+  const { course, input, score, kpm, accuracy, durationMs } = summary;
   if (!INPUTS.includes(input)) throw new RankingError(`入力方式が違います: ${input}`);
-  return call('POST', '/scores', {
-    token: p.token,
-    body: { course, input, money, kpm, accuracy, durationMs: Math.round(durationMs) },
-  });
+  try {
+    return await call('POST', '/scores', {
+      token: p.token,
+      body: { course, input, score, kpm, accuracy, durationMs: Math.round(durationMs) },
+    });
+  } catch (err) {
+    // 401 は «サーバーにこの登録が無い»。回転ずしから作り替えたときに表を新しくしたので、
+    // それ以前の登録はみな 401 になる。手元の登録を捨てて、参加し直せるようにする
+    if (err instanceof RankingError && err.status === 401) {
+      dropPlayer();
+      throw new RankingError('登録が見つかりませんでした（回転ずしから検品ラインに替えたときに表を新しくしました）。もう一度参加してください', 401);
+    }
+    throw err;
+  }
 }
 
 /**
- * 順位表。period は 'all' | 'month'、input は 'all'（両方を混ぜる）| 'nicola' | 'romaji'。
- * → [{ rank, nickname, input, money, kpm, accuracy, at }]
+ * 順位表。course はコースの id、board は 'all'（総合）| 'nicola' | 'romaji'、period は 'all' | 'month'。
+ * → { entries: [{ rank, nickname, input, score, kpm, accuracy, at }], leaders }
+ *   leaders は総合のときだけ（そのコースの） { nicola: { nickname, score } | null, romaji: … }（各部門の 1 位）
  */
-export async function fetchRanking({ course, period = 'all', input }) {
+export async function fetchRanking({ course, board, period = 'all' }) {
   if (period !== 'all' && period !== 'month') throw new RankingError(`期間が違います: ${period}`);
-  if (input !== 'all' && !INPUTS.includes(input)) throw new RankingError(`入力方式が違います: ${input}`);
-  const q = new URLSearchParams({ course, period, input });
+  if (!BOARDS.includes(board)) throw new RankingError(`表が違います: ${board}`);
+  if (typeof course !== 'string' || !course) throw new RankingError('コースがありません');
+  const q = new URLSearchParams({ course, board, period });
   const data = await call('GET', `/ranking?${q}`);
   if (!Array.isArray(data?.entries)) throw new RankingError('ランキングの応答の形が違います');
-  return data.entries;
+  return { entries: data.entries, leaders: data.leaders ?? null };
 }
 
 /** サーバーの記録を全部消し、手元の登録も消す */

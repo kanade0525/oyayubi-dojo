@@ -14,4 +14,4 @@ region = "ap-northeast-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
 resolve_s3 = true
-parameter_overrides = "TableName=\"oyayubi-dojo-ranking\" AllowedOrigin=\"https://example.invalid\" TokenPepper=\"CHANGE_ME\""
+parameter_overrides = "TableName=\"oyayubi-dojo-kenpin\" AllowedOrigin=\"https://example.invalid\" TokenPepper=\"CHANGE_ME\""

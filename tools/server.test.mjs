@@ -2,15 +2,16 @@
 /*
  * ランキング API の判断ロジック（server/src/core.mjs）の単体テスト。
  *
- * AWS には一切つながない。core.mjs が受け取る「ストアの約束」を、ここで配列だけの
+ * AWS には一切つながない。core.mjs が受け取る「ストアの約束」を、ここで Map だけの
  * 偽ストアとして書いて渡す。@aws-sdk を import するファイル（store-dynamo.mjs / index.mjs）は
  * 読まない。読むと依存パッケージゼロの約束が CI で崩れる。
  *
  * 見るのは利用者から見える挙動だけ。
  *   登録できる／同意が無ければ断る／token が違えば断る／自己ベストは上がるときだけ変わる／
- *   ありえない金額は断る／順位表は金額の多い順・同額は先着順／消したら全部消える
+ *   ありえない記録は断る／表はコースごと／部門は点数の順・総合は毎分の順・同じ値は先着順／
+ *   どの表も 1 人 1 行／総合には各部門の 1 位が付く／消したら全部消える
  *
- * 偽ストアの並びは core.mjs の compareEntries を使う。DynamoDB 側は同じ並びを
+ * 偽ストアの並びは core.mjs の compareEntries と orderOf を使う。DynamoDB 側は同じ並びを
  * boardSortKey の文字列順で出すので、その二つが一致することもここで検査する。
  */
 import { describe, test } from 'node:test';
@@ -22,7 +23,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const load = (p) => import(pathToFileURL(join(ROOT, p)).href);
 
 const core = await load('server/src/core.mjs');
-const { createApi, compareEntries, boardSortKey, orderOf, maxMoneyOf, normalizeNickname, HttpError, monthKey } = core;
+const { createApi, compareEntries, boardSortKey, orderOf, orderValue, maxScoreOf, maxDurationMsOf, normalizeNickname, HttpError, monthKey } = core;
 
 const PEPPER = 'test-pepper-0123456789abcdef0123456789abcdef';
 
@@ -30,8 +31,9 @@ const PEPPER = 'test-pepper-0123456789abcdef0123456789abcdef';
 
 function fakeStore() {
   const players = new Map(); // playerId → profile
-  const bests = new Map(); // `${playerId}|${course}|${input}|${period}` → entry
-  const onBoard = (e, b) => e.course === b.course && e.period === b.period && (b.input === 'all' || e.input === b.input);
+  const bests = new Map(); // `${playerId}|${course}|${board}|${period}` → entry
+  const tail = ({ course, board, period }) => `|${course}|${board}|${period}`;
+  const rowsOf = (where) => [...bests.entries()].filter(([k]) => k.endsWith(tail(where))).map(([, e]) => e);
   return {
     players,
     bests,
@@ -41,25 +43,27 @@ function fakeStore() {
     async getPlayer(id) {
       return players.get(id) ?? null;
     },
-    async putBestIfHigher(entry) {
+    async putBestIfHigher(where, entry) {
+      if (!core.COURSE_IDS.includes(where.course)) throw new Error(`未知のコース: ${where.course}`);
+      if (!core.BOARDS.includes(where.board)) throw new Error(`未知の順位表: ${where.board}`);
+      if (where.board !== 'all' && where.board !== entry.input) throw new Error(`部門 ${where.board} に ${entry.input} の記録は書けない`);
+      if (entry.course !== where.course || entry.period !== where.period) throw new Error('記録のコース・期間と書く先が食い違っている');
       if (!players.has(entry.playerId)) throw new HttpError(401, '登録が確認できません');
-      const key = `${entry.playerId}|${entry.course}|${entry.input}|${entry.period}`;
+      const key = `${entry.playerId}${tail(where)}`;
       const cur = bests.get(key);
-      if (cur && cur.money >= entry.money) return false;
+      const by = orderOf(where.board);
+      if (cur && orderValue(cur, by) >= orderValue(entry, by)) return false;
       bests.set(key, { ...entry });
       return true;
     },
-    async getBest(id, course, input, period) {
-      return bests.get(`${id}|${course}|${input}|${period}`) ?? null;
+    async getBest(id, where) {
+      return bests.get(`${id}${tail(where)}`) ?? null;
     },
-    async countAhead(board, entry) {
-      return [...bests.values()].filter((e) => onBoard(e, board) && compareEntries(e, entry, orderOf(board.input)) < 0).length;
+    async countAhead(where, entry) {
+      return rowsOf(where).filter((e) => compareEntries(e, entry, orderOf(where.board)) < 0).length;
     },
-    async topEntries(board, limit) {
-      return [...bests.values()]
-        .filter((e) => onBoard(e, board))
-        .sort((a, b) => compareEntries(a, b, orderOf(board.input)))
-        .slice(0, limit);
+    async topEntries(where, limit) {
+      return rowsOf(where).sort((a, b) => compareEntries(a, b, orderOf(where.board))).slice(0, limit);
     },
     async deletePlayer(id) {
       players.delete(id);
@@ -87,8 +91,20 @@ function setup() {
     assert.equal(res.status, 201, JSON.stringify(res.body));
     return res.body;
   };
-  const score = (money, extra = {}) => ({ course: 'otegaru', input: 'nicola', money, kpm: 120, accuracy: 0.95, durationMs: 60000, ...extra });
-  return { store, clock, api, req, register, score, errors };
+  // 3000 点コース（60 秒・一字 20 点）。毎分 120 かな × 60 秒 → 字数は 121 字まで見る。
+  // 親指シフトは 121 × (20 + 10) = 3,630 点、ローマ字は 121 × 20 = 2,420 点まで通る
+  const score = (points, extra = {}) => ({ course: 'p3000', input: 'nicola', score: points, kpm: 120, accuracy: 0.95, durationMs: 60000, ...extra });
+  const post = async (token, body) => {
+    const res = await req('POST', '/scores', { token, body });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    return res.body;
+  };
+  const ranking = async (board, period = 'all', course = 'p3000') => {
+    const res = await req('GET', '/ranking', { query: { course, board, period } });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    return res.body;
+  };
+  return { store, clock, api, req, register, score, post, ranking, errors };
 }
 
 // ---------------------------------------------------------------- 登録
@@ -154,10 +170,10 @@ describe('token', () => {
     const wrongSecret = `${playerId}.${'A'.repeat(43)}`;
     const otherId = `${'0'.repeat(8)}-0000-0000-0000-${'0'.repeat(12)}.${token.split('.')[1]}`;
     for (const t of [undefined, 'garbage', wrongSecret, otherId]) {
-      const res = await req('POST', '/scores', { token: t, body: score(1000) });
+      const res = await req('POST', '/scores', { token: t, body: score(100) });
       assert.equal(res.status, 401, String(t));
     }
-    assert.equal((await req('POST', '/scores', { token, body: score(1000) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(100) })).status, 200);
   });
 
   test('別の pepper で動くサーバーでは同じ token が通らない', async () => {
@@ -167,171 +183,304 @@ describe('token', () => {
     const res = await other({ method: 'POST', path: '/scores', headers: { authorization: `Bearer ${token}` }, rawBody: JSON.stringify(score(1)) });
     assert.equal(res.status, 401);
   });
-});
 
-// ---------------------------------------------------------------- スコア
-
-describe('自己ベスト', () => {
-  test('上がったときだけ更新し、下がっても同額でも更新しない', async () => {
+  test('プロフィールが消えた後に届いた送信は 401 で、何も書き戻さない', async () => {
     const { req, register, score, store } = setup();
     const { token, playerId } = await register('a');
-    const r1 = await req('POST', '/scores', { token, body: score(1500) });
-    assert.deepEqual(r1.body, { rank: 1, best: 1500, isBest: true });
+    // token の照合は通ったが、書く直前にプロフィールが消えた（消す処理と送信が行き違った）場合
+    const getPlayer = store.getPlayer;
+    store.getPlayer = async (id) => {
+      const p = await getPlayer(id);
+      store.players.delete(id);
+      return p;
+    };
+    const res = await req('POST', '/scores', { token, body: score(100) });
+    assert.equal(res.status, 401);
+    assert.ok([...store.bests.keys()].every((k) => !k.startsWith(playerId)));
+  });
+});
 
-    const r2 = await req('POST', '/scores', { token, body: score(900) });
-    assert.deepEqual(r2.body, { rank: 1, best: 1500, isBest: false });
+// ---------------------------------------------------------------- 自己ベスト
 
-    const r3 = await req('POST', '/scores', { token, body: score(1500) });
-    assert.equal(r3.body.isBest, false);
-
-    const r4 = await req('POST', '/scores', { token, body: score(2400) });
-    assert.deepEqual(r4.body, { rank: 1, best: 2400, isBest: true });
+describe('自己ベスト', () => {
+  test('部門の自己ベストは点数が上がったときだけ更新し、下がっても同点でも更新しない', async () => {
+    const { register, score, post, store } = setup();
+    const { token, playerId } = await register('a');
+    assert.deepEqual(await post(token, score(150)), { rank: 1, best: 150, isBest: true, overallRank: 1, overallBest: 120 });
+    assert.deepEqual(await post(token, score(90)), { rank: 1, best: 150, isBest: false, overallRank: 1, overallBest: 120 });
+    assert.equal((await post(token, score(150))).isBest, false);
+    assert.deepEqual(await post(token, score(240)), { rank: 1, best: 240, isBest: true, overallRank: 1, overallBest: 120 });
 
     // 通算と今月（日本時間）の両方に残る
-    assert.equal((await store.getBest(playerId, 'otegaru', 'nicola', 'all')).money, 2400);
-    assert.equal((await store.getBest(playerId, 'otegaru', 'nicola', '2026-11')).money, 2400);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'nicola', period: 'all' })).score, 240);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'nicola', period: '2026-11' })).score, 240);
+  });
+
+  test('総合の自己ベストは毎分で決まり、部門とは別に更新される。総合の一行はその一本の入力方式と点数を持つ', async () => {
+    const { register, score, post, store } = setup();
+    const { token, playerId } = await register('a');
+    await post(token, score(300, { kpm: 120 }));
+    // 点数は下がったが速くなった一本。部門は更新しない、総合は更新する
+    const r = await post(token, score(200, { kpm: 150.04 }));
+    assert.deepEqual(r, { rank: 1, best: 300, isBest: false, overallRank: 1, overallBest: 150 });
+    const overall = await store.getBest(playerId, { course: 'p3000', board: 'all', period: 'all' });
+    assert.deepEqual([overall.input, overall.score, overall.kpm], ['nicola', 200, 150]);
+    // ローマ字のもっと速い一本は、総合の一行をローマ字の一本に置き換える。親指シフトの部門には触らない
+    const r2 = await post(token, score(100, { input: 'romaji', kpm: 180 }));
+    assert.deepEqual(r2, { rank: 1, best: 100, isBest: true, overallRank: 1, overallBest: 180 });
+    const overall2 = await store.getBest(playerId, { course: 'p3000', board: 'all', period: 'all' });
+    assert.deepEqual([overall2.input, overall2.score, overall2.kpm], ['romaji', 100, 180]);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'nicola', period: 'all' })).score, 300);
+    // 毎分は 0.1 刻みで比べる。丸めて同じなら更新しない（先に出した方を残す）
+    await post(token, score(50, { input: 'romaji', kpm: 180.04 }));
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'all', period: 'all' })).score, 100);
   });
 
   test('月の自己ベストは月が替わると別に数える', async () => {
-    const { req, register, score, store, clock } = setup();
+    const { register, score, post, store, clock } = setup();
     const { token, playerId } = await register('a');
-    await req('POST', '/scores', { token, body: score(3000) });
+    await post(token, score(300));
     clock.ms = Date.parse('2026-11-30T15:00:00Z'); // 日本時間 12/1 0:00
-    const r = await req('POST', '/scores', { token, body: score(1000) });
-    assert.equal(r.body.isBest, false); // 通算は更新していない
-    assert.equal((await store.getBest(playerId, 'otegaru', 'nicola', '2026-12')).money, 1000);
-    assert.equal((await store.getBest(playerId, 'otegaru', 'nicola', '2026-11')).money, 3000);
+    const r = await post(token, score(100, { kpm: 100 }));
+    assert.equal(r.isBest, false); // 通算は更新していない
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'nicola', period: '2026-12' })).score, 100);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'nicola', period: '2026-11' })).score, 300);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'all', period: '2026-12' })).kpm, 100);
+    assert.equal((await store.getBest(playerId, { course: 'p3000', board: 'all', period: 'all' })).kpm, 120);
   });
 
   test('月の区切りは日本時間', () => {
     assert.equal(monthKey(new Date('2026-11-30T14:59:59Z')), '2026-11');
     assert.equal(monthKey(new Date('2026-11-30T15:00:00Z')), '2026-12');
   });
+});
 
-  test('上限を超える金額・速さ・時間、壊れた値は 400 で、何も残さない', async () => {
+// ---------------------------------------------------------------- 検証
+
+describe('ありえない記録', () => {
+  test('上限は延長込みの時間 × 毎分 600 かな × (一字の点 + ぴったり)', () => {
+    // 延長率 r = 10 かな/秒 × 1000ms / 20 打 = 0.5 → 遊べる時間は最大で制限時間の 2 倍
+    assert.equal(maxDurationMsOf('p3000'), 120_000);
+    assert.equal(maxDurationMsOf('p5000'), 180_000);
+    assert.equal(maxDurationMsOf('p10000'), 240_000);
+    assert.equal(maxScoreOf('p3000', 'nicola'), 1200 * (20 + 10));
+    assert.equal(maxScoreOf('p5000', 'nicola'), 1800 * (20 + 10));
+    assert.equal(maxScoreOf('p10000', 'nicola'), 2400 * (25 + 10));
+    assert.equal(maxScoreOf('p3000', 'romaji'), 1200 * 20); // ローマ字はぴったりの上乗せが無い
+    assert.throws(() => maxScoreOf('otegaru', 'nicola'));
+    assert.throws(() => maxScoreOf('p3000', 'qwerty'));
+  });
+
+  test('時間は制限時間 − 1 秒から、延長込みの上限 + 1 秒まで', async () => {
     const { req, register, score, store } = setup();
     const { token } = await register('a');
-    const max = maxMoneyOf('otegaru', 'nicola');
-    assert.equal((await req('POST', '/scores', { token, body: score(max + 1) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(100, { kpm: 601 }) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(100, { durationMs: 10 * 60_000 }) })).status, 400);
+    for (const [course, durationMs] of [['p3000', 58_999], ['p3000', 121_001], ['p5000', 60_000], ['p10000', 241_001], ['p3000', 0], ['p3000', 60_000.5]]) {
+      assert.equal((await req('POST', '/scores', { token, body: score(100, { course, durationMs }) })).status, 400, `${course} ${durationMs}`);
+    }
+    assert.equal(store.bests.size, 0);
+    for (const [course, durationMs] of [['p3000', 59_000], ['p3000', 121_000], ['p5000', 89_000], ['p10000', 241_000]]) {
+      assert.equal((await req('POST', '/scores', { token, body: score(100, { course, durationMs }) })).status, 200, `${course} ${durationMs}`);
+    }
+  });
+
+  test('コース・速さ・正確さ・点数・入力方式が壊れていれば 400 で、何も残さない', async () => {
+    const { req, register, score, store } = setup();
+    const { token } = await register('a');
     for (const broken of [
-      score(-1), score(1.5), score('100'), score(100, { course: 'tokujo' }),
-      score(100, { accuracy: 1.2 }), score(100, { kpm: Number.NaN }), score(100, { durationMs: 0 }),
+      score(-1), score(1.5), score('100'), score(null),
+      score(100, { course: undefined }), score(100, { course: 'otegaru' }), score(100, { course: 'P3000' }),
+      score(100, { kpm: 600.1 }), score(100, { kpm: -1 }), score(100, { kpm: Number.NaN }), score(100, { kpm: '120' }),
+      score(100, { accuracy: 1.2 }), score(100, { accuracy: -0.1 }),
+      score(100, { input: undefined }), score(100, { input: '' }), score(100, { input: 'qwerty' }), score(100, { input: 'NICOLA' }),
+      score(100, { input: 'all' }), // 総合は表の名前で、入力方式ではない
+      [], 'score',
     ]) {
       assert.equal((await req('POST', '/scores', { token, body: broken })).status, 400, JSON.stringify(broken));
     }
     assert.equal(store.bests.size, 0);
-    // 上限ちょうどは、速さと時間がそれに見合っていれば通る（毎分 600 かな・延長込みの最長時間）
-    assert.equal((await req('POST', '/scores', { token, body: score(max, { kpm: 600, durationMs: core.maxDurationMsOf('otegaru') }) })).status, 200);
   });
 
-  test('値どうしが合わない組は 400（どれも単独では上限の内側）', async () => {
+  test('点数は打った字数 × (一字の点 + ぴったり) まで（字数は速さと時間から戻す）', async () => {
     const { req, register, score, store } = setup();
     const { token } = await register('a');
-    const max = maxMoneyOf('otegaru', 'nicola');
-    // 金額だけ上限ちょうど・速さ 1・時間 1ms
-    assert.equal((await req('POST', '/scores', { token, body: score(max, { kpm: 1, accuracy: 0.5, durationMs: 1 }) })).status, 400);
-    // 制限時間より短い（ゲームは時間切れでしか終わらない）
-    assert.equal((await req('POST', '/scores', { token, body: score(100, { durationMs: 30_000 }) })).status, 400);
-    // 毎分 120 かな × 60 秒 ≒ 121 字 × (30 + 20) 円 = 6,050 円 を超える
-    assert.equal((await req('POST', '/scores', { token, body: score(6_100) })).status, 400);
+    // 毎分 120 かな × 60 秒 → 121 字まで見る
+    assert.equal((await req('POST', '/scores', { token, body: score(3631) })).status, 400);
+    assert.equal((await req('POST', '/scores', { token, body: score(2421, { input: 'romaji' }) })).status, 400);
+    // 一字の点はコースで違う。1 万点コースの 120 秒 → 241 字 × (25 + 10) = 8,435 点
+    assert.equal((await req('POST', '/scores', { token, body: score(8436, { course: 'p10000', durationMs: 120_000 }) })).status, 400);
+    // 点数だけ上限ちょうど・速さ 1
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola'), { kpm: 1 }) })).status, 400);
     assert.equal(store.bests.size, 0);
-    // 境目の内側は通る
-    assert.equal((await req('POST', '/scores', { token, body: score(6_050) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(3630) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(2420, { input: 'romaji' }) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(8435, { course: 'p10000', durationMs: 120_000 }) })).status, 200);
   });
 
-  test('上限は時間の長いコースほど高い', () => {
-    assert.ok(maxMoneyOf('otegaru', 'nicola') < maxMoneyOf('osusume', 'nicola'));
-    assert.ok(maxMoneyOf('osusume', 'nicola') < maxMoneyOf('koukyu', 'nicola'));
-    assert.throws(() => maxMoneyOf('tokujo', 'nicola'));
-    assert.throws(() => maxMoneyOf('otegaru', 'qwerty'));
+  test('上限ちょうどは、速さと時間が見合っていれば通り、一つ超えると断る', async () => {
+    const { req, register, score } = setup();
+    const { token } = await register('a');
+    const top = { kpm: 600, durationMs: maxDurationMsOf('p3000') };
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola') + 1, top) })).status, 400);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'romaji') + 1, { ...top, input: 'romaji' }) })).status, 400);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'nicola'), top) })).status, 200);
+    assert.equal((await req('POST', '/scores', { token, body: score(maxScoreOf('p3000', 'romaji'), { ...top, input: 'romaji' }) })).status, 200);
   });
 
-  test('上限は延長込みの時間 × 毎分 600 かな × (単価 + ぴったり) になっている', () => {
-    // 延長率 r = 10 かな/秒 × 1000ms / 20 打 = 0.5 → 遊べる時間は最大で制限時間の 2 倍
-    assert.equal(core.maxDurationMsOf('otegaru'), 120_000);
-    assert.equal(maxMoneyOf('otegaru', 'nicola'), 1200 * (30 + 20));
-    assert.equal(maxMoneyOf('osusume', 'nicola'), 1800 * (40 + 20));
-    assert.equal(maxMoneyOf('koukyu', 'nicola'), 2400 * (45 + 20));
-  });
-
-  // サーバーは courses.js を import できないので数値を写している。写し間違い・上げ忘れをここで捕まえる
-  test('core.mjs に写したコースの数値が courses.js と一致する', async () => {
-    const c = await load('assets/js/game/courses.js');
-    assert.deepEqual(c.COURSES.map((x) => x.id).sort(), [...core.COURSE_IDS].sort());
-    for (const course of c.COURSES) {
-      const lim = core.COURSE_LIMITS[course.id];
-      assert.equal(lim.timeMs, course.timeMs, `${course.id} の timeMs`);
-      assert.equal(lim.yenPerKana, c.plateValue(course, { kana: 'あ' }), `${course.id} の一字単価`);
-      assert.equal(lim.yenPerKana * 7, c.plateValue(course, { kana: 'あいうえおかき' }), `${course.id} は長さに比例`);
-    }
-    assert.equal(core.PERFECT_BONUS, c.PERFECT_BONUS);
-    assert.equal(core.COMBO_STEP, c.COMBO_STEP);
-    assert.equal(core.COMBO_TIME_BONUS_MS, c.COMBO_TIME_BONUS_MS);
+  // courses.js 側との突き合わせは tools/game.test.mjs が持つ（ブラウザ側の担当）。ここでは写した値そのものを固定する
+  test('写したコースの数値', () => {
+    assert.deepEqual(core.COURSE_LIMITS, {
+      p3000: { timeMs: 60_000, ptPerKana: 20 },
+      p5000: { timeMs: 90_000, ptPerKana: 20 },
+      p10000: { timeMs: 120_000, ptPerKana: 25 },
+    });
+    assert.deepEqual([core.PERFECT_BONUS, core.COMBO_STEP, core.COMBO_TIME_BONUS_MS], [10, 20, 1000]);
   });
 });
 
 // ---------------------------------------------------------------- 順位表
 
 describe('順位表', () => {
-  test('金額の多い順、同額は先に出した人が上', async () => {
-    const { req, register, score, clock } = setup();
+  test('部門の表は点数の多い順、同点は先に出した人が上。一行に出すのは決めた列だけ', async () => {
+    const { register, score, post, ranking, clock } = setup();
     const a = await register('あ');
     const b = await register('い');
     const c = await register('う');
-    await req('POST', '/scores', { token: a.token, body: score(1000) });
+    await post(a.token, score(100));
     clock.ms += 1000;
-    await req('POST', '/scores', { token: b.token, body: score(2000) });
+    await post(b.token, score(200));
     clock.ms += 1000;
-    const rc = await req('POST', '/scores', { token: c.token, body: score(1000) });
-    assert.equal(rc.body.rank, 3); // 同額のあは先に出しているので上
+    const rc = await post(c.token, score(100));
+    assert.equal(rc.rank, 3); // 同点のあは先に出しているので上
 
-    const res = await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input: 'nicola' } });
-    assert.equal(res.status, 200);
-    assert.deepEqual(res.body.entries.map((e) => [e.rank, e.nickname, e.money]), [
-      [1, 'い', 2000], [2, 'あ', 1000], [3, 'う', 1000],
-    ]);
+    const res = await ranking('nicola');
+    assert.equal(res.course, 'p3000');
+    assert.equal(res.board, 'nicola');
+    assert.equal(res.period, 'all');
+    assert.equal(res.leaders, null); // 部門の表には 1 位を添えない
+    assert.deepEqual(res.entries.map((e) => [e.rank, e.nickname, e.score]), [[1, 'い', 200], [2, 'あ', 100], [3, 'う', 100]]);
     // 順位表に token・playerId は出さない
-    assert.ok(!JSON.stringify(res.body).includes(a.token.split('.')[1]));
-    assert.ok(!JSON.stringify(res.body).includes(a.playerId));
-    assert.deepEqual(Object.keys(res.body.entries[0]).sort(), ['accuracy', 'at', 'input', 'kpm', 'money', 'nickname', 'rank']);
+    assert.ok(!JSON.stringify(res).includes(a.token.split('.')[1]));
+    assert.ok(!JSON.stringify(res).includes(a.playerId));
+    assert.deepEqual(Object.keys(res.entries[0]).sort(), ['accuracy', 'at', 'input', 'kpm', 'nickname', 'rank', 'score']);
 
-    const month = await req('GET', '/ranking', { query: { course: 'otegaru', period: 'month', input: 'all' } });
-    assert.equal(month.body.period, '2026-11');
-    assert.equal(month.body.entries.length, 3);
+    assert.deepEqual((await ranking('romaji')).entries, []);
+  });
 
-    const other = await req('GET', '/ranking', { query: { course: 'koukyu', period: 'all', input: 'all' } });
-    assert.deepEqual(other.body.entries, []);
+  test('どの表も 1 人 1 行。何度出しても、両方の入力方式で出しても増えない', async () => {
+    const { register, score, post, ranking, clock } = setup();
+    const a = await register('あ');
+    for (const [points, kpm, input] of [[100, 100, 'nicola'], [300, 130, 'nicola'], [200, 140, 'nicola'], [90, 160, 'romaji'], [110, 150, 'romaji']]) {
+      clock.ms += 1000;
+      await post(a.token, score(points, { kpm, input }));
+    }
+    for (const period of ['all', 'month']) {
+      const all = await ranking('all', period);
+      assert.deepEqual(all.entries.map((e) => [e.nickname, e.input, e.kpm, e.score]), [['あ', 'romaji', 160, 90]], period);
+      assert.deepEqual((await ranking('nicola', period)).entries.map((e) => [e.nickname, e.score, e.kpm]), [['あ', 300, 130]], period);
+      assert.deepEqual((await ranking('romaji', period)).entries.map((e) => [e.nickname, e.score, e.kpm]), [['あ', 110, 150]], period);
+    }
+  });
+
+  test('総合は毎分の順、部門は点数の順。総合には期間ごとの各部門の 1 位が付く', async () => {
+    const { register, score, post, ranking, clock } = setup();
+    const a = await register('あ');
+    const b = await register('い');
+    const c = await register('う');
+    // あ：親指シフトで点数は高いが遅い／い：ローマ字で速い／う：両方
+    const ra = await post(a.token, score(330, { kpm: 110 }));
+    assert.deepEqual(ra, { rank: 1, best: 330, isBest: true, overallRank: 1, overallBest: 110 });
+    clock.ms += 1000;
+    const rb = await post(b.token, score(150, { input: 'romaji', kpm: 160 }));
+    assert.deepEqual(rb, { rank: 1, best: 150, isBest: true, overallRank: 1, overallBest: 160 });
+    clock.ms += 1000;
+    const rc1 = await post(c.token, score(200, { kpm: 130 }));
+    assert.deepEqual(rc1, { rank: 2, best: 200, isBest: true, overallRank: 2, overallBest: 130 });
+    clock.ms += 1000;
+    const rc2 = await post(c.token, score(100, { input: 'romaji', kpm: 100 }));
+    // ローマ字の部門では 2 位。総合は前の 130 のまま
+    assert.deepEqual(rc2, { rank: 2, best: 100, isBest: true, overallRank: 2, overallBest: 130 });
+
+    const all = await ranking('all');
+    assert.deepEqual(all.entries.map((e) => [e.rank, e.nickname, e.input, e.kpm, e.score]), [
+      [1, 'い', 'romaji', 160, 150], [2, 'う', 'nicola', 130, 200], [3, 'あ', 'nicola', 110, 330],
+    ]);
+    assert.deepEqual(all.leaders, { nicola: { nickname: 'あ', score: 330 }, romaji: { nickname: 'い', score: 150 } });
+    assert.deepEqual((await ranking('nicola')).entries.map((e) => [e.rank, e.nickname, e.score]), [[1, 'あ', 330], [2, 'う', 200]]);
+    assert.deepEqual((await ranking('romaji')).entries.map((e) => [e.rank, e.nickname, e.score]), [[1, 'い', 150], [2, 'う', 100]]);
+
+    // 来月に入ると、今月の表と 1 位は空から数え直す。通算はそのまま
+    clock.ms = Date.parse('2026-11-30T15:00:00Z');
+    await post(c.token, score(50, { input: 'romaji', kpm: 60 }));
+    const month = await ranking('all', 'month');
+    assert.equal(month.period, '2026-12');
+    assert.deepEqual(month.entries.map((e) => e.nickname), ['う']);
+    assert.deepEqual(month.leaders, { nicola: null, romaji: { nickname: 'う', score: 50 } });
+    assert.deepEqual((await ranking('all')).leaders.romaji, { nickname: 'い', score: 150 });
+  });
+
+  test('誰もいなければ総合の 1 位はどちらも null', async () => {
+    const { ranking } = setup();
+    assert.deepEqual(await ranking('all'), { course: 'p3000', board: 'all', period: 'all', entries: [], leaders: { nicola: null, romaji: null } });
   });
 
   test('50 件で切る', async () => {
-    const { req, register, score } = setup();
+    const { register, score, post, ranking } = setup();
     for (let i = 0; i < 55; i++) {
       const p = await register(`p${i}`);
-      await req('POST', '/scores', { token: p.token, body: score(100 + i) });
+      await post(p.token, score(100 + i, { kpm: 100 + i }));
     }
-    const res = await req('GET', '/ranking', { query: { course: 'otegaru', input: 'nicola' } });
-    assert.equal(res.body.entries.length, 50);
-    assert.equal(res.body.entries[0].money, 154);
+    for (const board of ['all', 'nicola']) {
+      const res = await ranking(board);
+      assert.equal(res.entries.length, 50, board);
+      assert.equal(res.entries[0].score, 154, board);
+      assert.equal(res.entries[49].score, 105, board);
+    }
   });
 
-  test('コース・期間が違えば 400', async () => {
+  test('コースごとに別の表。自己ベスト・順位・1 位はそのコースの中だけで数える', async () => {
+    const { register, score, post, ranking, clock } = setup();
+    const a = await register('あ');
+    const b = await register('い');
+    await post(a.token, score(300, { kpm: 150 }));
+    clock.ms += 1000;
+    // いは 1 万点コースで高い点。3000 点コースの表と順位には影響しない
+    const rb = await post(b.token, score(2000, { course: 'p10000', durationMs: 120_000, kpm: 200 }));
+    assert.deepEqual(rb, { rank: 1, best: 2000, isBest: true, overallRank: 1, overallBest: 200 });
+    clock.ms += 1000;
+    // あの 1 万点コース初回は、3000 点コースの自己ベストに引きずられず isBest
+    const ra = await post(a.token, score(100, { course: 'p10000', durationMs: 120_000, kpm: 100 }));
+    assert.deepEqual(ra, { rank: 2, best: 100, isBest: true, overallRank: 2, overallBest: 100 });
+
+    const p3000 = await ranking('all', 'all', 'p3000');
+    assert.deepEqual(p3000.entries.map((e) => [e.nickname, e.score]), [['あ', 300]]);
+    assert.deepEqual(p3000.leaders, { nicola: { nickname: 'あ', score: 300 }, romaji: null });
+    const p10000 = await ranking('nicola', 'all', 'p10000');
+    assert.equal(p10000.course, 'p10000');
+    assert.deepEqual(p10000.entries.map((e) => [e.nickname, e.score]), [['い', 2000], ['あ', 100]]);
+    assert.deepEqual((await ranking('all', 'all', 'p10000')).leaders, { nicola: { nickname: 'い', score: 2000 }, romaji: null });
+    assert.deepEqual(await ranking('all', 'all', 'p5000'), { course: 'p5000', board: 'all', period: 'all', entries: [], leaders: { nicola: null, romaji: null } });
+  });
+
+  test('コース・表・期間が無い・違うなら 400', async () => {
     const { req } = setup();
-    assert.equal((await req('GET', '/ranking', { query: { course: 'tokujo', input: 'all' } })).status, 400);
-    assert.equal((await req('GET', '/ranking', { query: { course: 'otegaru', period: 'year', input: 'all' } })).status, 400);
+    for (const query of [
+      {}, { board: 'all' }, { course: 'otegaru', board: 'all' }, { course: 'P3000', board: 'all' },
+      { course: 'p3000' }, { course: 'p3000', board: 'kana' }, { course: 'p3000', board: 'ALL' }, { course: 'p3000', board: 'all', period: 'year' },
+    ]) {
+      assert.equal((await req('GET', '/ranking', { query })).status, 400, JSON.stringify(query));
+    }
   });
 
   test('boardSortKey の文字列降順は compareEntries の並びと一致する（DynamoDB 側の並び）', () => {
     const rows = [
-      { money: 0, kpm: 300.5, at: '2026-11-02T00:00:00.000Z' },
-      { money: 9, kpm: 99.9, at: '2026-11-02T00:00:00.000Z' },
-      { money: 10, kpm: 100, at: '2026-11-02T00:00:00.000Z' },
-      { money: 10, kpm: 100, at: '2026-11-01T00:00:00.000Z' },
-      { money: 123456, kpm: 12.3, at: '2026-12-31T23:59:59.999Z' },
-      { money: 123456, kpm: 450, at: '2026-01-01T00:00:00.000Z' },
+      { score: 0, kpm: 300.5, at: '2026-11-02T00:00:00.000Z' },
+      { score: 9, kpm: 99.9, at: '2026-11-02T00:00:00.000Z' },
+      { score: 10, kpm: 100, at: '2026-11-02T00:00:00.000Z' },
+      { score: 10, kpm: 100, at: '2026-11-01T00:00:00.000Z' },
+      { score: 84000, kpm: 12.3, at: '2026-12-31T23:59:59.999Z' },
+      { score: 84000, kpm: 600, at: '2026-01-01T00:00:00.000Z' },
     ];
-    for (const by of ['money', 'kpm']) {
+    for (const by of ['score', 'kpm']) {
       const bySortKey = [...rows].sort((x, y) => {
         const a = boardSortKey(x, by);
         const b = boardSortKey(y, by);
@@ -341,64 +490,10 @@ describe('順位表', () => {
     }
   });
 
-  test('混ぜた表は毎分の順、入力方式ごとの表は金額の順', () => {
+  test('総合は毎分の順、部門は点数の順', () => {
     assert.equal(orderOf('all'), 'kpm');
-    assert.equal(orderOf('nicola'), 'money');
-    assert.equal(orderOf('romaji'), 'money');
-  });
-});
-
-// ---------------------------------------------------------------- 入力方式
-
-describe('入力方式', () => {
-  test('input が無い・知らない値なら 400 で、何も残さない', async () => {
-    const { req, register, score, store } = setup();
-    const { token } = await register('a');
-    for (const input of [undefined, null, '', 'qwerty', 'NICOLA']) {
-      const res = await req('POST', '/scores', { token, body: score(100, { input }) });
-      assert.equal(res.status, 400, `input=${input}`);
-    }
-    assert.equal(store.bests.size, 0);
-  });
-
-  test('ローマ字はぴったりの上乗せが無いぶん上限が低い', async () => {
-    const { req, register, score } = setup();
-    const { token } = await register('a');
-    assert.equal(maxMoneyOf('otegaru', 'romaji'), 1200 * 30);
-    // 毎分 120 かな × 60 秒 ≒ 121 字 × 30 円 = 3,630 円。親指シフトなら通る額でも、ローマ字では超える
-    assert.equal((await req('POST', '/scores', { token, body: score(3_700, { input: 'romaji' }) })).status, 400);
-    assert.equal((await req('POST', '/scores', { token, body: score(3_700) })).status, 200);
-    assert.equal((await req('POST', '/scores', { token, body: score(3_630, { input: 'romaji' }) })).status, 200);
-  });
-
-  test('自己ベストと順位は入力方式ごと。all の表には両方が並ぶ', async () => {
-    const { req, register, score, store, clock } = setup();
-    const a = await register('あ');
-    const b = await register('い');
-    const ra = await req('POST', '/scores', { token: a.token, body: score(2000) });
-    assert.deepEqual(ra.body, { rank: 1, best: 2000, isBest: true });
-    clock.ms += 1000;
-    // ローマ字の自己ベストは親指シフトの記録に引きずられない
-    const ra2 = await req('POST', '/scores', { token: a.token, body: score(1000, { input: 'romaji' }) });
-    assert.deepEqual(ra2.body, { rank: 1, best: 1000, isBest: true });
-    clock.ms += 1000;
-    const rb = await req('POST', '/scores', { token: b.token, body: score(1500, { input: 'romaji', kpm: 150 }) });
-    assert.deepEqual(rb.body, { rank: 1, best: 1500, isBest: true }); // ローマ字の表で 1 位
-    assert.equal((await store.getBest(a.playerId, 'otegaru', 'nicola', 'all')).money, 2000);
-    assert.equal((await store.getBest(a.playerId, 'otegaru', 'romaji', 'all')).money, 1000);
-
-    const rows = async (input) => (await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input } })).body.entries
-      .map((e) => [e.rank, e.nickname, e.input, e.money]);
-    // 混ぜた表は毎分の順。いは金額では あ の親指シフトに負けるが、毎分（150）で上に来る
-    assert.deepEqual(await rows('all'), [[1, 'い', 'romaji', 1500], [2, 'あ', 'nicola', 2000], [3, 'あ', 'romaji', 1000]]);
-    assert.deepEqual(await rows('nicola'), [[1, 'あ', 'nicola', 2000]]);
-    assert.deepEqual(await rows('romaji'), [[1, 'い', 'romaji', 1500], [2, 'あ', 'romaji', 1000]]);
-  });
-
-  test('順位表の input が無い・知らない値なら 400', async () => {
-    const { req } = setup();
-    assert.equal((await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all' } })).status, 400);
-    assert.equal((await req('GET', '/ranking', { query: { course: 'otegaru', period: 'all', input: 'kana' } })).status, 400);
+    assert.equal(orderOf('nicola'), 'score');
+    assert.equal(orderOf('romaji'), 'score');
   });
 });
 
@@ -406,12 +501,15 @@ describe('入力方式', () => {
 
 describe('削除', () => {
   test('本人の記録だけを全部消し、消した後の token は通らない', async () => {
-    const { req, register, score, store } = setup();
+    const { req, register, score, post, ranking, store } = setup();
     const a = await register('あ');
     const b = await register('い');
-    await req('POST', '/scores', { token: a.token, body: score(1000) });
-    await req('POST', '/scores', { token: a.token, body: score(500, { course: 'koukyu', durationMs: 120000 }) });
-    await req('POST', '/scores', { token: b.token, body: score(800) });
+    await post(a.token, score(100));
+    await post(a.token, score(50, { input: 'romaji' }));
+    await post(a.token, score(500, { course: 'p10000', durationMs: 120_000 }));
+    await post(b.token, score(80));
+    // 3000 点：部門 2 × 期間 2 ＋ 総合 × 期間 2 ＝ 6、1 万点：部門 1 × 期間 2 ＋ 総合 × 期間 2 ＝ 4
+    assert.equal([...store.bests.keys()].filter((k) => k.startsWith(a.playerId)).length, 10);
 
     const del = await req('DELETE', '/players/me', { token: a.token });
     assert.equal(del.status, 204);
@@ -420,9 +518,9 @@ describe('削除', () => {
     assert.ok([...store.bests.keys()].every((k) => !k.startsWith(a.playerId)));
     assert.ok(store.players.has(b.playerId));
 
-    assert.equal((await req('POST', '/scores', { token: a.token, body: score(9000) })).status, 401);
-    const list = await req('GET', '/ranking', { query: { course: 'otegaru', input: 'all' } });
-    assert.deepEqual(list.body.entries.map((e) => e.nickname), ['い']);
+    assert.equal((await req('POST', '/scores', { token: a.token, body: score(90) })).status, 401);
+    assert.deepEqual((await ranking('all')).entries.map((e) => e.nickname), ['い']);
+    assert.deepEqual((await ranking('all')).leaders, { nicola: { nickname: 'い', score: 80 }, romaji: null });
 
     // 二度押しは成功のまま
     assert.equal((await req('DELETE', '/players/me', { token: a.token })).status, 204);
@@ -446,7 +544,7 @@ test('想定外の例外は中身を返さず 500、ログにだけ残す', asyn
   };
   const errors = [];
   const api = createApi({ store, pepper: PEPPER, log: { error: (e) => errors.push(e) } });
-  const res = await api({ method: 'GET', path: '/ranking', query: { course: 'otegaru', input: 'all' } });
+  const res = await api({ method: 'GET', path: '/ranking', query: { course: 'p3000', board: 'all' } });
   assert.equal(res.status, 500);
   assert.ok(!JSON.stringify(res.body).includes('oyayubi-secret-table'));
   assert.equal(errors.length, 1);

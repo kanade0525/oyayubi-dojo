@@ -1,39 +1,40 @@
-// 回転ずしゲームの状態機械。
+// 検品ライン（ゲーム）の状態機械。
 //
 // このファイルは何か
-//   レーンを流れる皿、打った字の判定、金額・コンボ・残り時間の計算をすべてここに持つ。
-//   描画（render.js）と配線（main.js）は、ここが返す state と events を見て絵と音を出すだけ。
+//   ラインを流れる作業品、打った字の判定、点・コンボ・残り時間の計算をすべてここに持つ。
+//   配線（main.js）は、ここが返す state と events を見て画面と音を出すだけ。
 //
 // なぜ DOM も時計も乱数も持たないのか
 //   nicola.js と同じ理由。現在時刻を中で読むと、テストから時間を進められず、
-//   「皿が流れきった」「時間切れ」の検査が実時間待ちになって揺れる。
-//   乱数も同じで、rng を外から受ければ同じ種で同じ皿の並びを再現できる
+//   「作業品が流れきった」「時間切れ」の検査が実時間待ちになって揺れる。
+//   乱数も同じで、rng を外から受ければ同じ種で同じ並びを再現できる
 //   （画面のデモ表示もこれを使って毎回同じ絵を出している）。
 //
-// ゲームの決まり（CONTRACT.md「ゲーム『回転ずし』」の節が正）
-//   - 打てるのは先頭の皿（いちばん出口に近い皿）だけ
+// ゲームの決まり（CONTRACT.md「ゲーム『検品ライン』」の節が正）
+//   - 打てるのは先頭の作業品（いちばん出口に近いもの）だけ
 //   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。コンボが切れる
-//   - シフトを使う一打が perfect（±15ms）なら、その皿の値段に PERFECT_BONUS を上乗せする。
-//     上乗せは «皿に» 積む。取り逃せば上乗せも一緒に流れる。
-//     ぴったりを出したのに皿を逃すと惜しい、という緊張をレーンの上に作るため
-//   - 皿が出口まで流れたら取り逃し。お金は入らないがミスにも数えず、コンボも切らない
+//   - シフトを使う一打が perfect（±15ms）なら、その作業品の点に PERFECT_BONUS を上乗せする。
+//     上乗せは «作業品に» 積む。検品漏れになれば上乗せも一緒に流れる。
+//     ぴったりを出したのに通し損ねると惜しい、という緊張をラインの上に作るため
+//   - 作業品が出口まで流れたら検品漏れ。点は入らないがミスにも数えず、コンボも切らない
 //     （遅いことと間違えることは別の失敗で、罰を重ねると初心者が二重に削られる）
 //   - コンボが COMBO_STEP の倍数に届くたびに残り時間が延びる
+//   2026-11-02 に «回転ずし» から題材だけ替えた（作業品 → 作業品、円 → 点、点 → ノルマ）
 
 import { tierOf } from '../meter.js';
 import { loadLayout } from '../layout.js';
-import { plateValue, PERFECT_BONUS, COMBO_STEP, COMBO_TIME_BONUS_MS } from './courses.js';
+import { itemValue, PERFECT_BONUS, COMBO_STEP, COMBO_TIME_BONUS_MS } from './courses.js';
 
-/** 皿どうしの間隔（レーン長に対する割合）。前の皿がここまで進んだら次を流す。
-    0.26 だとレーンにおよそ 4 枚。多すぎると先頭がどれか分からなくなり、
+/** 作業品どうしの間隔（ライン長に対する割合）。前の作業品がここまで進んだら次を流す。
+    0.26 だとラインにおよそ 4 枚。多すぎると先頭がどれか分からなくなり、
     少なすぎると次の単語を先読みできない */
 const SPACING = 0.22;
 
-/** レーンが空になって補充するとき、皿をどこから出すか。0 だと皿の中心が画面の右外にあり、
-    打つべき皿が見えないまま札だけが替わる。少し内側に置いて、出てきた瞬間から見えるようにする */
+/** ラインが空になって補充するとき、作業品をどこから出すか。0 だと作業品の中心が画面の右外にあり、
+    打つべき作業品が見えないまま札だけが替わる。少し内側に置いて、出てきた瞬間から見えるようにする */
 const ENTRY = 0.1;
 
-/** レーンに同時に載せる上限 */
+/** ラインに同時に載せる上限 */
 const MAX_PLATES = 5;
 
 /** 同じ単語が続けて出ないように覚えておく数 */
@@ -60,7 +61,7 @@ export function keyFor(kana) {
 }
 
 /**
- * @param {{ course: object, words: Array<{kana:string,label:string}>, rng: () => number }} p
+ * @param {{ course: object, words: Array<{kana:string}>, rng: () => number }} p
  */
 export function createGame({ course, words, rng }) {
   if (!course || typeof course.timeMs !== 'number' || typeof course.laneMs !== 'number') {
@@ -85,10 +86,10 @@ export function createGame({ course, words, rng }) {
 
   let nextId = 1;
   /** @type {Array<{id:number, word:object, value:number, typed:number, spawnAt:number, perfect:number}>} */
-  let plates = [];
+  let items = [];
   const recent = [];
 
-  let money = 0;
+  let score = 0;
   let combo = 0;
   let maxCombo = 0;
   let missStreak = 0;     // 先頭の同じ字で続けて外した数。打ち方の案内を出す合図
@@ -98,6 +99,8 @@ export function createGame({ course, words, rng }) {
   let misses = 0;
   let misfires = 0;
   let perfect = 0;
+  let good = 0;
+  const offsets = [];   // この回のズレ（ms）。結果の分布に使う。一回で数百個なので持っておける
   let shifted = 0;
   let bonusTotal = 0;
   let timeBonusMs = 0;
@@ -119,32 +122,32 @@ export function createGame({ course, words, rng }) {
   function spawn(t, at = 0) {
     const word = pickWord();
     t -= at * course.laneMs;
-    plates.push({ id: nextId++, word, value: plateValue(course, word), typed: 0, spawnAt: t, perfect: 0 });
+    items.push({ id: nextId++, word, value: itemValue(course, word), typed: 0, spawnAt: t, perfect: 0 });
   }
 
   const xOf = (p, t) => (t - p.spawnAt) / course.laneMs;
 
-  /** 時間を t まで進める。皿の取り逃し・補充・時間切れはここでだけ起きる */
+  /** 時間を t まで進める。作業品の検品漏れ・補充・時間切れはここでだけ起きる */
   function advance(t, events) {
     if (phase !== 'playing') return;
     if (t < now) t = now; // 時計は戻さない（rAF とイベントの timeStamp が前後することがある）
     now = t;
 
-    // 取り逃し。先頭から順に出口を越えたものを落とす
-    while (plates.length && xOf(plates[0], t) >= 1) {
-      const p = plates.shift();
+    // 検品漏れ。先頭から順に出口を越えたものを落とす
+    while (items.length && xOf(items[0], t) >= 1) {
+      const p = items.shift();
       lost++;
       missStreak = 0;
-      events.push({ type: 'lost', plateId: p.id });
+      events.push({ type: 'lost', itemId: p.id });
     }
 
-    // 補充。レーンが空なら待たずに出す（速く打てる人を待たせない）。
+    // 補充。ラインが空なら待たずに出す（速く打てる人を待たせない）。
     // それ以外は最後尾が SPACING だけ進んだら次を出す
-    if (!plates.length) spawn(t, ENTRY);
-    while (plates.length < MAX_PLATES && xOf(plates[plates.length - 1], t) >= SPACING) {
+    if (!items.length) spawn(t, ENTRY);
+    while (items.length < MAX_PLATES && xOf(items[items.length - 1], t) >= SPACING) {
       // 最後尾がちょうど SPACING 進んだ時刻に出たことにする。
-      // tick の間隔に引きずられて皿の間が不揃いになるのを防ぐ
-      spawn(plates[plates.length - 1].spawnAt + SPACING * course.laneMs);
+      // tick の間隔に引きずられて作業品の間が不揃いになるのを防ぐ
+      spawn(items[items.length - 1].spawnAt + SPACING * course.laneMs);
     }
 
     if (t >= endAt) {
@@ -180,7 +183,7 @@ export function createGame({ course, words, rng }) {
       advance(t, events);
       if (phase !== 'playing' || !result || result.charCode == null) return events;
 
-      const head = plates[0];
+      const head = items[0];
       if (!head) return events; // advance の直後なので通常は起きない
       const chars = [...head.word.kana];
       const expected = chars[head.typed];
@@ -199,15 +202,17 @@ export function createGame({ course, words, rng }) {
         if (result.thumb && result.offsetMs != null) {
           tier = tierOf(result.offsetMs);
           shifted++;
+          offsets.push(result.offsetMs);
+          if (tier === 'good') good++;
         }
-        events.push({ type: 'hit', plateId: head.id, kana: expected, tier });
+        events.push({ type: 'hit', itemId: head.id, kana: expected, tier });
 
         if (tier === 'perfect') {
           perfect++;
           head.value += PERFECT_BONUS;
           head.perfect++;
           bonusTotal += PERFECT_BONUS;
-          events.push({ type: 'perfect', plateId: head.id, bonus: PERFECT_BONUS });
+          events.push({ type: 'perfect', itemId: head.id, bonus: PERFECT_BONUS });
         }
 
         if (combo % COMBO_STEP === 0) {
@@ -217,11 +222,11 @@ export function createGame({ course, words, rng }) {
         }
 
         if (head.typed >= chars.length) {
-          plates.shift();
-          money += head.value;
+          items.shift();
+          score += head.value;
           cleared++;
-          events.push({ type: 'clear', plateId: head.id, value: head.value });
-          if (!plates.length) spawn(t, ENTRY);
+          events.push({ type: 'clear', itemId: head.id, value: head.value });
+          if (!items.length) spawn(t, ENTRY);
         }
       } else {
         // 外れ。不発（親指が要る字を、正しい文字キーで単独に打った）かどうかも返す。
@@ -232,7 +237,7 @@ export function createGame({ course, words, rng }) {
         misses++;
         combo = 0;
         missStreak++;
-        events.push({ type: 'miss', plateId: head.id, expected, got: result.kana ?? null, misfire });
+        events.push({ type: 'miss', itemId: head.id, expected, got: result.kana ?? null, misfire });
       }
       return events;
     },
@@ -241,7 +246,7 @@ export function createGame({ course, words, rng }) {
       return {
         phase,
         remainingMs: phase === 'ready' ? course.timeMs : Math.max(0, endAt - (overAt ?? now)),
-        plates: plates.map((p) => ({
+        items: items.map((p) => ({
           id: p.id,
           word: p.word,
           value: p.value,
@@ -249,7 +254,7 @@ export function createGame({ course, words, rng }) {
           perfect: p.perfect,
           x: phase === 'ready' ? 0 : xOf(p, now),
         })),
-        money,
+        score,
         combo,
         maxCombo,
         missStreak,
@@ -257,7 +262,12 @@ export function createGame({ course, words, rng }) {
         lost,
         misses,
         perfect,
-        price: course.price,
+        good,
+        shifted,
+        offsets,
+        strokes,
+        elapsedMs: phase === 'ready' ? 0 : (overAt ?? now) - startAt,
+        target: course.target,
       };
     },
 
@@ -267,9 +277,9 @@ export function createGame({ course, words, rng }) {
       const tries = strokes + misses;
       return {
         course: course.id,
-        money,
-        balance: money - course.price,
-        plates: cleared,
+        score,
+        balance: score - course.target,
+        cleared,
         lost,
         strokes,
         misses,
@@ -277,7 +287,9 @@ export function createGame({ course, words, rng }) {
         accuracy: tries ? strokes / tries : 0,
         kpm: durationMs > 0 ? (strokes * 60000) / durationMs : 0,
         perfect,
+        good,
         shifted,
+        offsets: offsets.slice(),
         bonus: bonusTotal,
         timeBonusMs,
         maxCombo,

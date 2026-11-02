@@ -1,4 +1,4 @@
-# 回転ずしのランキング API。HTTP API → Lambda → DynamoDB（1 テーブル）。
+# 検品ラインのランキング API。HTTP API → Lambda → DynamoDB（1 テーブル）。
 #
 # 方針
 # ・依存パッケージは足さない。@aws-sdk は nodejs22.x の実行環境に同梱のものを使う
@@ -7,14 +7,18 @@
 #   低くしておけば、叩かれたときの請求額にも上限がかかる
 # ・DynamoDB はオンデマンド課金＋PITR。消えたら戻せないのはランキングでも困る
 # ・TokenPepper は NoEcho。32 字未満（ダミーの CHANGE_ME を含む）はデプロイ時点で弾く
+# ・テーブル名の既定は oyayubi-dojo-kenpin。回転ずしのとき（oyayubi-dojo-ranking）から名前を変えたのは、
+#   GSI の写す属性（Projection）を変えたため。CloudFormation は既存の GSI の中身を書き換えられず、
+#   一回の更新で作る・消すのも索引一つまで（server/README.md「回転ずしからの移行」）。
+#   名前を変えると表ごと作り直しになり、一回のデプロイで済む。古い表は Retain なので残る
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: oyayubi-dojo 回転ずしランキング
+Description: oyayubi-dojo 検品ラインランキング
 
 Parameters:
   TableName:
     Type: String
-    Default: oyayubi-dojo-ranking
+    Default: oyayubi-dojo-kenpin
     AllowedPattern: '^[A-Za-z0-9_.-]{3,255}$'
   AllowedOrigin:
     Type: String
@@ -58,23 +62,25 @@ Resources:
       KeySchema:
         - { AttributeName: PK, KeyType: HASH }
         - { AttributeName: SK, KeyType: RANGE }
+      # どの索引も、自己ベストのアイテムのうち片方にだけ載る（もう一方のキーを持たない）。
+      # PROFILE はどちらのキーも持たないので、token のハッシュは索引に載らない。
+      # 写すのは全部（ALL）。自己ベストのアイテムには順位表に出す値しか無く、
+      # INCLUDE で名前を並べると、出す列を一つ足すたびに表を作り直すことになる（GSI の Projection は後から変えられない）
       GlobalSecondaryIndexes:
+        # コースごとの総合の表（毎分の順、各人の毎分の自己ベスト一行）
         - IndexName: GSI1
           KeySchema:
             - { AttributeName: GSI1PK, KeyType: HASH }
             - { AttributeName: GSI1SK, KeyType: RANGE }
-          # 順位表に出す分だけ写す。token のハッシュは PROFILE にしか無く、GSI には載らない
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [playerId, nickname, course, input, period, money, kpm, accuracy, at]
-        # 入力方式ごとの順位表（GSI1 は両方を混ぜた表）
+            ProjectionType: ALL
+        # コースごとの部門の表（親指シフト・ローマ字それぞれ点数の順、各人の点数の自己ベスト一行）
         - IndexName: GSI2
           KeySchema:
             - { AttributeName: GSI2PK, KeyType: HASH }
             - { AttributeName: GSI2SK, KeyType: RANGE }
           Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes: [playerId, nickname, course, input, period, money, kpm, accuracy, at]
+            ProjectionType: ALL
 
   HttpApi:
     Type: AWS::Serverless::HttpApi

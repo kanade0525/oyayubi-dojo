@@ -1,9 +1,10 @@
-// 回転ずし（game.html）の配線。
+// 検品ライン（game.html）の配線。
 //
 // このファイルは何か
-//   キー入力 → nicola.js（同時打鍵の判定）→ engine.js（ゲームの決まり）→ render.js（絵）と sound.js（音）
-//   をつなぎ、タイトル・カウントダウン・プレイ・結果・ランキング・参加の同意の画面を切り替える。
+//   キー入力 → nicola.js（同時打鍵の判定）→ engine.js（ゲームの決まり）→ 画面と音
+//   をつなぎ、タイトル・カウントダウン・検品中・結果・ランキング・参加の同意の画面を切り替える。
 //   判断は持たない。ゲームの決まりは engine.js、送受信は ranking.js にある。
+//   2026-11-02 に «回転ずし» から題材だけ替えた（皿 → ラインの作業品、円 → 点、コースの値段 → ノルマ）。
 //
 // なぜ app.js と同じやり方で入力を取るのか
 //   同時打鍵の判定は「押した時刻」と「離した時刻」の両方が要る。練習画面と同じ設定
@@ -12,8 +13,12 @@
 //   そのまま読み、keydown / keyup / blur / rAF の扱いも app.js と同じ方針にしてある
 //   （オートリピートは無視・IME がオンなら言う・blur で抱えたキーを捨てる・Esc で中断）。
 //
+// ラインの絵
+//   canvas は使わない。作業品一つを一つの要素にして、engine.js の x（0..1）を transform で動かす。
+//   作業品は数個しか無いので DOM で足り、文字は本文と同じ書体のまま読める。
+//
 // デモ用の入口（?demo=play など）
-//   見た目を目で確かめるためだけの入口。疑似の打鍵を engine に流して、ある瞬間の絵で止める。
+//   見た目を目で確かめるためだけの入口。疑似の打鍵を engine に流して、ある瞬間の画面で止める。
 //   URL に demo が無いときは一切走らない。本番の動きはこの分岐の外にある。
 
 import { createNicola } from '../nicola.js';
@@ -21,11 +26,12 @@ import { createRomaji, romajiKeyOf } from '../romaji.js';
 import { loadLayout, thumbSideOf } from '../layout.js';
 import { loadSettings } from '../storage.js';
 import { createSound } from '../sound.js';
+import { offsetBinOf, OFFSET_BINS } from '../trophies.js';
+import { renderScope } from '../charts.js';
 import { createSfx, loadSfxOn, saveSfxOn } from './sfx.js';
-import { COURSES } from './courses.js';
+import { COURSES, PT_PER_KANA, PERFECT_BONUS, COMBO_STEP, COMBO_TIME_BONUS_MS } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
-import { createRenderer } from './render.js';
 import { icon, fillIcons } from '../icons.js';
 import {
   rankingEnabled, currentPlayer, register, submitScore, fetchRanking, forgetMe, CONSENT_VERSION,
@@ -57,6 +63,9 @@ const thumbKeys = {
 const sound = createSound({ volume: settings.soundVolume ?? 0.4, kind: settings.sound ?? 'off' });
 const sfx = createSfx({ on: loadSfxOn() });
 
+/** X で共有するときに添えるページの URL。公開先が変わったらここを直す */
+const SHARE_URL = 'https://kanade0525.github.io/oyayubi-dojo/game.html';
+
 // ---------------------------------------------------------------- 入力方式
 //
 // 親指シフトかローマ字か。同じ語・同じコースで遊んで比べられるようにする。
@@ -85,38 +94,55 @@ function saveInput(v) {
 
 let inputMode = loadInput();
 
-const canvas = $('canvas');
-const renderer = createRenderer(canvas);
-renderer.readTheme();
-renderer.resize();
-
 const el = {
-  stage: $('stage'),
-  imeWarn: $('imeWarn'),
   scTitle: $('scTitle'),
+  scPlay: $('scPlay'),
   scResult: $('scResult'),
   scRanking: $('scRanking'),
   scConsent: $('scConsent'),
-  courseList: $('courseList'),
   inputPick: $('inputPick'),
-  thumbNote: $('thumbNote'),
   perfectNote: $('perfectNote'),
+  romajiNote: $('romajiNote'),
+  ruleUnit: $('ruleUnit'),
+  ruleBonus: $('ruleBonus'),
+  ruleCombo: $('ruleCombo'),
+  courseList: $('courseList'),
+  thumbNote: $('thumbNote'),
   thumbNames: $('thumbNames'),
   soundNote: $('soundNote'),
   btnSfx: $('btnSfx'),
-  resultCourse: $('resultCourse'),
-  resultMoney: $('resultMoney'),
+  imeWarn: $('imeWarn'),
+  hudTime: $('hudTime'),
+  hudScore: $('hudScore'),
+  hudTarget: $('hudTarget'),
+  hudCombo: $('hudCombo'),
+  hudKpm: $('hudKpm'),
+  line: $('line'),
+  lineItems: $('lineItems'),
+  cueCount: $('cueCount'),
+  cueWord: $('cueWord'),
+  cueRomaji: $('cueRomaji'),
+  cueHit: $('cueHit'),
+  resultMode: $('resultMode'),
+  resultScore: $('resultScore'),
   resultBalance: $('resultBalance'),
   resultBest: $('resultBest'),
   resultTally: $('resultTally'),
+  resultOffset: $('resultOffset'),
+  resultPerfect: $('resultPerfect'),
+  resultScope: $('resultScope'),
+  resultScopeNote: $('resultScopeNote'),
   submitBox: $('submitBox'),
   btnAgain: $('btnAgain'),
-  btnCourses: $('btnCourses'),
+  btnShare: $('btnShare'),
+  btnTitle: $('btnTitle'),
   btnRankingFromTitle: $('btnRankingFromTitle'),
   btnRankingFromResult: $('btnRankingFromResult'),
   rankCourseTabs: $('rankCourseTabs'),
+  rankBoardTabs: $('rankBoardTabs'),
   rankPeriodTabs: $('rankPeriodTabs'),
-  rankInputTabs: $('rankInputTabs'),
+  rankOrder: $('rankOrder'),
+  rankLeaders: $('rankLeaders'),
   rankStatus: $('rankStatus'),
   rankList: $('rankList'),
   rankMe: $('rankMe'),
@@ -131,7 +157,7 @@ const el = {
   btnConsentCancel: $('btnConsentCancel'),
 };
 
-const yen = (n) => Math.round(n).toLocaleString('ja-JP');
+const num = (n) => Math.round(n).toLocaleString('ja-JP');
 
 /** DOM を組むための小さな道具。innerHTML を使わないので、要素は全部ここで作る */
 function h(tag, props = {}, ...children) {
@@ -146,57 +172,56 @@ function h(tag, props = {}, ...children) {
   return node;
 }
 
+/** 親指シフトのときだけ出す部品（data-nicola）を出し入れする */
+function showNicolaParts(root, on) {
+  for (const n of root.querySelectorAll('[data-nicola]')) n.hidden = !on;
+}
+
 // ---------------------------------------------------------------- 自己ベスト（この端末だけ）
 //
 // ランキングに参加しなくても «前の自分» と比べられるようにする。送らない。
 // 保存できない環境でも遊べることが先なので、読めなければ «記録なし»、書けなければ何もしない。
+// 入力方式×コースごとに一つ: { nicola: { p3000: { score, kpm, at } }, romaji: { … } }。
+// 回転ずしの記録（gamebest:v1 / v2）は円の記録なので読まない
 
-// 入力方式ごとに持つ: { nicola: { <course>: {...} }, romaji: { ... } }。
-// v1 は方式を分ける前のもので、中身は全部親指シフトの記録
-
-const BEST_KEY = 'oyayubi-dojo:gamebest:v2';
-const BEST_KEY_V1 = 'oyayubi-dojo:gamebest:v1';
+const BEST_KEY = 'oyayubi-dojo:gamebest:v3';
 
 function loadBest() {
   const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
   try {
-    const raw = localStorage.getItem(BEST_KEY);
-    if (raw) {
-      const v = obj(JSON.parse(raw));
-      return { nicola: obj(v.nicola), romaji: obj(v.romaji) };
-    }
-    const old = localStorage.getItem(BEST_KEY_V1);
-    return { nicola: old ? obj(JSON.parse(old)) : {}, romaji: {} };
+    const v = obj(JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}'));
+    return { nicola: obj(v.nicola), romaji: obj(v.romaji) };
   } catch {
     return { nicola: {}, romaji: {} };
   }
 }
 
-function saveBest(courseId, summary) {
+function saveBest(summary) {
   const all = loadBest();
   const mine = all[summary.input];
-  const prev = mine[courseId];
-  const isBest = !prev || summary.money > prev.money;
+  const prev = Number.isFinite(mine[summary.course]?.score) ? mine[summary.course] : null;
+  const isBest = !prev || summary.score > prev.score;
   if (isBest) {
-    mine[courseId] = { money: summary.money, kpm: Math.round(summary.kpm), at: Date.now() };
+    mine[summary.course] = { score: summary.score, kpm: Math.round(summary.kpm), at: Date.now() };
     try {
       localStorage.setItem(BEST_KEY, JSON.stringify(all));
     } catch {
       /* 書けなくても結果画面は出す */
     }
   }
-  return { isBest, prev: prev ?? null };
+  return { isBest, prev };
 }
 
 // ---------------------------------------------------------------- 画面の切り替え
 
-/** 'title' | 'countdown' | 'play' | 'over' | 'result' | 'ranking' | 'consent' */
+/** 'title' | 'countdown' | 'play' | 'over' | 'result' | 'ranking' | 'consent' | 'demo' */
 let screen = 'title';
 let backFromRanking = 'title';
 
 function show(name) {
   screen = name;
   el.scTitle.hidden = name !== 'title';
+  el.scPlay.hidden = !['countdown', 'play', 'over', 'demo'].includes(name);
   el.scResult.hidden = name !== 'result';
   el.scRanking.hidden = name !== 'ranking';
   el.scConsent.hidden = name !== 'consent';
@@ -205,42 +230,48 @@ function show(name) {
 
 // ---------------------------------------------------------------- タイトル
 
+const KEY_NAME = { Lang2: '英数', Lang1: 'かな', KanaMode: 'かな', NonConvert: '無変換', Convert: '変換', Space: 'スペース' };
+const nameOfCodes = (codes) => KEY_NAME[codes[0]] ?? codes[0];
 const KEY_OF = ['1', '2', '3'];
 
 function paintTitle() {
-  const best = loadBest()[inputMode];
+  const nicolaMode = inputMode === 'nicola';
   for (const b of el.inputPick.querySelectorAll('[data-input]')) {
     b.setAttribute('aria-pressed', String(b.dataset.input === inputMode));
   }
-  el.thumbNote.hidden = inputMode !== 'nicola';
-  el.perfectNote.hidden = inputMode !== 'nicola';
+  showNicolaParts(el.scTitle, nicolaMode);
+  el.perfectNote.hidden = !nicolaMode;
+  el.thumbNote.hidden = !nicolaMode;
+  el.thumbNames.textContent = `左 ${nameOfCodes(thumbKeys.left)} ／ 右 ${nameOfCodes(thumbKeys.right)}`;
+  // 点の表は courses.js の数から組む（説明と実際の点がずれないように）
+  const units = [...new Set(Object.values(PT_PER_KANA))];
+  el.ruleUnit.textContent = `${units.join('〜')} 点`;
+  el.ruleBonus.textContent = `${PERFECT_BONUS} 点`;
+  el.ruleCombo.textContent = `${COMBO_TIME_BONUS_MS / 1000} 秒`;
+  el.ruleCombo.previousElementSibling.textContent = `ミスなし ${COMBO_STEP} 打`;
+
+  const best = loadBest()[inputMode];
   el.courseList.replaceChildren(
     ...COURSES.map((c, i) => {
       const b = best[c.id];
       const btn = h('button', { type: 'button', class: 'g-course', role: 'listitem', dataset: { course: c.id } },
-        h('span', { class: 'g-course__key' }, KEY_OF[i] ?? ''),
-        h('span', { class: 'g-course__name' }, `${c.name}コース`),
-        h('span', { class: 'g-course__price' }, yen(c.price), h('small', {}, '円')),
-        h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000}秒 ・ ${c.minLen}〜${c.maxLen}字の単語`),
-        h('span', { class: 'g-course__best' },
-          b ? ['自己ベスト ', h('b', {}, `${yen(b.money)}円`)] : 'まだ食べていません'),
+        h('span', { class: 'g-course__go', dataset: { icon: 'play' } }),
+        h('span', { class: 'g-course__main' },
+          h('small', { class: 'g-course__label' }, 'ノルマ'),
+          h('b', { class: 'g-course__target' }, num(c.target), h('small', {}, '点')),
+          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字の語・一字 ${PT_PER_KANA[c.id]} 点`),
+          h('span', { class: 'g-course__best' }, b ? `自己ベスト ${num(b.score)} 点` : 'まだ打っていません')),
+        h('kbd', {}, KEY_OF[i] ?? ''),
       );
-      btn.addEventListener('click', () => {
-        sound.prime();
-        sfx.prime();
-        startCountdown(c);
-      });
+      btn.addEventListener('click', () => begin(c));
       return btn;
     }),
   );
-
-  const NAME = { Lang2: '英数', Lang1: 'かな', KanaMode: 'かな', NonConvert: '無変換', Convert: '変換', Space: 'スペース' };
-  const nameOf = (codes) => NAME[codes[0]] ?? codes[0];
-  el.thumbNames.textContent = `左 ${nameOf(thumbKeys.left)} ／ 右 ${nameOf(thumbKeys.right)}`;
+  fillIcons(el.courseList);
 
   paintSfx();
   // 打鍵音はズレを耳で返すもの。ローマ字ではズレが無いので出さない
-  el.soundNote.hidden = inputMode !== 'nicola';
+  el.soundNote.hidden = !nicolaMode;
   el.soundNote.replaceChildren(
     '打鍵音：',
     settings.sound && settings.sound !== 'off' ? settings.sound : '無音',
@@ -280,7 +311,7 @@ let course = null;
 let game = null;
 let nicola = null;
 let romaji = null;      // ローマ字で遊んでいるときだけ
-let romajiPlate = null; // romaji の打ちかけが、どの皿のものか
+let romajiItem = null;  // romaji の打ちかけが、どの作業品のものか
 let playInput = 'nicola'; // この回の入力方式。遊んでいる途中でタイトルの選択が変わっても動かない
 let countdownEnd = 0;
 let curT = 0;           // いま処理している入力の時刻。onOutput には時刻が付かないので預けておく
@@ -288,17 +319,12 @@ let imeUntil = 0;
 let lastResult = null;  // 直前の nicola の出力（音にズレを渡すため）
 let summary = null;
 let bestInfo = null;
-let perfectPlates = new Set(); // ぴったりを一打でも含んだ皿。取ったときの音を変える
-let lastCount = 0;              // カウントダウンで最後に鳴らした数
-let lastTick = 0;               // 残り時間の刻みで最後に鳴らした秒
-
-// タイトル・結果の後ろで流しておく皿。誰も打たない «見本» のレーン
-let attract = null;
-function newAttract(t) {
-  attract = createGame({ course: COURSES[0], words: WORDS, rng: Math.random });
-  attract.start(t - COURSES[0].laneMs * 0.9); // 最初から皿が並んでいるように、少し前に始めたことにする
-  attract.tick(t);
-}
+let perfectItems = new Set(); // ぴったりを一打でも含んだ作業品。通したときの音を変える
+let lastCount = 0;      // カウントダウンで最後に鳴らした数
+let lastTick = 0;       // 残り時間の刻みで最後に鳴らした秒
+let hitView = null;     // 直前の一打の返し（«が +10 右親指 −4ms ぴったり» の行）
+let lastPainted = '';
+const flash = new Map(); // 作業品 id → { kind: 'clear' | 'lost', until }。通した・漏れたの一瞬の印
 
 function buildNicola() {
   return createNicola({
@@ -317,18 +343,28 @@ function buildNicola() {
   });
 }
 
+function begin(c) {
+  sound.prime();
+  sfx.prime();
+  startCountdown(c);
+}
+
 function startCountdown(c) {
   course = c;
-  renderer.setCourse(c);
   game = createGame({ course: c, words: WORDS, rng: Math.random });
   playInput = inputMode;
   nicola = playInput === 'nicola' ? buildNicola() : null;
   romaji = playInput === 'romaji' ? createRomaji() : null;
-  romajiPlate = null;
+  romajiItem = null;
   countdownEnd = performance.now() + 3000;
-  perfectPlates = new Set();
+  perfectItems = new Set();
   lastCount = 0;
   lastTick = 0;
+  hitView = null;
+  lastPainted = '';
+  flash.clear();
+  el.lineItems.replaceChildren();
+  el.hudTarget.textContent = `/ ${num(c.target)}`;
   show('countdown');
   // ボタンに残ったフォーカスで、スペースや Enter が «もう一度押した» にならないように
   document.activeElement?.blur?.();
@@ -340,10 +376,9 @@ function startPlay(t) {
   show('play');
 }
 
-/** engine の events を絵と音に流す */
+/** engine の events を画面と音に流す */
 function handle(events, t) {
   if (!events.length) return;
-  renderer.events(events, game.state, t);
   for (const e of events) {
     if (e.type === 'hit') {
       if (lastResult?.thumb && lastResult.offsetMs != null) {
@@ -351,16 +386,20 @@ function handle(events, t) {
       } else {
         sound.hit();
       }
+      hitView = { kind: 'hit', ...e, thumb: lastResult?.thumb ?? null, offsetMs: lastResult?.offsetMs ?? null };
     } else if (e.type === 'miss') {
       if (e.misfire) sound.misfire();
       else sound.miss();
+      hitView = { kind: 'miss', ...e };
     } else if (e.type === 'perfect') {
-      perfectPlates.add(e.plateId);
+      perfectItems.add(e.itemId);
     } else if (e.type === 'clear') {
-      // 皿を取った音は sfx.js が受け持つ（打鍵音の設定が無音でも鳴る）
-      sfx.take({ perfect: perfectPlates.has(e.plateId) });
+      // 通した音は sfx.js が受け持つ（打鍵音の設定が無音でも鳴る）
+      sfx.take({ perfect: perfectItems.has(e.itemId) });
+      flash.set(e.itemId, { kind: 'clear', at: t, value: e.value, x: 1 });
     } else if (e.type === 'lost') {
       sfx.lost();
+      flash.set(e.itemId, { kind: 'lost', at: t, x: 1 });
     } else if (e.type === 'combo') {
       sfx.combo();
     } else if (e.type === 'over') {
@@ -372,11 +411,11 @@ function handle(events, t) {
 
 /** ローマ字の一打。打ち切ったかなの数だけ engine に渡し、合わない字はミスとして渡す */
 function pressRomaji(ch, t) {
-  const head = game.state.plates[0];
+  const head = game.state.items[0];
   if (!head) return;
-  if (head.id !== romajiPlate) {
+  if (head.id !== romajiItem) {
     romaji.reset();
-    romajiPlate = head.id;
+    romajiItem = head.id;
   }
   const chars = [...head.word.kana];
   const res = romaji.press(chars, head.typed, ch);
@@ -385,45 +424,44 @@ function pressRomaji(ch, t) {
     handle(game.input({ kana: null, charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
     return;
   }
+  const from = head.typed;
   for (let i = 0; i < res.done; i++) {
-    const want = chars[head.typed + i];
-    handle(game.input({ kana: want, charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
+    handle(game.input({ kana: chars[from + i], charCode: 'Romaji', thumb: null, offsetMs: null }, t), t);
     if (screen !== 'play') return;
   }
 }
 
-/** 札の下に出す、打ちかけのローマ字と残りの綴り */
+/** 語の下に出す、打ちかけのローマ字と残りの綴り */
 function romajiView() {
   if (!romaji || !game) return null;
-  const head = game.state.plates[0];
+  const head = game.state.items[0];
   if (!head) return null;
-  if (head.id !== romajiPlate) {
+  if (head.id !== romajiItem) {
     romaji.reset();
-    romajiPlate = head.id;
+    romajiItem = head.id;
   }
   const chars = [...head.word.kana];
-  const typed = romaji.buffer;
   let rest = '';
-  // 皿の残りを全部綴る。いまの塊は打ちかけの続きから、その先は案内の綴りで
+  // 残りを全部綴る。いまの塊は打ちかけの続きから、その先は案内の綴りで
   const r = createRomaji();
   for (let pos = head.typed, first = true; pos < chars.length; first = false) {
-    const h = first ? romaji.hint(chars, pos) : r.hint(chars, pos);
-    if (!h) break;
-    rest += h.rest;
-    pos += h.n;
+    const hint = first ? romaji.hint(chars, pos) : r.hint(chars, pos);
+    if (!hint) break;
+    rest += hint.rest;
+    pos += hint.n;
   }
-  return { typed, rest };
+  return { typed: romaji.buffer, rest };
 }
 
 function finishGame(t) {
   summary = { ...game.summary(), input: playInput };
-  bestInfo = saveBest(course.id, summary);
+  bestInfo = saveBest(summary);
   // 前の回の「送りました」やエラーを持ち越さない。持ち越すと次の結果が送れなくなる
   submitState = { busy: false, msg: '', kind: '' };
   nicola?.reset();
   screen = 'over';
   sound.finish({ best: bestInfo.isBest });
-  // 最後の皿の演出を見せてから結果を出す。すぐ重ねると «何で終わったか» が見えない
+  // 最後の作業品の様子を見せてから結果を出す。すぐ切り替えると «何で終わったか» が見えない
   setTimeout(() => {
     if (screen !== 'over') return;
     paintResult();
@@ -445,43 +483,202 @@ function abortToTitle() {
   show('title');
 }
 
+// ---------------------------------------------------------------- 検品中の画面
+
+const THUMB_NAME = { left: '左親指', right: '右親指' };
+const TIER_NAME = { perfect: 'ぴったり', good: '良い', off: 'ずれ' };
+const fmtMs = (v) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(Math.round(v))}ms`;
+const keyName = (code) => code.replace(/^Key/, '').replace(/^Digit/, '')
+  .replace('Semicolon', ';').replace('Comma', ',').replace('Period', '.').replace('Slash', '/');
+
+/** 一打の返し。«が ぴったり +10 右親指 −4ms» / 外れたら正しい打ち方 */
+function paintHit() {
+  const v = hitView;
+  if (!v) { el.cueHit.replaceChildren(); return; }
+  if (v.kind === 'miss') {
+    const how = keyFor(v.expected);
+    const way = how ? `${how.thumb ? `${THUMB_NAME[how.thumb]} ＋ ` : ''}${keyName(how.code)}` : '';
+    const say = v.misfire ? '親指が効いていません' : (game?.state.missStreak ?? 0) >= 2 ? '打ち方' : null;
+    el.cueHit.replaceChildren(
+      h('span', { class: 'g-cue__kana' }, v.expected),
+      h('small', { class: 'is-miss' }, say ? `${say}：${way}` : '外れ'),
+    );
+    return;
+  }
+  el.cueHit.replaceChildren(...[
+    h('span', { class: 'g-cue__kana' }, v.kana),
+    v.tier === 'perfect' ? h('b', { class: 'g-ok' }, `ぴったり +${PERFECT_BONUS}`) : null,
+    v.tier ? h('small', {}, `${THUMB_NAME[v.thumb] ?? ''} ${fmtMs(v.offsetMs)}${v.tier === 'perfect' ? '' : ` ${TIER_NAME[v.tier]}`}`) : null,
+  ].filter(Boolean));
+}
+
+/** 打つ語（先頭の作業品）を大きく。ラインの札は小さいので、読むのはこちら */
+function paintCue(st) {
+  const head = st.items[0];
+  if (!head) {
+    el.cueWord.replaceChildren();
+    el.cueRomaji.hidden = true;
+    return;
+  }
+  const chars = [...head.word.kana];
+  el.cueWord.replaceChildren(
+    h('span', { class: 'is-done' }, chars.slice(0, head.typed).join('')),
+    h('span', { class: 'is-cur' }, chars[head.typed] ?? ''),
+    h('span', {}, chars.slice(head.typed + 1).join('')),
+  );
+  const rv = romajiView();
+  el.cueRomaji.hidden = !rv;
+  if (rv) el.cueRomaji.replaceChildren(h('b', {}, rv.typed), rv.rest);
+}
+
+/**
+ * ラインの作業品。id ごとに要素を一つ持ち、毎フレーム位置（x）だけ書き換える。
+ * 通した・漏れたものは、出口で少しだけ印を見せてから消す
+ */
+const nodes = new Map();
+const FLASH_MS = 450;
+
+function itemNode(id) {
+  let n = nodes.get(id);
+  if (!n) {
+    n = {
+      root: h('div', { class: 'g-item' }),
+      word: h('span', { class: 'g-item__word' }),
+      value: h('span', { class: 'g-item__value' }),
+      key: '',
+    };
+    n.root.append(n.word, n.value);
+    el.lineItems.append(n.root);
+    nodes.set(id, n);
+  }
+  return n;
+}
+
+function paintLine(st, t) {
+  const live = new Set();
+  st.items.forEach((it, i) => {
+    live.add(it.id);
+    const n = itemNode(it.id);
+    // 入口（x=0）から出口（x=1）まで。作業品の幅ぶん内側に収める
+    n.root.style.setProperty('--x', String(Math.min(1, Math.max(0, it.x))));
+    n.root.classList.toggle('is-head', i === 0);
+    n.root.classList.toggle('is-perfect', it.perfect > 0);
+    const key = `${it.typed}|${it.value}`;
+    if (key !== n.key) {
+      n.key = key;
+      const chars = [...it.word.kana];
+      n.word.replaceChildren(h('span', { class: 'is-done' }, chars.slice(0, it.typed).join('')), chars.slice(it.typed).join(''));
+      n.value.textContent = `${num(it.value)}`;
+    }
+  });
+  for (const [id, n] of nodes) {
+    if (live.has(id)) continue;
+    const f = flash.get(id);
+    if (f && t - f.at < FLASH_MS) {
+      n.root.classList.add(f.kind === 'clear' ? 'is-clear' : 'is-lost');
+      n.root.classList.remove('is-head');
+      n.value.textContent = f.kind === 'clear' ? `+${num(f.value)}` : '検品漏れ';
+      continue;
+    }
+    n.root.remove();
+    nodes.delete(id);
+    flash.delete(id);
+  }
+}
+
+function paintPlay(t) {
+  const st = game.state;
+  if (screen === 'countdown') {
+    el.cueCount.hidden = false;
+    el.cueCount.textContent = String(Math.max(1, Math.ceil((countdownEnd - t) / 1000)));
+    el.hudTime.textContent = (course.timeMs / 1000).toFixed(1);
+    el.hudScore.textContent = '0';
+    el.hudCombo.textContent = '0';
+    el.hudKpm.textContent = '0';
+    el.cueWord.replaceChildren();
+    el.cueRomaji.hidden = true;
+    el.cueHit.replaceChildren();
+    return;
+  }
+  el.cueCount.hidden = true;
+  el.hudTime.textContent = (st.remainingMs / 1000).toFixed(1);
+  el.hudScore.textContent = num(st.score);
+  el.hudScore.classList.toggle('g-ok', st.score >= course.target);
+  el.hudCombo.textContent = String(st.combo);
+  el.hudKpm.textContent = st.elapsedMs > 1000 ? String(Math.round((st.strokes * 60000) / st.elapsedMs)) : '0';
+  paintLine(st, t);
+  // 語と返しは変わったときだけ組み直す（毎フレーム DOM を作り直さない）
+  const head = st.items[0];
+  const key = `${head?.id}|${head?.typed}|${st.misses}|${romaji?.buffer ?? ''}|${hitView?.kana ?? ''}`;
+  if (key !== lastPainted) {
+    lastPainted = key;
+    paintCue(st);
+    paintHit();
+  }
+}
+
 // ---------------------------------------------------------------- 結果
+
+/** ズレの配列 → renderScope が受け取る集計の形（左右を分けずに left に入れる） */
+function aggOf(offsets) {
+  const hist = new Array(OFFSET_BINS).fill(0);
+  let sum = 0;
+  for (const v of offsets) {
+    hist[offsetBinOf(v)]++;
+    sum += v;
+  }
+  return { left: { hist, n: offsets.length, sum }, right: {} };
+}
 
 function paintResult() {
   const s = summary;
-  const gain = s.balance >= 0;
-  el.scResult.classList.toggle('is-gain', gain);
-  el.resultCourse.textContent = `${course.name}コース（${yen(course.price)}円・${course.timeMs / 1000}秒）・${INPUT_NAME[s.input]}`;
-  el.resultMoney.textContent = yen(s.money);
+  const nicolaMode = s.input === 'nicola';
+  showNicolaParts(el.scResult, nicolaMode);
+  el.resultMode.textContent = `ノルマ ${num(course.target)} 点・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}`;
+  el.resultScore.textContent = num(s.score);
 
-  const avg = s.plates ? s.money / s.plates : 0;
-  // replaceChildren は null を «null» という文字にして入れる（h() と違って飛ばさない）。
-  // 得したときに «800円 お得！null» と出ていた
+  const done = s.balance >= 0;
+  const avg = s.cleared ? s.score / s.cleared : 0;
+  // replaceChildren は null を «null» という文字にして入れる（h() と違って飛ばさない）
   el.resultBalance.replaceChildren(...[
-    h('span', { class: gain ? 'is-gain' : 'is-loss' },
-      gain ? `${yen(s.balance)}円 お得！` : `${yen(-s.balance)}円 損しました`),
-    // 損したときだけ、あと何皿で元が取れたかを出す
-    gain || !avg ? null : h('small', {}, `あと ${Math.ceil(-s.balance / avg)} 皿ほど`),
+    h('b', { class: done ? 'g-ok' : 'is-short' }, done ? `ノルマ達成 +${num(s.balance)} 点` : `ノルマまで あと ${num(-s.balance)} 点`),
+    !done && avg ? h('small', {}, `（作業品 ${Math.ceil(-s.balance / avg)} 個ほど）`) : null,
   ].filter(Boolean));
 
   el.resultBest.hidden = !bestInfo?.isBest;
-  el.resultBest.textContent = bestInfo?.prev ? `自己ベスト更新（前回 ${yen(bestInfo.prev.money)}円）` : 'はじめての記録';
+  el.resultBest.textContent = bestInfo?.prev ? `自己ベスト更新（前回 ${num(bestInfo.prev.score)} 点）` : 'はじめての記録';
 
-  const pct = (x) => `${(x * 100).toFixed(1)}`;
-  const rate = s.shifted ? s.perfect / s.shifted : 0;
-  const cell = (k, v, unit, cls) => h('div', cls ? { class: cls } : {}, h('dt', {}, k), h('dd', {}, v, unit ? h('small', {}, unit) : null));
+  const cell = (k, v, unit, cls) => h('div', {}, h('dt', {}, k), h('dd', cls ? { class: cls } : {}, v, unit ? h('small', {}, unit) : null));
   el.resultTally.replaceChildren(...[
-    cell('取った皿', String(s.plates), '枚'),
-    cell('正確さ', pct(s.accuracy), '%'),
-    cell('毎分', String(Math.round(s.kpm)), 'かな'),
-    s.input === 'nicola'
-      ? cell('ぴったり率', s.shifted ? pct(rate) : '—', s.shifted ? `% (${s.perfect}/${s.shifted})` : 'シフト打鍵なし', 'is-perfect')
-      : null,
+    cell('通した', String(s.cleared), '個'),
+    cell('検品漏れ', String(s.lost), '個'),
+    nicolaMode ? cell('ぴったり', String(s.perfect), '回', 'g-ok') : null,
+    cell('速さ', String(Math.round(s.kpm)), 'cpm'),
+    cell('正確さ', String(Math.round(s.accuracy * 100)), '%'),
     cell('最大コンボ', String(s.maxCombo), ''),
-    cell('ミス', String(s.misses), `${s.misfires ? `うち不発 ${s.misfires}・` : ''}取り逃し ${s.lost}皿`),
   ].filter(Boolean));
 
+  if (nicolaMode) {
+    const mean = s.offsets.length ? s.offsets.reduce((a, b) => a + b, 0) / s.offsets.length : null;
+    el.resultOffset.textContent = mean == null ? '—' : fmtMs(mean).replace('ms', '');
+    el.resultPerfect.textContent = s.shifted ? String(Math.round((s.perfect / s.shifted) * 100)) : '—';
+    el.resultScopeNote.textContent = `同時打鍵 ${s.shifted} 回`;
+    if (s.offsets.length) renderScope(el.resultScope, aggOf(s.offsets));
+    else el.resultScope.replaceChildren(h('p', { class: 'inst__empty' }, '親指を使う字のズレがここに出ます'));
+  }
+
+  el.btnShare.href = shareUrl(s);
   paintSubmit();
+}
+
+/** X の投稿画面を開く URL。投稿するかは本人が決める。こちらからは何も送らない */
+function shareUrl(s) {
+  const rate = s.shifted ? Math.round((s.perfect / s.shifted) * 100) : null;
+  const res = s.balance >= 0 ? 'ノルマ達成' : 'ノルマ未達';
+  const detail = s.input === 'nicola' && rate != null ? `ぴったり率 ${rate}%・${Math.round(s.kpm)} cpm` : `${Math.round(s.kpm)} cpm`;
+  const text = `検品ライン（ノルマ ${num(course.target)} 点・${INPUT_NAME[s.input]}）で ${num(s.score)} 点、${res}。${detail}`;
+  const q = new URLSearchParams({ text, url: SHARE_URL, hashtags: '親指シフト' });
+  return `https://x.com/intent/tweet?${q}`;
 }
 
 let submitState = { busy: false, msg: '', kind: '' };
@@ -497,21 +694,13 @@ function paintSubmit() {
   if (!me) {
     const btn = h('button', { type: 'button', class: 'btn' }, '参加して送る');
     btn.addEventListener('click', () => openConsent('result'));
-    box.replaceChildren(
-      h('p', {}, 'ランキングに参加すると、この結果を送れます。'),
-      h('div', { class: 'g-row' }, btn),
-      status,
-    );
+    box.replaceChildren(h('p', {}, 'ランキングに参加すると、この結果を送れます。'), btn, status);
     return;
   }
   const btn = h('button', { type: 'button', class: 'btn btn--primary', disabled: submitState.busy || submitState.kind === 'ok' },
     submitState.kind === 'ok' ? '送りました' : 'ランキングに送る');
   btn.addEventListener('click', sendSummary);
-  box.replaceChildren(
-    h('p', {}, h('b', {}, me.nickname), ' として送ります。'),
-    h('div', { class: 'g-row' }, btn),
-    status,
-  );
+  box.replaceChildren(h('p', {}, h('b', {}, me.nickname), ' として送ります。'), btn, status);
 }
 
 function soonNote() {
@@ -529,12 +718,14 @@ async function sendSummary() {
     const r = await submitScore(sent);
     // 返事を待つ間に次の回が終わっていたら、古い返事で新しい結果の表示を書き換えない
     if (summary !== sent) return;
+    const div = `${INPUT_NAME[sent.input]}部門 ${r?.rank ?? '—'} 位`;
+    const all = `総合 ${r?.overallRank ?? '—'} 位`;
     submitState = {
       busy: false,
       kind: 'ok',
       msg: r?.isBest
-        ? `送りました。いま ${r.rank} 位です（自己ベスト更新）`
-        : `送りました。自己ベストは ${yen(r?.best ?? 0)}円で、いま ${r?.rank ?? '—'} 位です`,
+        ? `送りました。${div}・${all}（自己ベスト更新）`
+        : `送りました。自己ベストは ${num(r?.best ?? 0)} 点で、${div}・${all}`,
     };
   } catch (err) {
     if (summary !== sent) return;
@@ -545,9 +736,11 @@ async function sendSummary() {
 
 // ---------------------------------------------------------------- ランキング
 
+const BOARDS = ['all', ...INPUTS];
+const BOARD_NAME = { all: '総合', nicola: '親指シフト部門', romaji: 'ローマ字部門' };
 let rankCourse = COURSES[0].id;
+let rankBoard = 'all';
 let rankPeriod = 'all';
-let rankInput = 'all';
 let rankSeq = 0;
 
 function openRanking(from) {
@@ -561,22 +754,20 @@ function openRanking(from) {
 function paintRankingTabs() {
   el.rankCourseTabs.replaceChildren(
     ...COURSES.map((c) => {
-      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `${c.name}コース`);
+      const b = h('button', { type: 'button', role: 'tab', dataset: { course: c.id } }, `ノルマ ${c.name}`);
       b.setAttribute('aria-selected', String(c.id === rankCourse));
-      b.addEventListener('click', () => {
-        rankCourse = c.id;
-        paintRankingTabs();
-        loadRanking();
-      });
       return b;
     }),
   );
+  for (const b of el.rankBoardTabs.querySelectorAll('[data-board]')) {
+    b.setAttribute('aria-selected', String(b.dataset.board === rankBoard));
+  }
   for (const b of el.rankPeriodTabs.querySelectorAll('[data-period]')) {
     b.setAttribute('aria-selected', String(b.dataset.period === rankPeriod));
   }
-  for (const b of el.rankInputTabs.querySelectorAll('[data-input]')) {
-    b.setAttribute('aria-selected', String(b.dataset.input === rankInput));
-  }
+  el.rankOrder.textContent = rankBoard === 'all'
+    ? '総合は速さ（1 分あたりのかな）の順。一人一行で、入力方式を問わず速いほうの記録'
+    : `${BOARD_NAME[rankBoard]}は点数の順。一人一行`;
   const me = currentPlayer();
   const on = rankingEnabled();
   el.btnRegister.hidden = !on || !!me;
@@ -584,68 +775,87 @@ function paintRankingTabs() {
   el.rankMe.textContent = on && me ? `${me.nickname} として参加しています` : '';
 }
 
-function setRankStatus(text, kind = '') {
+function setRankStatus(content, kind = '') {
   el.rankStatus.className = `g-status ${kind ? `is-${kind}` : ''}`;
-  el.rankStatus.replaceChildren(text);
+  el.rankStatus.replaceChildren(content);
 }
 
 async function loadRanking() {
   const seq = ++rankSeq;
+  el.rankLeaders.hidden = true;
+  el.rankList.replaceChildren();
   if (!rankingEnabled()) {
-    el.rankList.replaceChildren();
     setRankStatus(soonNote());
     return;
   }
-  el.rankList.replaceChildren();
   setRankStatus('読み込んでいます…');
   try {
-    const rows = await fetchRanking({ course: rankCourse, period: rankPeriod, input: rankInput });
+    const { entries, leaders } = await fetchRanking({ course: rankCourse, board: rankBoard, period: rankPeriod });
     if (seq !== rankSeq) return; // タブを切り替えたあとに古い応答が来た
-    const me = currentPlayer();
-    if (!rows.length) {
+    paintLeaders(rankBoard === 'all' ? leaders : null);
+    if (!entries.length) {
       setRankStatus(rankPeriod === 'month' ? '今月の記録はまだありません。' : 'まだ記録がありません。最初の一人になれます。');
       return;
     }
     setRankStatus('');
-    paintBoard(rows, me);
+    paintBoard(entries, currentPlayer());
   } catch (err) {
     if (seq !== rankSeq) return;
     setRankStatus(`ランキングを読み込めませんでした：${err.message}`, 'error');
   }
 }
 
+/** 総合の頭に、各部門の 1 位を出す */
+function paintLeaders(leaders) {
+  if (!leaders) { el.rankLeaders.hidden = true; return; }
+  const one = (input) => {
+    const l = leaders[input];
+    return h('span', {}, h('small', {}, `${BOARD_NAME[input]} 1 位`), l ? [h('b', {}, l.nickname), ` ${num(l.score)} 点`] : 'まだいません');
+  };
+  el.rankLeaders.replaceChildren(one('nicola'), one('romaji'));
+  el.rankLeaders.hidden = false;
+}
+
 function paintBoard(rows, me) {
   for (const r of rows) {
     if (!INPUTS.includes(r.input)) throw new Error(`順位表の入力方式が違う: ${r.input}`);
   }
-  // 両方を混ぜた表は毎分の順に並んで届く（サーバーの orderOf）。並べた列を太くする
-  el.rankList.dataset.order = rankInput === 'all' ? 'kpm' : 'money';
+  // 総合は速さの順、部門は点数の順に並んで届く。並べた列を太くする
+  el.rankList.dataset.order = rankBoard === 'all' ? 'kpm' : 'score';
   el.rankList.replaceChildren(
     h('li', { class: 'is-head', 'aria-hidden': 'true' },
-      h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, '金額'),
-      h('span', { class: 'k' }, '毎分'), h('span', { class: 'a' }, '正確さ')),
+      h('span', {}, '順位'), h('span', {}, '名前'), h('span', { class: 'i' }, '入力'), h('span', { class: 'm' }, '点'),
+      h('span', { class: 'k' }, '速さ'), h('span', { class: 'a' }, '正確さ')),
     ...rows.map((r) => h('li', { class: me && r.nickname === me.nickname ? 'is-me' : '' },
       h('span', { class: 'r' }, String(r.rank)),
       h('span', { class: 'n' }, r.nickname),
       h('span', { class: 'i' }, INPUT_NAME[r.input]),
-      h('span', { class: 'm' }, `${yen(r.money)}円`),
+      h('span', { class: 'm' }, num(r.score)),
       h('span', { class: 'k' }, `${Math.round(r.kpm)}`),
       h('span', { class: 'a' }, `${(r.accuracy * 100).toFixed(0)}%`))),
   );
 }
 
-el.rankPeriodTabs.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-period]');
-  if (!b) return;
-  rankPeriod = b.dataset.period;
+el.rankCourseTabs.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-course]');
+  if (!b || !COURSES.some((c) => c.id === b.dataset.course)) return;
+  rankCourse = b.dataset.course;
   paintRankingTabs();
   loadRanking();
 });
 
-el.rankInputTabs.addEventListener('click', (e) => {
-  const b = e.target.closest('[data-input]');
+el.rankBoardTabs.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-board]');
+  if (!b || !BOARDS.includes(b.dataset.board)) return;
+  rankBoard = b.dataset.board;
+  paintRankingTabs();
+  loadRanking();
+});
+
+el.rankPeriodTabs.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-period]');
   if (!b) return;
-  rankInput = b.dataset.input;
+  rankPeriod = b.dataset.period;
   paintRankingTabs();
   loadRanking();
 });
@@ -757,9 +967,7 @@ window.addEventListener('keydown', (e) => {
     const i = ['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3'].indexOf(e.code) % 3;
     if (i >= 0 && !e.repeat && COURSES[i]) {
       e.preventDefault();
-      sound.prime();
-      sfx.prime();
-      startCountdown(COURSES[i]);
+      begin(COURSES[i]);
     }
     return;
   }
@@ -813,11 +1021,11 @@ window.addEventListener('keyup', (e) => {
 // これが無いと、戻ってきたときに押しっぱなし扱いのキーが残る
 window.addEventListener('blur', () => { nicola?.reset(); });
 
-el.btnAgain.addEventListener('click', () => { sound.prime(); sfx.prime(); startCountdown(course); });
-el.btnCourses.addEventListener('click', abortToTitle);
+el.btnAgain.addEventListener('click', () => begin(course));
+el.btnTitle.addEventListener('click', abortToTitle);
 el.btnRankingFromTitle.addEventListener('click', () => openRanking('title'));
 // ヘッダーのランキング。遊んでいる最中は押しても何もしない（一回をうっかり捨てさせない）
-document.getElementById('navRanking').addEventListener('click', () => {
+$('navRanking').addEventListener('click', () => {
   if (screen === 'play' || screen === 'countdown' || screen === 'over') return;
   openRanking(screen === 'result' ? 'result' : 'title');
 });
@@ -832,8 +1040,8 @@ function frame(t) {
       lastCount = n;
       sfx.count(n);
     }
+    if (t >= countdownEnd) startPlay(countdownEnd);
   }
-  if (screen === 'countdown' && t >= countdownEnd) startPlay(countdownEnd);
 
   if (screen === 'play') {
     curT = t;
@@ -848,31 +1056,13 @@ function frame(t) {
     imeUntil = 0;
     el.imeWarn.hidden = true;
   }
-
-  if (screen === 'play' || screen === 'countdown' || screen === 'over') {
-    renderer.draw({
-      mode: screen === 'countdown' ? 'countdown' : 'play',
-      state: game.state,
-      now: t,
-      countdown: (countdownEnd - t) / 1000,
-      thumbs: nicola?.thumbHeld,
-      romaji: romajiView(),
-      totalMs: course.timeMs,
-      laneMs: course.laneMs,
-    });
-  } else {
-    if (!attract || attract.state.phase === 'over') newAttract(t);
-    attract.tick(t);
-    renderer.draw({ mode: 'attract', state: attract.state, now: t, laneMs: COURSES[0].laneMs });
-  }
+  if (game && (screen === 'play' || screen === 'countdown' || screen === 'over')) paintPlay(t);
   requestAnimationFrame(frame);
 }
 
-new ResizeObserver(() => renderer.resize()).observe(canvas);
-
 // ---------------------------------------------------------------- デモ（見た目の確認用）
 
-/** 種つき乱数。デモの絵を毎回同じにするため */
+/** 種つき乱数。デモの画面を毎回同じにするため */
 function seeded(seed) {
   let a = seed >>> 0;
   return () => {
@@ -885,101 +1075,79 @@ function seeded(seed) {
 }
 
 /** 疑似の打鍵で engine を進める。stopAt まで、step ms ごとに一字。ミスとズレを混ぜる */
-function simulate(g, t0, stopAt, { step = 260, missEvery = 23, draw = true } = {}) {
+function simulate(g, t0, stopAt, { step = 300, missEvery = 29 } = {}) {
+  const rng = seeded(11);
   let t = t0;
   let i = 0;
   while (t < stopAt && g.state.phase === 'playing') {
     t += step;
-    const evs = g.tick(t);
-    if (draw) { renderer.draw({ mode: 'play', state: g.state, now: t, totalMs: course.timeMs, laneMs: course.laneMs }); renderer.events(evs, g.state, t); }
+    noteDemo(g.tick(t), t);
     if (g.state.phase !== 'playing') break;
-    const head = g.state.plates[0];
-    // 皿がレーンの中ほどに来るまで待つ。デモの打ち手が速すぎると皿が入口で取られ、レーンが空に見える
-    if (!head || head.x < 0.32) continue;
+    const head = g.state.items[0];
+    // 作業品がラインの中ほどに来るまで待つ。デモの打ち手が速すぎると入口で通してしまい、ラインが空に見える
+    if (!head || head.x < 0.3) continue;
     const want = [...head.word.kana][head.typed];
     const how = keyFor(want);
     i++;
-    let result;
     if (i % missEvery === 0) {
-      result = { kana: 'ん', charCode: 'KeyQ', thumb: null, shiftKind: null, offsetMs: null, continued: false, state: 'S2' };
-    } else {
-      const off = how.thumb ? [4, -9, 22, -41, 12, 0][i % 6] : null;
-      result = { kana: want, charCode: how.code, thumb: how.thumb, shiftKind: null, offsetMs: off, continued: false, state: 'S4' };
+      noteDemo(g.input({ kana: 'ん', charCode: 'KeyQ', thumb: null, offsetMs: null }, t), t);
+      continue;
     }
-    const evs2 = g.input(result, t);
-    if (draw) { renderer.draw({ mode: 'play', state: g.state, now: t, totalMs: course.timeMs, laneMs: course.laneMs }); renderer.events(evs2, g.state, t); }
+    // ズレは中心 −3ms・ばらつき 11ms 程度の山にする
+    const off = how.thumb ? Math.round((rng() + rng() + rng() - 1.5) * 19 - 3) : null;
+    lastResult = { thumb: how.thumb, offsetMs: off };
+    noteDemo(g.input({ kana: want, charCode: how.code, thumb: how.thumb, offsetMs: off }, t), t);
   }
   return t;
 }
 
-function runDemo(kind) {
-  const rng = seeded(7);
-  course = COURSES.find((c) => c.id === params.get('course')) ?? COURSES[1];
-  renderer.setCourse(course);
-
-  if (kind === 'play' || kind === 'hint' || kind === 'countdown') {
-    game = createGame({ course, words: WORDS, rng });
-    const T0 = 10000;
-    if (kind === 'countdown') {
-      show('countdown');
-      const paint = () => renderer.draw({ mode: 'countdown', state: game.state, now: T0, countdown: 2.35, thumbs: { left: false, right: false }, totalMs: course.timeMs, laneMs: course.laneMs });
-      paint();
-      new ResizeObserver(paint).observe(canvas);
-      return;
-    }
-    game.start(T0);
-    let t = simulate(game, T0, T0 + 24000);
-    if (kind === 'hint') {
-      // 同じ字で二度外して、打ち方の案内が出た瞬間
-      for (let k = 0; k < 2; k++) {
-        t += 200;
-        renderer.events(game.input({ kana: 'ん', charCode: 'KeyQ', thumb: null, offsetMs: null }, t), game.state, t);
-      }
-    } else {
-      // 先頭の皿を打ち切って、取った演出が出ている瞬間で止める
-      while (game.state.plates[0] && game.state.phase === 'playing') {
-        const head = game.state.plates[0];
-        const want = [...head.word.kana][head.typed];
-        const how = keyFor(want);
-        t += 120;
-        lastResult = null;
-        const evs = game.input({ kana: want, charCode: how.code, thumb: how.thumb, offsetMs: how.thumb ? 3 : null }, t);
-        renderer.events(evs, game.state, t);
-        renderer.draw({ mode: 'play', state: game.state, now: t, totalMs: course.timeMs, laneMs: course.laneMs });
-        if (evs.some((e) => e.type === 'clear')) break;
-      }
-    }
-    const freeze = t + 180;
-    show('play');
-    screen = 'demo';
-    const paint = () => renderer.draw({ mode: 'play', state: game.state, now: freeze, thumbs: { left: true, right: false }, totalMs: course.timeMs, laneMs: course.laneMs });
-    paint();
-    new ResizeObserver(paint).observe(canvas);
-    return;
+function noteDemo(events, t) {
+  for (const e of events) {
+    if (e.type === 'hit') hitView = { kind: 'hit', ...e, thumb: lastResult?.thumb ?? null, offsetMs: lastResult?.offsetMs ?? null };
+    else if (e.type === 'miss') hitView = { kind: 'miss', ...e };
+    else if (e.type === 'clear') flash.set(e.itemId, { kind: 'clear', at: t, value: e.value });
   }
+}
 
-  if (kind === 'result') {
-    game = createGame({ course, words: WORDS, rng });
+function runDemo(kind) {
+  const input = params.get('input') ?? 'nicola';
+  if (!INPUTS.includes(input)) throw new Error(`知らない入力方式: ${input}`);
+  playInput = input;
+  inputMode = input;
+  course = COURSES.find((c) => c.id === params.get('course')) ?? COURSES[0];
+
+  if (kind === 'play') {
+    game = createGame({ course, words: WORDS, rng: seeded(7) });
     game.start(0);
-    simulate(game, 0, 1e9, { step: 300, draw: false });
+    const t = simulate(game, 0, 24_000);
+    romaji = input === 'romaji' ? createRomaji() : null;
+    el.hudTarget.textContent = `/ ${num(course.target)}`;
+    show('play');
+    paintPlay(t);
+    screen = 'demo';
+  } else if (kind === 'result') {
+    game = createGame({ course, words: WORDS, rng: seeded(7) });
+    game.start(0);
+    simulate(game, 0, 1e9);
     while (game.state.phase === 'playing') game.tick(game.state.remainingMs + 1e6);
-    const input = params.get('input') ?? 'nicola';
-    if (!INPUTS.includes(input)) throw new Error(`知らない入力方式: ${input}`);
     summary = { ...game.summary(), input };
-    bestInfo = { isBest: true, prev: { money: Math.round(summary.money * 0.8) } };
+    bestInfo = { isBest: true, prev: { score: Math.round(summary.score * 0.92) } };
     paintResult();
     show('result');
-  } else if (kind === 'ranking') {
-    openRanking('title');
+  } else if (kind === 'title') {
+    paintTitle();
+    show('title');
   } else if (kind === 'board') {
     // 順位表の見た目だけを見る。サーバーにはつながない
+    rankBoard = BOARDS.includes(params.get('board')) ? params.get('board') : 'all';
     show('ranking');
     paintRankingTabs();
     setRankStatus('');
-    const names = ['すしざんまい', 'おやゆび', 'ローマ字派', 'かっぱ巻き', 'nicola_fan', 'たまご'];
+    paintLeaders(rankBoard === 'all' ? { nicola: { nickname: 'おやゆび', score: 4120 }, romaji: { nickname: 'ローマ字派', score: 3380 } } : null);
+    const names = ['おやゆび', 'ローマ字派', 'nicola_fan', 'てぶくろ', 'あさがお', 'しずく'];
     paintBoard(names.map((n, i) => ({
-      rank: i + 1, nickname: n, input: i % 2 ? 'romaji' : 'nicola',
-      money: 9800 - i * 1300, kpm: 210 - i * 14, accuracy: 0.97 - i * 0.02, at: '2026-11-02T00:00:00Z',
+      rank: i + 1, nickname: n, input: rankBoard === 'all' ? (i % 2 ? 'romaji' : 'nicola') : rankBoard,
+      score: 4120 - i * 310, kpm: 236 - i * 13, accuracy: 0.97 - i * 0.02, at: '2026-11-02T00:00:00Z',
     })), null);
   } else if (kind === 'consent') {
     openConsent('ranking');
@@ -989,7 +1157,6 @@ function runDemo(kind) {
   } else {
     throw new Error(`知らないデモ: ${kind}`);
   }
-  requestAnimationFrame(frame);
 }
 
 // ---------------------------------------------------------------- 起動

@@ -26,8 +26,8 @@
 | テスト | `tools/` 配下すべて / `.github/workflows/check.yml` |
 | デザイン | `index.html` / `assets/css/app.css` / `assets/js/keyboard.js` / `assets/js/meter.js` |
 | トークンエコノミー | `assets/js/storage.js` / `assets/js/trophies.js` / `assets/js/medal.js` |
-| ゲーム企画 | `assets/js/game/words.js` / `assets/js/game/courses.js` / `docs/game-design.md` |
-| ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/render.js` / `assets/js/game/neta.js` / `assets/js/game/sfx.js` / `assets/js/game/main.js` |
+| ゲーム企画 | `assets/js/game/words.js` / `assets/js/game/courses.js` |
+| ゲーム画面（デザイン兼実装） | `game.html` / `assets/css/game.css` / `assets/js/game/engine.js` / `assets/js/game/sfx.js` / `assets/js/game/main.js` |
 | ランキング（サーバー） | `server/` 配下すべて / `assets/js/game/ranking.js` / `tools/server.test.mjs` |
 | コア（ゲームの設定値） | `assets/js/game/config.js` |
 | 可視化（コア） | `assets/js/viz.js` / `assets/js/iso.js` / `assets/css/viz.css` / `tools/iso.test.mjs` |
@@ -228,19 +228,21 @@ export function showJudgement(container, { offsetMs, tier })
 
 向きを出すのが肝。親指が遅い人と早すぎる人では直し方が逆なので、向きが無いと直せない。
 
-## ゲーム「回転ずし」（2026-11-02 追加）
+## ゲーム「検品ライン」（2026-11-02 に回転ずしから題材を替えた）
 
 `game.html` は独立したページ。ゲームのために `index.html` / `app.js` へ足すのはナビのリンク一本だけ。
-（同じ日に全体の見た目と文言の手直しで両方に手を入れているが、それはゲームとは別の作業）
 練習（覚える・鍛える）は**静か**、ゲームは**派手**。この対比は崩さない。
+
+遊びの仕組みは回転ずしのときと同じ。**題材だけ**替えた（皿 → ラインを流れる作業品、取る → 検品を通す、
+取り逃し → 検品漏れ、円 → 点、コースの値段 → ノルマ）。寿司・皿・円は使わない。
 
 ### 遊び方の骨格
 
-- レーンを皿が流れる。皿には**かなの単語**が載っている。先頭の皿の単語を親指シフトで打ち切ると、皿を取れて値段が入る
-- 打ち切る前に皿がレーンの端まで流れたら、その皿は取り逃し（お金は入らない、ミスにも数えない）
-- **制限時間が尽きたら終わり**。取った皿の合計金額と、コースの値段を比べて「得した／損した」を出す
-- **ここだけの味付け：同時打鍵のズレ**。シフトを使う一打が `perfect`（±15ms）なら「ぴったり」で皿の値段に上乗せ。
-  道場の本題（ズレ）をゲームでも報酬にする。単打（シフトなし）の字には加点もしない、減点もしない
+- ラインを作業品が流れる。作業品には**かなの語**が付いている。先頭（出口に一番近い）の作業品の語を打ち切ると、検品を通して点が入る
+- 打ち切る前に作業品が出口まで流れたら検品漏れ（点は入らない、ミスにも数えない）
+- **制限時間が尽きたら終わり**。通した点の合計とノルマを比べて「達成／未達」を出す
+- **ここだけの味付け：同時打鍵のズレ**。シフトを使う一打が `perfect`（±15ms）なら「ぴったり」でその作業品の点に上乗せ。
+  単打（シフトなし）の字には加点もしない、減点もしない。ローマ字には上乗せが無い
 - 連続正打（コンボ）が一定数ごとに残り時間が延びる
 - 打ち間違い・不発（`misfire`）はミス。その字は進まない（打ち直し）。コンボは切れる
 
@@ -248,90 +250,57 @@ export function showJudgement(container, { offsetMs, tier })
 
 ```js
 export const COURSES = [
-  {
-    id: 'otegaru',            // 'otegaru' | 'osusume' | 'koukyu' の三つで固定。ランキングの鍵になる
-    name: 'お手軽',
-    price: 3000,              // コースの値段（円）。これと取った金額を比べて得・損を出す
-    timeMs: 60000,            // 制限時間
-    laneMs: 8000,             // 皿がレーンの端から端まで流れる時間
-    minLen: 2, maxLen: 4,     // 出す単語のかなの長さ
-  },
-  // osusume, koukyu
-];
-export function plateValue(course, word)  // 皿一枚の値段（円）。単語の長さで決まる
-export const PERFECT_BONUS               // ぴったり一打ごとの上乗せ（円）
-export const COMBO_STEP                  // コンボがこの数に達するごとに時間延長
-export const COMBO_TIME_BONUS_MS         // 延長する時間
+  { id: 'p3000', name: '3,000 点', target: 3000, timeMs: 60000, laneMs: 8000, minLen: 2, maxLen: 7 },
+  { id: 'p5000', name: '5,000 点', target: 5000, timeMs: 90000, laneMs: 10000, minLen: 5, maxLen: 10 },
+  { id: 'p10000', name: '10,000 点', target: 10000, timeMs: 120000, laneMs: 12000, minLen: 9, maxLen: 14 },
+];   // id はランキングの鍵なので変えない
+export const PT_PER_KANA = { p3000: 20, p5000: 20, p10000: 25 }   // かな一字の点
+export function itemValue(course, word)   // 作業品一つの点 = 一字の点 × 字数
+export const PERFECT_BONUS = 10           // ぴったり一打ごとの上乗せ（点）
+export const COMBO_STEP = 20, COMBO_TIME_BONUS_MS = 1000
 ```
+
+`server/src/core.mjs` に同じ数（`COURSE_LIMITS` / `PERFECT_BONUS` / `COMBO_STEP` / `COMBO_TIME_BONUS_MS`）を写してある。`tools/game.test.mjs` が突き合わせる。
 
 ### `assets/js/game/words.js`（ゲーム企画）
 
 ```js
-export const WORDS = [ { kana: 'まぐろ', label: '鮪', pic: 'maguro' }, ... ]
+export const WORDS = [ { kana: 'ともだちとでかける', shifted: 5 }, ... ]   // lessons.js から起動時に組む
+export function shiftedCount(kana)   // 親指を使う字の数。配列に無い字があれば null
 ```
 
-- `kana` は **NICOLA 配列で打てる字だけ**で書く（`loadLayout('nicola')` の三面に現れる字）。拗音の小さい字・長音「ー」は配列にあれば可
-- `label` は画面で大きく見せる表記（漢字かな交じり）。打つのは `kana`
-- `pic` は皿に載せる絵の名前（`neta.js` の `PICS` の鍵）。語が指す物の絵にする。寿司でない語はその物、季節の語はその季節の物
-- 寿司ネタ・和食・日常語など。下品・差別的な語、実在の商標・人名は入れない
-- 長さの帯（2〜4 / 3〜7 / 5〜12）それぞれに **最低 40 語**
+- 語の表は持たない。語・文章・速度の課題と実文（`TEXTS`）を句読点で区切って拾う。面を覚えるための並び（第一〜三課・第六課）は入れない
+- 2〜14 字、親指を使う字を一つ以上含む語。長さの帯は `engine.js` がコースの `minLen`〜`maxLen` で絞る。どの帯にも 100 語以上
 
 ### `assets/js/game/engine.js`（ゲーム画面）— DOM を知らない
 
 `nicola.js` と同じく**時刻は必ず引数で受け取る**。中で `performance.now()` / `Date.now()` / `Math.random()` を読まない（テストから時間を進めるため）。乱数は `rng` で受け取る。
 
 ```js
-export function createGame({ course, words, rng })   // rng: () => number（0 以上 1 未満）
-// 返すもの
+export function keyFor(kana)                 // { code, thumb, hand } | null
+export function createGame({ course, words, rng })
 {
-  start(t),                 // 開始時刻を入れる
-  input(result, t),         // nicola.js の onOutput の result をそのまま渡す。返り値は events の配列
-  tick(t),                  // 時間だけ進める。返り値は events の配列
-  get state(),              // 描画用のスナップショット（下）
-  summary(),                // 終了後の結果（下）。終わる前に呼んだら throw
+  start(t), input(result, t), tick(t),       // input / tick の返り値は events の配列
+  get state(),   // { phase, remainingMs, items: [{ id, word, value, typed, perfect, x /* 0..1 */ }], score, combo, maxCombo,
+                 //   missStreak, cleared, lost, misses, perfect, good, shifted, offsets, strokes, elapsedMs, target }
+  summary(),     // 終わる前に呼んだら throw
 }
 
-// state
-{
-  phase: 'ready' | 'playing' | 'over',
-  remainingMs,
-  plates: [ { id, word: {kana,label}, value, typed /* 打ち終えた字数 */, x /* 0..1 レーン上の位置 */ } ],  // 先頭が打つ対象
-  money, combo, maxCombo,
-}
-
-// events の要素（描画と音の合図。並べた順に起きた）
-{ type: 'hit',     plateId, kana, tier }     // 一字進んだ。tier は meter.js の tierOf の値（単打なら null）
-{ type: 'perfect', plateId, bonus }          // ぴったりの上乗せ
-{ type: 'miss',    plateId, expected, got }  // 打ち間違い・不発
-{ type: 'clear',   plateId, value }          // 皿を取った
-{ type: 'lost',    plateId }                 // 流れて取り逃した
-{ type: 'combo',   combo, bonusMs }          // 時間延長
-{ type: 'over' }
+// events
+{ type: 'hit', itemId, kana, tier }   { type: 'perfect', itemId, bonus }   { type: 'miss', itemId, expected, got, misfire }
+{ type: 'clear', itemId, value }      { type: 'lost', itemId }             { type: 'combo', combo, bonusMs }   { type: 'over' }
 
 // summary()
-{
-  course: 'otegaru',
-  money,                    // 取った金額（円）＝ランキングのスコア
-  balance,                  // money - course.price
-  plates, lost, strokes, misses,
-  accuracy,                 // 0..1
-  kpm,                      // 一分あたりの正しい打鍵（かな）数
-  perfect, shifted,         // ぴったりの数 / シフトを使った打鍵の数
-  maxCombo,
-  durationMs,
-}
+{ course, score, balance /* score - target */, cleared, lost, strokes, misses, misfires, accuracy, kpm,
+  perfect, good, shifted, offsets, bonus, timeBonusMs, maxCombo, durationMs }
 ```
 
-実装で足したもの（2026-11-02 追記。テストは契約の鍵だけを見て、足したものは許す）:
-
-- `export function keyFor(kana)` … 打ち方の案内（「ど」は 左親指 ＋ J）に使う
-- `state` に `missStreak` / `cleared` / `lost` / `misses` / `perfect` / `price`
-- `miss` イベントに `misfire`（不発なら true。画面で「親指が効いていません」と言い分ける）
-- `summary()` に `misfires` / `bonus`（ぴったりの上乗せの合計）/ `timeBonusMs`
-- `clear.value` はぴったりの上乗せを**含む**。上乗せは皿に積むので、取り逃せば一緒に流れる
+- `clear.value` はぴったりの上乗せを**含む**。上乗せは作業品に積むので、検品漏れになれば一緒に流れる
 - 連続シフトで出た一打（`continued`）はズレを測れないので、ぴったりにもシフト打鍵の数にも入れない
-- 自己ベストは `oyayubi-dojo:gamebest:v2` に、入力方式ごと（`{ nicola: {course: …}, romaji: {…} }`）にこの端末だけに残す（`storage.js` の `STORAGE_KEYS` には未登録）。v1 は親指シフトの記録として読む
-- ローマ字入力（2026-11-02）: 入力方式は `oyayubi-dojo:gameinput:v1`（`nicola` / `romaji`）。ローマ字は `romaji.js` で綴りを判定し、かなを打ち切るたびに `input({ kana, charCode: 'Romaji', thumb: null, offsetMs: null })`、合わない字は `kana: null` で渡す。ぴったりは出ない。`main.js` が summary に `input` を足す
+- 自己ベストは `oyayubi-dojo:gamebest:v3` に入力方式×コースごと、この端末だけに残す。回転ずしの v1 / v2（円）は読まない
+- 入力方式は `oyayubi-dojo:gameinput:v1`（`nicola` / `romaji`）。ローマ字は `romaji.js` で綴りを判定し、かなを打ち切るたびに `input({ kana, charCode: 'Romaji', thumb: null, offsetMs: null })`、合わない字は `kana: null` で渡す
+- ラインは canvas を使わず、作業品一つを一要素にして `x` を CSS 変数で渡す（`main.js`）
+- 結果の «X で共有» は `https://x.com/intent/tweet` を開くリンクだけ。投稿するかは本人が決め、こちらからは何も送らない
 
 ### `assets/js/game/config.js`（コア）
 
@@ -348,8 +317,8 @@ export const SUPPORT_URL = '';       // Buy Me a Coffee の URL。空なら支�
 export function rankingEnabled()                       // RANKING_API_URL が空でなければ true
 export function currentPlayer()                        // { playerId, nickname } | null（localStorage）
 export async function register({ nickname, consent })  // consent が true でなければ throw。{ playerId, nickname }
-export async function submitScore(summary)             // 登録済みでなければ throw。{ rank, best, isBest }
-export async function fetchRanking({ course, period, input }) // period: 'all' | 'month'、input: 'all' | 'nicola' | 'romaji'。[{ rank, nickname, input, money, kpm, accuracy, at }]
+export async function submitScore(summary)             // 登録済みでなければ throw。{ rank, best, isBest, overallRank, overallBest }。401 なら手元の登録を捨てて throw
+export async function fetchRanking({ course, board, period })  // board: 'all'（総合）| 'nicola' | 'romaji'、period: 'all' | 'month'。{ entries: [{ rank, nickname, input, score, kpm, accuracy, at }], leaders }
 export async function forgetMe()                       // サーバーの記録を消し、手元の登録も消す
 ```
 
@@ -366,12 +335,12 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | --- | --- | --- |
 | POST | `/players` | `{ nickname, consent: true, consentVersion }` → `{ playerId, nickname, token }`（nickname は正規化後） |
 | POST | `/scores` | `Authorization: Bearer <token>`。summary を受けて自己ベストなら更新 |
-| GET | `/ranking?course=&period=&input=` | 上位 50 件。input は all（両方を混ぜる）/ nicola / romaji |
+| GET | `/ranking?course=&board=&period=` | ノルマのコースごとに上位 50 件。board は all（総合・速さの順）/ nicola / romaji（部門・点数の順）。どれも一人一行。総合には各部門の 1 位（leaders）を添える |
 | DELETE | `/players/me` | `Authorization: Bearer <token>`。本人の全記録を消す |
 
 - token はサーバーにハッシュでだけ残す
-- スコアは**ありえない値を弾く**（コースの時間と打鍵速度の上限から決まる上限金額を超えたら 400。ローマ字はぴったりの上乗せを 0 として計算）
-- スコアの `input`（`nicola` / `romaji`）は必須。無ければ 400。自己ベストはプレイヤー×コース×入力方式で別
+- スコアは**ありえない値を弾く**（コースの時間・延長の上限・打鍵速度の上限から決まる上限の点を超えたら 400。ローマ字はぴったりの上乗せを 0 として計算）
+- スコアの `course` と `input`（`nicola` / `romaji`）は必須。無ければ 400。自己ベストはコースごとに、部門（点数）と総合（速さ）で一人一つずつ
 - 環境変数: `TABLE_NAME` / `ALLOWED_ORIGIN` / `TOKEN_PEPPER`。今はダミー値。本番値は石田さんが入れる
 - 判断ロジック（検証・ハッシュ・順位）は `server/src/core.mjs` に置き、DynamoDB を差し替えられる形にする。テストは手元の偽ストアで回す
 
@@ -410,7 +379,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 名前だけに頼らず、この一行を画面にも出している。
 
-**「腕試し」は回転ずし（`game.html`）の入口の名前として戻した（2026-11-02）。**
+**「腕試し」はゲーム（`game.html`、2026-11-02 に回転ずしから題材を替えて «検品ライン»）の入口の名前として戻した（2026-11-02）。**
 旧「腕試し」（固定の一本を打つ測定モード）は廃止のまま。測定は打てば自動で付いてくる。
 入口を分けるのは、来る人の**目的**がまるで違うから。覚える＝まだ打てない人、鍛える＝打てるが速く正確にしたい人、
 腕試し＝腕前を試して遊びたい人。玄関はこの三つを同じ重さで並べるだけの画面にし、
@@ -422,10 +391,10 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 | 場所 | 看板 | 色 | ルート | ナビ |
 | --- | --- | --- | --- | --- |
-| 門 | 親指シフト | 配色のまま | `#/` | 覚える / 鍛える / 腕試し ｜ 配列表 / 設定 |
-| 入門 | 親指シフト入門 | 山吹 `#f0c35a` | `#/learn`、七つの課の `#/play/:id` | 七つの課 / 配列表 / 設定 |
-| 道場 | 親指シフト道場 | 朱 `#ff8a70` | `#/train` `#/record`、その場で組んだ `#/play/:id` | 稽古 / 記録 / 配列表 / 設定 |
-| 店 | 回転ずし | 浅葱 `#5fd0d0` | `game.html` | コースを選ぶ / ランキング |
+| 門 | 親指シフトマスター | 配色のまま | `#/` | 覚える / 鍛える / 腕試し ｜ 配列表 / 設定 |
+| 覚える | 親指シフト入門 | 山吹 `#f0c35a` | `#/learn`、七つの課の `#/play/:id` | 七つの課 / 配列表 / 設定 |
+| 鍛える | 親指シフト トレーニング | 朱 `#ff8a70` | `#/train` `#/record`、その場で組んだ `#/play/:id` | 稽古 / 記録 / 配列表 / 設定 |
+| 腕試し | 検品ライン | 浅葱 `#5fd0d0` | `game.html` | ノルマを選ぶ / ランキング |
 
 - 切り替えは `body[data-area]`（`gate` / `learn` / `train` / `game`）。`app.js` の `setArea()` がハッシュごとに付け替え、CSS が看板とナビを出し分ける。`game.html` は固定で `game`
 - 配列表と設定は場所を持たない道具。開いても直前の場所の顔のまま

@@ -59,7 +59,7 @@
     <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
   </nav>
   <nav class="nav__links" data-for="learn" aria-label="親指シフト入門">
-    <a href="#/learn" data-nav="/learn" data-icon="lessons">七つの課</a>
+    <a href="#/learn" data-nav="/learn" data-icon="lessons">レッスン</a>
     <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
   </nav>
@@ -298,7 +298,7 @@
       <li><a class="door" data-area="learn" href="#/learn">
         <span class="door__no">01</span>
         <span class="door__main"><b class="door__name">覚える</b><span class="door__site">親指シフト入門</span></span>
-        <span class="door__note">七つの課・46題。単独打鍵から交差シフトまで</span>
+        <span class="door__note">18 レッスン。キーを 5 つずつ、見て・打って・混ぜて覚える</span>
         <em class="door__state" id="doorLearnState"></em>
         <span class="door__go" data-icon="forward"></span>
       </a></li>
@@ -334,14 +334,21 @@
      ここへ来るのは «全体のどこに居るか» を見たいときだけでよい。 -->
 <section class="screen screen--learn" id="screenLearn" hidden>
   <div class="page">
-    <header class="area-head">
-      <p class="area-head__site">親指シフト入門</p>
-      <h1 class="page__title">覚える</h1>
-      <p class="page__lead">前の課を打つと次の課が開きます。</p>
-      <p class="area-head__acts">
-        <button type="button" class="btn btn--primary" id="btnStart" data-icon="play">つづきから</button>
-        <em class="area-head__state" id="startSub"></em>
-      </p>
+    <!-- 見出しの右に、いくつ終えたかと修了の特典。«何をすれば何がもらえるか» を最初に見せる -->
+    <header class="learn-head">
+      <div>
+        <p class="area-head__site">親指シフト入門</p>
+        <h1 class="page__title">レッスン</h1>
+      </div>
+      <div class="learn-prog">
+        <p class="learn-prog__num"><b id="learnDone">0</b><small id="learnTotal">/ 18 レッスン</small></p>
+        <div class="learn-prog__bar"><i id="learnFill"></i></div>
+        <p class="learn-prog__note">全部終えると、配列表（印刷用の画像）をダウンロードできます</p>
+        <p class="area-head__acts">
+          <button type="button" class="btn btn--primary" id="btnStart" data-icon="play">つづきから</button>
+          <em class="area-head__state" id="startSub"></em>
+        </p>
+      </div>
     </header>
 
     <aside class="kbnote">
@@ -352,21 +359,26 @@
       </p>
     </aside>
 
-    <!-- コース札は app.js が流し込む。ここは空の受け皿。
-         札は「閉じている理由」と「いまどこまで進んだか」を必ず持たせること。
-         閉じているのに理由も出口も見えない札は、ただの行き止まりになる。
+    <!-- 修了の特典。全レッスンを終えたときだけ出す（app.js が hidden を外す） -->
+    <section class="reward" id="learnReward" hidden>
+      <p class="reward__label">修了の特典</p>
+      <b class="reward__name">NICOLA 配列表（3 面・印刷用）</b>
+      <p class="reward__note">A4 横の 1 枚（単独打鍵・左親指・右親指）と、モニターの縁に貼る細長い版。</p>
+      <p class="reward__acts">
+        <button type="button" class="btn btn--primary" id="btnRewardA4" data-icon="download">A4 横（PNG）</button>
+        <button type="button" class="btn" id="btnRewardStrip" data-icon="download">細長い版（PNG）</button>
+      </p>
+    </section>
 
-         札一枚の構造（CSS はこの形に付けてある）:
-           七つは順番のある一覧なので、札を並べず <ol> の行にする。一行の形:
-           <li><a class="course [is-locked|is-done]" href="#/play/…">
-             <span class="course__mark">（済み＝check、閉じている＝lock のアイコン）</span>
-             <b class="course__name">第二課 · 濁音</b>
-             <span class="course__note">…一行の説明…</span>
-             <span class="course__lock">単独打鍵の面で20キー打つ</span>   閉じている行だけ。UNLOCKS の hint
-             <span class="course__progBar"><i></i></span>   --p（0〜1）は app.js が style.setProperty で入れる
-             <span class="course__progText">2 / 5</span>
-           </a></li> -->
-    <ol class="courses" id="courseList"></ol>
+    <!-- レッスンの一覧。app.js が curriculum.js の UNITS から作る。
+         一つのレッスンは 4 段階（見る・それだけ・混ぜる・語）。行を押すと、まだ終えていない段階から始まる。
+         前のレッスンを終えるまで次は押せない（覚える順番に意味があるので）。
+           <section class="unit"><h2 class="unit__head"><span>単元 1</span>単独打鍵</h2><p class="unit__note">…</p>
+             <ol class="lsteps"><li><a class="lstep [is-done|is-now|is-locked]">
+               <span class="lstep__no">1</span>
+               <span class="lstep__main"><b>左手のホーム</b><small>新しいかな：う し て け せ</small></span>
+               <span class="lstep__state">済み / 2/4 段階 / つづきから</span></a></li></ol></section> -->
+    <div class="units" id="learnUnits"></div>
 
   </div>
 </section>

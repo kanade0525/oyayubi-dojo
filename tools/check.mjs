@@ -1010,7 +1010,7 @@ async function browserChecks(chromeBin) {
     // 一覧が壊れていても «玄関は出ている» で緑になる
     const DRAWN = [
       ['#/', '#doorLearnState:not(:empty)', '門の三つの扉'],
-      ['#/learn', '#courseList > *', '課題の一覧'],
+      ['#/learn', '#learnUnits .lstep', 'レッスンの一覧'],
       ['#/train', '#drillTextList .material', '実文の一覧'],
       ['#/layout', '.board > *', '配列表'],
       ['#/play/basic-1', '.meter > *', 'タイミングメーター'],

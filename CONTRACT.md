@@ -19,7 +19,7 @@
 
 | 担当 | ファイル |
 | --- | --- |
-| コア（石田＋Claude本体） | `keycheck.html` / `assets/css/keycheck.css` / `assets/js/nicola.js` / `assets/js/romaji.js` / `assets/js/icons.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
+| コア（石田＋Claude本体） | `keycheck.html` / `assets/js/curriculum.js` / `assets/js/layout-sheet.js` / `assets/css/keycheck.css` / `assets/js/nicola.js` / `assets/js/romaji.js` / `assets/js/icons.js` / `assets/js/layout.js` / `assets/js/app.js` / `assets/data/nicola.js` / 設定ファイル類 |
 | 課題データ | `assets/js/lessons.js` |
 | 適応出題 | `assets/js/drill.js` |
 | 音 | `assets/js/sound.js` |
@@ -360,7 +360,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | ルート | 画面 | 中身 |
 | --- | --- | --- |
 | `#/` | 門 | 三つの場所への扉だけ。説明文・数字の欄は置かない |
-| `#/learn` | **覚える** | 課題の一覧。七つの課を順に開く |
+| `#/learn` | **覚える** | レッスンの一覧（curriculum.js）。18 レッスン、各 4 段階（見る・それだけ・混ぜる・語）を順に開く。全部終えると配列表の画像（layout-sheet.js）を保存できる |
 | `#/train` | **鍛える** | 適応出題（弱点集中・総ざらい・速度）・実文18本・自由入力 |
 | `#/record` | 記録 | 段位・ズレ分布・ヒートマップ・カレンダー・実績・データ持ち帰り |
 | `#/play/:id` | プレイ | 打つ画面 |
@@ -395,7 +395,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | 場所 | 看板 | 色 | ルート | ナビ |
 | --- | --- | --- | --- | --- |
 | 門 | 親指シフトマスター | 配色のまま | `#/` | 覚える / 鍛える / 腕試し ｜ 配列表 / 設定 |
-| 覚える | 親指シフト入門 | 山吹 `#f0c35a` | `#/learn`、七つの課の `#/play/:id` | 七つの課 / 配列表 / 設定 |
+| 覚える | 親指シフト入門 | 山吹 `#f0c35a` | `#/learn`、レッスンの段階の `#/play/l-…~段階` | レッスン / 配列表 / 設定 |
 | 鍛える | 親指シフト トレーニング | 朱 `#ff8a70` | `#/train` `#/record`、その場で組んだ `#/play/:id` | 稽古 / 記録 / 配列表 / 設定 |
 | 腕試し | タイピングゲーム | 浅葱 `#5fd0d0` | `game.html` | ノルマを選ぶ / ランキング |
 

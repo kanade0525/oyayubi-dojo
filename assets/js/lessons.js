@@ -71,6 +71,8 @@
 // 残した三本（枕草子・方丈記・竹取物語）は文法が古いだけで、出てくる語は
 // 川・水・山・雲・竹のような日用語なので、意味が取れなくても指は進む。
 
+import { findPhase, nextPhase } from './curriculum.js';
+
 export const COURSES = [
   {
     id: 'basic',
@@ -1294,7 +1296,7 @@ TEXT_COURSE.lessons = TEXTS.map((l) => l.id);
  * texts も引ける。ここで引けないと、プレイ画面も履歴の題名も出ない。
  */
 export function findLesson(id) {
-  return LESSONS.find((l) => l.id === id) || TEXTS.find((l) => l.id === id) || null;
+  return LESSONS.find((l) => l.id === id) || TEXTS.find((l) => l.id === id) || findPhase(id) || null;
 }
 
 /**
@@ -1305,6 +1307,8 @@ export function findLesson(id) {
  * 最後で null（＝玄関に戻る）。教程の最後 speed-6 の次も、これまでどおり null。
  */
 export function nextLesson(id) {
+  // 覚える（curriculum.js）のレッスンは段階ごとの課題。次の段階 → 次のレッスンへ
+  if (findPhase(id)) return nextPhase(id);
   for (const list of [LESSONS, TEXTS]) {
     const i = list.findIndex((l) => l.id === id);
     if (i !== -1) return list[i + 1] || null;

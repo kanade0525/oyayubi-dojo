@@ -7,3 +7,4 @@ node_modules/
 # エディタ・ツールの作業物
 .vscode/
 *.log
+.claude/worktrees/

@@ -4251,3 +4251,110 @@ body[data-area="train"] .btn--primary {
   .nav__links a .icon { display: none; }
 }
 .btn:not([data-icon]) > .icon { margin-right: 0.4em; }
+
+/* ---------------------------------------------------------------- #/learn レッスン（curriculum.js）
+   単元ごとに、番号・題・新しいかな・どこまで来たかの行。札にはしない。
+   済みは番号の枠を埋めて check、いまのレッスンは行ごと場所の色で立て、閉じているものは lock で沈める */
+
+.learn-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px 40px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.learn-head .page__title { font-size: 40px; line-height: 1; }
+
+.learn-prog { width: min(440px, 100%); display: grid; gap: 6px; }
+.learn-prog__num { margin: 0; font-variant-numeric: tabular-nums; }
+.learn-prog__num b { font-size: 32px; }
+.learn-prog__num small { margin-left: 6px; font-size: 13px; color: var(--fg-dim); }
+.learn-prog__bar { height: 3px; background: var(--line-soft); }
+.learn-prog__bar i { display: block; width: 0; height: 100%; background: var(--area); }
+.learn-prog__note { margin: 0; font-size: 12px; color: var(--fg-mid); }
+.learn-prog .area-head__acts { margin-top: 10px; }
+
+.units { display: grid; gap: 32px; margin-top: 28px; }
+.unit__head { display: flex; align-items: baseline; gap: 12px; margin: 0; font-size: 16px; }
+.unit__head span { font-size: 12px; font-weight: 400; letter-spacing: 0.1em; color: var(--area); }
+.unit__note { margin: 4px 0 10px; font-size: 13px; color: var(--fg-mid); }
+
+.lsteps {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 32px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.lsteps li { border-bottom: 1px solid var(--line-soft); }
+
+.lstep {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 6px;
+  color: var(--fg);
+}
+
+.lstep[href]:hover { background: color-mix(in srgb, var(--area) 7%, transparent); }
+
+.lstep__no {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+  border: 1px solid var(--line);
+}
+
+.lstep__no .icon { width: 16px; height: 16px; }
+.lstep__main b { display: block; font-size: 15px; font-weight: 500; }
+.lstep__main small { font-size: 12px; color: var(--fg-dim); letter-spacing: 0.04em; }
+.lstep__state { font-size: 12px; color: var(--fg-dim); }
+
+.lstep.is-done .lstep__no { color: var(--area); border-color: var(--area); background: color-mix(in srgb, var(--area) 16%, transparent); }
+.lstep.is-done .lstep__main b { color: var(--fg-mid); }
+.lstep.is-now { background: color-mix(in srgb, var(--area) 8%, transparent); }
+.lstep.is-now .lstep__no { color: var(--tone-ink); background: var(--area); border-color: var(--area); font-weight: 700; }
+.lstep.is-now .lstep__state { color: var(--area); }
+.lstep.is-locked { cursor: not-allowed; }
+.lstep.is-locked .lstep__main b,
+.lstep.is-locked .lstep__no { color: var(--fg-dim); }
+
+/* 修了の特典。入口の計器と同じ四隅の鉤で囲む */
+.reward {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-top: 28px;
+  padding: 22px 24px;
+}
+
+.reward::before,
+.reward::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--area);
+}
+
+.reward::before { top: 0; left: 0; border-right: 0; border-bottom: 0; }
+.reward::after { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+.reward__label { margin: 0; font-size: 12px; letter-spacing: 0.12em; color: var(--area); }
+.reward__name { font-size: 20px; }
+.reward__note { margin: 0; font-size: 13px; color: var(--fg-mid); }
+.reward__acts { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 0; }
+
+@media (max-width: 760px) {
+  .lsteps { grid-template-columns: minmax(0, 1fr); }
+}

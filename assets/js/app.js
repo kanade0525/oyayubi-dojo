@@ -24,7 +24,9 @@ import {
   RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
   cpmOf, accuracyOf, unlockedOf, UNLOCKS, romajiComparison,
 } from './trophies.js';
-import { COURSES, LESSONS, findLesson, nextLesson, lessonsOf } from './lessons.js';
+import { LESSONS, findLesson, nextLesson, lessonsOf } from './lessons.js';
+import { UNITS, CURRICULUM, PHASES, phaseId, lessonDone, phasesDone } from './curriculum.js';
+import { downloadLayoutPng } from './layout-sheet.js';
 import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './drill.js';
 import { renderIso } from './iso.js';
 import { svg } from './viz.js';
@@ -83,7 +85,9 @@ const el = {
   autoSkip: $('autoSkip'),
   setupMeter: $('setupMeter'), setupBoard: $('setupBoard'),
   // home
-  btnStart: $('btnStart'), startSub: $('startSub'), courseList: $('courseList'),
+  btnStart: $('btnStart'), startSub: $('startSub'), learnUnits: $('learnUnits'),
+  learnDone: $('learnDone'), learnTotal: $('learnTotal'), learnFill: $('learnFill'), learnReward: $('learnReward'),
+  btnRewardA4: $('btnRewardA4'), btnRewardStrip: $('btnRewardStrip'),
   // play
   playLesson: $('playLesson'), playNote: $('playNote'),
   statTime: $('statTime'), statCpm: $('statCpm'), statAcc: $('statAcc'),
@@ -948,11 +952,11 @@ function paintHome() {
   const stats = loadStats();
   paintNav(stats);
   paintGateInst(stats);
-  const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0));
+  const next = CURRICULUM.find((l) => !lessonDone(stats, l.id));
   if (el.doorLearnState) {
     el.doorLearnState.textContent = next
-      ? (stats.runs > 0 ? `つづき：${next.title}` : `第一課から：${next.title}`)
-      : '七つの課をすべて打ち終えています';
+      ? `${next === CURRICULUM[0] ? 'はじめ' : 'つづき'}：レッスン ${CURRICULUM.indexOf(next) + 1} ${next.title}`
+      : '全レッスンを終えています';
   }
   if (el.doorTrainState) {
     el.doorTrainState.textContent = stats.runs > 0
@@ -996,72 +1000,93 @@ function paintGateInst(stats) {
   }
 }
 
-/** 課題の一覧。玄関から切り離して «おぼえる» の中へ移した */
+/** そのレッスンを始められるか。最初のレッスンか、一つ前を終えていれば開く */
+function lessonOpen(stats, lessonId) {
+  const i = CURRICULUM.findIndex((l) => l.id === lessonId);
+  return i === 0 || (i > 0 && lessonDone(stats, CURRICULUM[i - 1].id));
+}
+
+/** そのレッスンで次に打つ段階（全部終えていれば最初の段階＝やり直し） */
+function nextPhaseOf(stats, lessonId) {
+  const p = PHASES.find((ph) => !((stats.cleared?.[phaseId(lessonId, ph.id)] ?? 0) > 0)) ?? PHASES[0];
+  return phaseId(lessonId, p.id);
+}
+
+/**
+ * レッスンの一覧。単元ごとに、番号・題・新しいかな・どこまで来たかの行を並べる。
+ * 一つ前を終えていないレッスンは押せない（覚える順番に意味がある）
+ */
 function paintLearn() {
   const stats = loadStats();
   paintNav(stats);
 
-  // 「つづきから」は、まだクリアしていない最初の課題（門から移した）
-  const next = LESSONS.find(l => !(stats.cleared?.[l.id] > 0)) ?? LESSONS[0];
-  if (next && el.startSub && el.btnStart) {
-    el.startSub.textContent = next.title;
-    el.btnStart.onclick = () => { location.hash = `#/play/${next.id}`; };
+  const doneCount = CURRICULUM.filter((l) => lessonDone(stats, l.id)).length;
+  el.learnDone.textContent = String(doneCount);
+  el.learnTotal.textContent = `/ ${CURRICULUM.length} レッスン`;
+  el.learnFill.style.width = `${(doneCount / CURRICULUM.length) * 100}%`;
+  el.learnReward.hidden = doneCount < CURRICULUM.length;
+
+  const cur = CURRICULUM.find((l) => !lessonDone(stats, l.id));
+  el.btnStart.hidden = !cur;
+  if (cur) {
+    const no = CURRICULUM.indexOf(cur) + 1;
+    el.startSub.textContent = `レッスン ${no} ${cur.title}`;
+    el.btnStart.onclick = () => { location.hash = `#/play/${nextPhaseOf(stats, cur.id)}`; };
+  } else {
+    el.startSub.textContent = '';
   }
-  if (!el.courseList) return;
 
-  // unlockedOf は { course, theme, sound, items } を返す。course だけ見る
-  const open = unlockedOf(stats).course ?? [];
-  const rows = COURSES.map(c => {
-    const list = lessonsOf(c.id);
-    const done = list.filter(l => (stats.cleared?.[l.id] ?? 0) > 0).length;
-    const unlocked = open.includes(c.id) || c.id === 'basic';
-    const first = list.find(l => !(stats.cleared?.[l.id] > 0)) ?? list[0];
-    const complete = list.length > 0 && done === list.length;
-
-    const a = document.createElement('a');
-    a.className = 'course' + (unlocked ? '' : ' is-locked') + (complete ? ' is-done' : '');
-    a.href = unlocked && first ? `#/play/${first.id}` : '#/learn';
-    if (!unlocked) a.setAttribute('aria-disabled', 'true');
-
-    // 済み・閉じているは形で言う。色だけにしない
-    const mark = document.createElement('span');
-    mark.className = 'course__mark';
-    if (complete) mark.append(icon('check'));
-    else if (!unlocked) mark.append(icon('lock'));
-
-    const h = document.createElement('b');
-    h.className = 'course__name';
-    h.textContent = c.name;
-
-    const p = document.createElement('span');
-    p.className = 'course__note';
-    p.textContent = c.note ?? '';
-
-    const bar = document.createElement('span');
-    bar.className = 'course__progBar';
-    bar.append(document.createElement('i'));
-    bar.style.setProperty('--p', String(list.length ? done / list.length : 0));
-
-    const count = document.createElement('span');
-    count.className = 'course__progText';
-    count.textContent = `${done} / ${list.length}`;
-
-    a.append(mark, h, p);
-    // 閉じている理由と、開ける条件。見えないと何をすればいいか分からない
-    if (!unlocked) {
-      const lock = document.createElement('span');
-      lock.className = 'course__lock';
-      const u = UNLOCKS.find(x => x.kind === 'course' && x.target === c.id);
-      lock.textContent = u?.hint ?? 'まだ開いていません';
-      a.append(lock);
-    }
-    a.append(bar, count);
-    const li = document.createElement('li');
-    li.append(a);
-    return li;
-  });
-  el.courseList.replaceChildren(...rows);
+  let no = 0;
+  el.learnUnits.replaceChildren(...UNITS.map((u, ui) => {
+    const sec = document.createElement('section');
+    sec.className = 'unit';
+    const h = document.createElement('h2');
+    h.className = 'unit__head';
+    const tag = document.createElement('span');
+    tag.textContent = `単元 ${ui + 1}`;
+    h.append(tag, u.name);
+    const note = document.createElement('p');
+    note.className = 'unit__note';
+    note.textContent = u.note;
+    const ol = document.createElement('ol');
+    ol.className = 'lsteps';
+    ol.replaceChildren(...u.lessons.map((l) => {
+      no++;
+      const done = lessonDone(stats, l.id);
+      const open = lessonOpen(stats, l.id);
+      const now = !done && open;
+      const a = document.createElement('a');
+      a.className = `lstep${done ? ' is-done' : now ? ' is-now' : !open ? ' is-locked' : ''}`;
+      if (open) a.href = `#/play/${nextPhaseOf(stats, l.id)}`;
+      else a.setAttribute('aria-disabled', 'true');
+      const num = document.createElement('span');
+      num.className = 'lstep__no';
+      if (done) num.append(icon('check'));
+      else if (!open) num.append(icon('lock'));
+      else num.textContent = String(no);
+      const main = document.createElement('span');
+      main.className = 'lstep__main';
+      const t = document.createElement('b');
+      t.textContent = l.title;
+      const k = document.createElement('small');
+      k.textContent = `新しいかな：${l.newKeys.map((x) => x.kana).join(' ')}`;
+      main.append(t, k);
+      const st = document.createElement('span');
+      st.className = 'lstep__state';
+      const n = phasesDone(stats, l.id);
+      st.textContent = done ? '済み' : now ? (n ? `${n} / ${PHASES.length} 段階` : 'つぎ') : '';
+      a.append(num, main, st);
+      const li = document.createElement('li');
+      li.append(a);
+      return li;
+    }));
+    sec.append(h, note, ol);
+    return sec;
+  }));
 }
+
+el.btnRewardA4?.addEventListener('click', () => downloadLayoutPng(layout, 'a4'));
+el.btnRewardStrip?.addEventListener('click', () => downloadLayoutPng(layout, 'strip'));
 
 /**
  * そのコースが開いているか。判定の出どころをここ一本にする。
@@ -1071,7 +1096,8 @@ function isCourseOpen(courseId) {
   // texts は «鍛える» の題材置き場。教程ではないので解禁の対象外。
   // 以前は題材を教程のコースから引いていたため、新規の人には一覧に18本出るのに
   // 押すと全部ホームに弾かれていた。出ているのに押せないのは、いちばん質の悪い壊れ方
-  if (!courseId || courseId === 'basic' || courseId === 'free' || courseId === 'texts') return true;
+  // learn は覚える（curriculum.js）のレッスン。順番は一覧と打つ前の確かめ（route）で守る
+  if (!courseId || courseId === 'basic' || courseId === 'free' || courseId === 'texts' || courseId === 'learn') return true;
   return (unlockedOf(loadStats()).course ?? []).includes(courseId);
 }
 
@@ -1663,7 +1689,7 @@ function updateFreeText() {
 /**
  * 場所（入門・道場・門）。看板・帯の色・ナビの中身は CSS が body[data-area] で切り替える。
  * 配列表と設定は場所を持たない道具なので、開いても直前の場所のまま（入門から開いた配列表は入門の顔）。
- * 課題の画面は、七つの課の題なら入門、その場で組んだ出題（鍛える・自由入力）なら道場
+ * 課題の画面は、覚えるのレッスン（と以前の七つの課）なら入門、その場で組んだ出題（鍛える・自由入力）なら道場
  */
 const AREA_OF = { home: 'gate', learn: 'learn', train: 'train', record: 'train' };
 const AREA_TITLE = { gate: '親指シフトマスター ～0から覚えてトレーニングまで～', learn: '親指シフト入門｜親指シフトマスター', train: '親指シフト トレーニング｜親指シフトマスター' };
@@ -1725,6 +1751,11 @@ function route() {
         location.replace('#/');
         return;
       }
+    }
+    if (lesson.courseId === 'learn' && !lessonOpen(loadStats(), lesson.lessonId)) {
+      toast('このレッスンは、一つ前のレッスンを終えると開きます');
+      location.replace('#/learn');
+      return;
     }
     if (el.playBadge) {
       el.playBadge.hidden = !mode;

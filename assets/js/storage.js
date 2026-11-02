@@ -735,7 +735,7 @@ export function validateImport(text) {
     return { ok: false, reason: 'JSON として読めませんでした' };
   }
   if (!data || data.app !== APP) {
-    return { ok: false, reason: '親指シフトタイピング道場の書き出しファイルではありません' };
+    return { ok: false, reason: '親指シフトマスターの書き出しファイルではありません' };
   }
   if (!data.stats || typeof data.stats !== 'object') {
     return { ok: false, reason: '中身が足りません（stats が要ります）' };

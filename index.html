@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>親指シフトタイピング道場</title>
+<title>親指シフトマスター ～0から覚えてトレーニングまで～</title>
 <meta name="description" content="親指シフト（NICOLA配列）の練習サイト。文字キーと親指キーを押した時刻の差を1打ごとに測り、親指が早いか遅いかを出します。">
 <meta name="color-scheme" content="dark">
 <!-- 外部への発信は一切しない。フォントは OS の和文書体を名前で当てるだけ（app.css の冒頭）、
@@ -45,9 +45,9 @@
        ナビにはその場所で使うものだけを出し、ほかの場所へは右の «ほかの入口» から控えめに移る。
        配列表と設定は場所を持たない共通の道具なので、どの場所からも開ける（開いても場所は変えない） -->
   <a class="nav__brand" href="#/">
-    <span class="nav__site" data-site="gate">親指シフト</span>
+    <span class="nav__site" data-site="gate">親指シフトマスター</span>
     <span class="nav__site" data-site="learn">親指シフト入門</span>
-    <span class="nav__site" data-site="train">親指シフト道場</span>
+    <span class="nav__site" data-site="train">親指シフト トレーニング</span>
   </a>
 
   <nav class="nav__links" data-for="gate" aria-label="入口">
@@ -63,7 +63,7 @@
     <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
   </nav>
-  <nav class="nav__links" data-for="train" aria-label="親指シフト道場">
+  <nav class="nav__links" data-for="train" aria-label="親指シフト トレーニング">
     <a href="#/train" data-nav="/train" data-icon="train">稽古</a>
     <a href="#/record" data-nav="/record" data-icon="record">記録</a>
     <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
@@ -270,7 +270,8 @@
        もう打てる人がその場で離れる（2026-11-02 の指摘）。
        扉はそれぞれの場所の色と名前で描き、どれか一つだけを目立たせない（主ボタンを置かない） -->
   <div class="page gate">
-    <h1 class="gate__title">親指シフト</h1>
+    <h1 class="gate__title">親指シフトマスター</h1>
+    <p class="gate__sub">0から覚えてトレーニングまで</p>
 
     <div class="doors" id="gateDoors">
       <a class="door" data-area="learn" href="#/learn">
@@ -283,7 +284,7 @@
       <a class="door" data-area="train" href="#/train">
         <span class="door__icon" data-icon="train"></span>
         <b class="door__name">鍛える</b>
-        <span class="door__site">親指シフト道場</span>
+        <span class="door__site">親指シフト トレーニング</span>
         <span class="door__note">1 打ごとに親指のズレと取りこぼしを測り、弱いところから出題。</span>
         <em class="door__state" id="doorTrainState"></em>
       </a>
@@ -535,7 +536,7 @@
 <section class="screen screen--train" id="screenTrain" hidden>
   <div class="page">
     <header class="area-head">
-      <p class="area-head__site">親指シフト道場</p>
+      <p class="area-head__site">親指シフト トレーニング</p>
       <h1 class="page__title">鍛える</h1>
       <!-- 読むのは «もう打てる人»。配列や同時打鍵の説明はしない -->
       <p class="page__lead">落としている面と親指のズレを測って、そこから出題します。弱点は<a class="link" href="#/record">記録</a>に出ます。</p>
@@ -613,7 +614,7 @@
      内側の id は元のまま。画面の名前は変えたが中身は変えていない。 -->
 <section class="screen screen--record" id="screenRecord" hidden>
   <div class="page page--narrowish">
-    <p class="area-head__site">親指シフト道場</p>
+    <p class="area-head__site">親指シフト トレーニング</p>
     <h1 class="page__title">記録</h1>
 
     <div class="card card--rank">

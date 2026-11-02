@@ -2,7 +2,7 @@
   "name": "oyayubi-dojo",
   "version": "0.1.0",
   "private": true,
-  "description": "親指シフト（NICOLA配列）のタイピング練習道場",
+  "description": "親指シフトマスター。親指シフト（NICOLA配列）を0から覚えてトレーニングまで",
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",

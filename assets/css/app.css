@@ -995,10 +995,16 @@ body[data-area="train"] .btn--primary {
 /* ---------------------------------------------------------------- #/ 門 */
 
 .gate__title {
-  margin: 8px 0 22px;
-  font-size: 15px;
+  margin: 8px 0 4px;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+
+.gate__sub {
+  margin: 0 0 24px;
+  font-size: 14px;
   color: var(--fg-mid);
 }
 

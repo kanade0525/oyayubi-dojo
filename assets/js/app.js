@@ -1583,7 +1583,7 @@ function updateFreeText() {
  * 課題の画面は、七つの課の題なら入門、その場で組んだ出題（鍛える・自由入力）なら道場
  */
 const AREA_OF = { home: 'gate', learn: 'learn', train: 'train', record: 'train' };
-const AREA_TITLE = { gate: '親指シフト', learn: '親指シフト入門', train: '親指シフト道場' };
+const AREA_TITLE = { gate: '親指シフトマスター ～0から覚えてトレーニングまで～', learn: '親指シフト入門｜親指シフトマスター', train: '親指シフト トレーニング｜親指シフトマスター' };
 let area = 'gate';
 
 function setArea(name, arg) {

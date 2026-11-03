@@ -35,8 +35,8 @@ const LAYOUT = loadLayout();
 
 // ---------------------------------------------------------------- 面の一覧
 //
-// 覚えるのレッスン順（curriculum.js の CURRICULUM。単独 → 同側 → 交差、その中は
-// レッスンで覚える順）を面ごとに持たせる。これは「弱さが同点のときにどちらを先に
+// 覚えるのレッスン順（curriculum.js の CURRICULUM。段ごとに 単独 → 同側、ホームと上段を終えてから
+// その濁音、最後に下段）を面ごとに持たせる。これは「弱さが同点のときにどちらを先に
 // 出すか」を決めるためのもので、未踏破の面が大量にある初心者（統計が空）のときに効く。
 // 同点をキーの ID 順で切ると、いきなり交差シフトから出題される。
 
@@ -45,9 +45,6 @@ const LESSON_ORDER = new Map();
 for (const l of CURRICULUM) {
   for (const k of l.newKeys) LESSON_ORDER.set(`${k.code}:${k.thumb ?? 'none'}`, LESSON_ORDER.size);
 }
-
-/** 面の種類の学習順。単独 → 同側 → 交差。覚えるの単元の順と同じ */
-const KIND_RANK = { none: 0, same: 1, cross: 2 };
 
 /** 区切りに使える字。語の中には入れない */
 const PUNCT = new Set(['。', '、', '．', '・']);
@@ -69,7 +66,8 @@ function buildFaces() {
         hand: key.hand,
         shiftKind, // null | 'same' | 'cross'
         // レッスンに出ない面（«ぁ» のように別の親指で先に覚えたかな）は、同じ種類の面の後ろに回す
-        teachOrder: KIND_RANK[shiftKind || 'none'] * 1000 + (LESSON_ORDER.get(`${charCode}:${thumb}`) ?? 500 + keyRank),
+        // レッスンに出てこない面（左右どちらの親指でも出る小書きの、もう片方）は最後に
+        teachOrder: LESSON_ORDER.get(`${charCode}:${thumb}`) ?? 500 + keyRank,
       });
     }
   });

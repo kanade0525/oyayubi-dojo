@@ -13,19 +13,19 @@
 import { createNicola } from './nicola.js';
 import { loadLayout, lookup, handOf, thumbSideOf } from './layout.js';
 import { renderMeter, showJudgement, resetMeter, tierOf } from './meter.js';
-import { renderKeyboard, highlight, setThumbLamp } from './keyboard.js';
+import { renderKeyboard, highlight, setThumbLamp, setFaceStates } from './keyboard.js';
 import {
   loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS, resolveTone,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
 } from './storage.js';
-import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun } from './storage.js';
+import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun, recordLessonRun } from './storage.js';
 import { createRomaji, romajiKeyOf } from './romaji.js';
 import {
   RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
   cpmOf, accuracyOf, unlockedOf, romajiComparison,
 } from './trophies.js';
 import { TEXTS, findLesson, nextLesson } from './lessons.js';
-import { UNITS, CURRICULUM, PHASES, phaseId, lessonDone, phasesDone } from './curriculum.js';
+import { UNITS, CURRICULUM, PHASES, PASS_MAX_MISSES, phaseId, lessonDone, phasesDone, findPhase, nextPhase, reviewPhase, legendOf, fingerOf } from './curriculum.js';
 import { downloadLayoutPng } from './layout-sheet.js';
 import { makeDrill, weakFaces, describeFace, DRILL_MODES, missRateOf } from './drill.js';
 import { renderIso } from './iso.js';
@@ -98,6 +98,14 @@ const el = {
   cueKey: $('cueKey'), cueKind: $('cueKind'), cueHow: $('cueHow'),
   meter: $('meter'), board: $('board'), toast: $('toast'),
   btnBack: $('btnBack'), btnRetry: $('btnRetry'),
+  // 覚えるのレッスン
+  learnPhases: $('learnPhases'), learnMiss: $('learnMiss'), learnErr: $('learnErr'),
+  learnIntro: $('learnIntro'), introEyebrow: $('introEyebrow'), introKana: $('introKana'),
+  introHow: $('introHow'), introRules: $('introRules'), introTry: $('introTry'),
+  learnFinish: $('learnFinish'), learnCard: $('learnCard'), lcardEyebrow: $('lcardEyebrow'),
+  lcardTitle: $('lcardTitle'), lcardMiss: $('lcardMiss'), lcardOf: $('lcardOf'), lcardLine: $('lcardLine'),
+  lcardWeakLabel: $('lcardWeakLabel'), lcardWeak: $('lcardWeak'), lcardNote: $('lcardNote'),
+  btnLearnNext: $('btnLearnNext'), btnLearnNextText: $('btnLearnNextText'), btnLearnAgain: $('btnLearnAgain'), btnLearnList: $('btnLearnList'),
   finish: $('finish'), finishEyebrow: $('finishEyebrow'), finishTitle: $('finishTitle'),
   finishCpm: $('finishCpm'), finishBest: $('finishBest'), finishOffset: $('finishOffset'),
   finishOffsetWord: $('finishOffsetWord'), finishPerfect: $('finishPerfect'),
@@ -302,14 +310,11 @@ function lineIndexOf(starts, index) {
 }
 
 // キーの刻印。`Semicolon` と出しても、手元のどのキーか分からない。
-// 打ち手が見るのは自分のキーボードなので、刻印そのものを見せる
-const KEY_LEGEND = { Semicolon: ';', Comma: ',', Period: '.', Slash: '/' };
+// 打ち手が見るのは自分のキーボードなので、刻印そのものを見せる（表は curriculum.js の legendOf 一つ）
 
 /** 自由入力の上限（字）。課題の上限80字より緩く、一息で打ち切れる長さ */
 const FREE_TEXT_MAX = 400;
-function keyLegend(code) {
-  return KEY_LEGEND[code] ?? code.replace(/^Key/, '');
-}
+const keyLegend = legendOf;
 
 /** かな1文字を打つのに必要な打ち方を引く。無ければ null（課題データの不備） */
 function howToType(kana) {
@@ -321,16 +326,148 @@ function howToType(kana) {
   return null;
 }
 
+/** レッスンの行の頭。語・組を途中で割らず、20 字を越えたら次の行へ */
+function groupStarts(groups) {
+  const starts = [0];
+  let at = 0;
+  let len = 0;
+  for (const g of groups) {
+    if (len > 0 && len + g > 20) { starts.push(at); len = 0; }
+    at += g;
+    len += g;
+  }
+  return starts;
+}
+
+/** 語・組の最後の字の位置 */
+function groupEnds(groups) {
+  const ends = new Set();
+  let at = 0;
+  for (const g of groups) { at += g; ends.add(at - 1); }
+  return ends;
+}
+
+/**
+ * レッスンの枠：段階の並び・画面の切り替え（導入か、確認か、親指を使うか）・配列図の描き分け。
+ * レッスンでないときは全部外す
+ */
+function paintLearnFrame(lesson) {
+  const learn = lesson.courseId === 'learn';
+  const scr = el.screenPlay;
+  scr?.classList.toggle('is-learn', learn);
+  scr?.classList.toggle('is-intro', learn && lesson.phase === 'intro');
+  // 確認の段は、配列図と打ち方の案内を外して打つ（美佳のタイプトレーナの «ガイドなし»）
+  scr?.classList.toggle('is-check', learn && lesson.phase === 'check');
+  // 親指を使わないレッスンでは、ズレの帯は何も言うことが無い（動かない帯は故障に見える）
+  scr?.classList.toggle('is-nothumb', learn && lesson.newKeys.every((k) => !k.thumb));
+  if (el.learnErr) el.learnErr.hidden = true;
+  if (el.learnIntro) el.learnIntro.hidden = !(learn && lesson.phase === 'intro');
+  if (el.learnPhases) {
+    el.learnPhases.hidden = !learn;
+    if (learn) {
+      const at = lesson.phase === 'review' ? PHASES.length - 1 : lesson.phaseIndex;
+      el.learnPhases.replaceChildren(...PHASES.map((p, i) => {
+        const li = document.createElement('li');
+        li.className = i < at ? 'is-done' : i === at ? 'is-now' : '';
+        const b = document.createElement('b');
+        b.textContent = String(i + 1);
+        li.append(b, lesson.phase === 'review' && i === at ? 'おさらい' : p.name);
+        return li;
+      }));
+    }
+  }
+  setFaceStates(el.board, learn ? { known: lesson.faces.known, fresh: lesson.faces.fresh } : null);
+}
+
+/** 導入のカード。いま打つ字の説明と、3 回続けて打てたかの点 */
+function paintIntro() {
+  const kana = run.chars[run.index];
+  const i = Math.floor(run.index / 3);
+  const k = run.lesson.newKeys[i];
+  if (!k) return;
+  el.introEyebrow.textContent = `新しいかな ${i + 1} / ${run.lesson.newKeys.length}`;
+  el.introKana.textContent = kana;
+  const key = document.createElement('kbd');
+  key.className = 'cue__key';
+  key.textContent = k.legend;
+  const finger = document.createElement('span');
+  finger.textContent = k.finger;
+  const parts = [key, finger];
+  if (k.thumb) {
+    const plus = document.createElement('span');
+    plus.className = 'lintro__plus';
+    plus.textContent = '＋';
+    const th = document.createElement('b');
+    th.className = 'lintro__thumb';
+    th.textContent = k.thumb === 'left' ? '左親指' : '右親指';
+    parts.push(plus, th);
+  } else {
+    const no = document.createElement('span');
+    no.className = 'lintro__nothumb';
+    no.textContent = '親指は使わない';
+    parts.push(no);
+  }
+  el.introHow.replaceChildren(...parts);
+  el.introRules.replaceChildren(...k.note.map((t) => {
+    const p = document.createElement('p');
+    p.textContent = t;
+    return p;
+  }));
+  const got = run.index % 3;
+  const dots = document.createElement('span');
+  dots.className = 'lintro__dots';
+  for (let d = 0; d < 3; d++) {
+    const dot = document.createElement('i');
+    if (d < got) dot.className = 'on';
+    dots.append(dot);
+  }
+  el.introTry.replaceChildren(`「${kana}」を 3 回続けて打つ`, dots);
+}
+
+/** 打ち間違えたときの一行：押したキー（とそのかな）と、正しい打ち方 */
+function paintLearnError(result, want, how) {
+  if (!el.learnErr) return;
+  const got = document.createElement('span');
+  got.className = 'lerr__got';
+  const gk = document.createElement('kbd');
+  gk.className = 'cue__key';
+  gk.textContent = `${result.thumb ? (result.thumb === 'left' ? '左親指＋' : '右親指＋') : ''}${keyLegend(result.charCode)}`;
+  got.append('押したのは ', gk, result.kana ? `（${result.kana}）` : '');
+  const sep = document.createElement('span');
+  sep.className = 'lerr__sep';
+  sep.textContent = '→';
+  const right = document.createElement('span');
+  const b = document.createElement('b');
+  b.textContent = want;
+  const rk = document.createElement('kbd');
+  rk.className = 'cue__key';
+  rk.textContent = how ? keyLegend(how.code) : '?';
+  const finger = how ? fingerOf(how.code) : '';
+  const thumb = how?.thumb ? ` ＋ ${how.thumb === 'left' ? '左親指' : '右親指'}` : '';
+  // 親指だけの取り違え（キーは合っている）は、そこを名指しする
+  const sameKey = how && result.charCode === how.code;
+  right.append(b, ' は ', rk, `${thumb}${finger ? `　${finger}` : ''}${sameKey ? '（キーは合っています。親指を確かめて）' : ''}`);
+  el.learnErr.replaceChildren(got, sep, right);
+  el.learnErr.hidden = false;
+}
+
 function startRun(lesson) {
   const chars = [...lesson.text];
   const input = mode === 'drill' || mode === 'free' ? playInput : 'nicola';
+  const learn = lesson.courseId === 'learn';
   run = {
     lesson,
     input,
     chars,
+    learn,
     // 行の切り方は表示のためだけのもの。進捗（index）は本文全体の通し番号なので、
-    // 切り方を変えても中断と再開は壊れない
-    starts: lineStarts(chars),
+    // 切り方を変えても中断と再開は壊れない。レッスンは語・組の切れ目でだけ切る
+    starts: learn ? groupStarts(lesson.groups) : lineStarts(chars),
+    // レッスンの語・組の終わり（画面で間を空ける字の位置）
+    gapAt: learn ? groupEnds(lesson.groups) : new Set(),
+    // レッスンで間違えた字の位置と、かなごとの回数。合否は «間違えた字の数» で見る（打ち直しの回数ではない）
+    missedAt: new Set(),
+    missedKana: {},
     index: 0,
     startedAt: null,
     kana: 0,
@@ -346,7 +483,8 @@ function startRun(lesson) {
 
   // 途中で閉じた続きがあれば拾う。時間も引き継がないと CPM が嘘になる。
   // ローマ字の一本は続きを残さない（親指シフトの続きと混ざるので）
-  const saved = input === 'romaji' ? null : loadResume(lesson);
+  // レッスンの段階は短く、続きから始めると導入の «3 回続けて» が途中から数えられてしまう
+  const saved = input === 'romaji' || learn ? null : loadResume(lesson);
   if (saved) {
     Object.assign(run, {
       index: saved.index, kana: saved.kana, keystrokes: saved.keystrokes,
@@ -358,7 +496,8 @@ function startRun(lesson) {
     toast(`${saved.index}字目から続けます`);
   }
 
-  el.playLesson.textContent = lesson.title;
+  el.playLesson.textContent = learn ? `レッスン ${lesson.lessonNo}　${lesson.lessonTitle}` : lesson.title;
+  paintLearnFrame(lesson);
   // 課題の狙い。特に「ここは親指を休ませて場所だけ覚える回。メーターが黙るのはそのため」
   // のような断りが読めないと、メーターが動かないのが故障に見える
   if (el.playNote) {
@@ -366,6 +505,7 @@ function startRun(lesson) {
     el.playNote.title = lesson.note ?? '';   // 一行に切り詰めるので、全文はここで読める
   }
   el.finish.hidden = true;
+  if (el.learnFinish) el.learnFinish.hidden = true;
   el.finishEarned.hidden = true;   // 前回の札が残らないように
   el.screenPlay?.classList.toggle('is-romaji', input === 'romaji');
   romaji = input === 'romaji' ? createRomaji() : null;
@@ -395,7 +535,9 @@ function paintPhrase() {
   for (let i = from; i < to; i++) {
     const span = document.createElement('span');
     span.className = 'phrase__c'
-      + (i < run.index ? ' is-done' : i === run.index ? ' is-cur' : '');
+      + (i < run.index ? ' is-done' : i === run.index ? ' is-cur' : '')
+      + (run.gapAt.has(i) ? ' phrase__c--gap' : '')
+      + (run.missedAt.has(i) ? ' is-missed' : '');
     span.textContent = run.chars[i];
     cs.push(span);
   }
@@ -406,7 +548,9 @@ function paintPhrase() {
     if (!target) return;
     const s = starts[n + k];
     if (s == null) { target.textContent = ''; return; }
-    target.textContent = run.chars.slice(s, starts[n + k + 1] ?? run.chars.length).join('');
+    const end = starts[n + k + 1] ?? run.chars.length;
+    // レッスンは語・組の切れ目に空白を入れて見せる（打つ字には入れていない）
+    target.textContent = run.chars.slice(s, end).map((c, j) => (run.gapAt.has(s + j) && s + j < end - 1 ? `${c} ` : c)).join('');
   };
   ahead(el.phraseNext, 1);
   ahead(el.phraseAfter, 2);
@@ -426,6 +570,7 @@ function paintCue() {
   const kana = run.chars[run.index];
   if (kana == null) return;
   const how = howToType(kana);
+  if (run.learn && run.lesson.phase === 'intro') paintIntro();
 
   el.cueKana.textContent = kana;
   if (run.input === 'romaji') {
@@ -478,6 +623,7 @@ function onOutput(result) {
     run.stuck = null;
     el.cue?.classList.remove('is-stuck');
     run.faceHits[faceKey] = (run.faceHits[faceKey] ?? 0) + 1;
+    if (run.learn && el.learnErr) el.learnErr.hidden = true;
 
     if (result.offsetMs != null && result.thumb) {
       run.offsets[result.thumb].push(result.offsetMs);
@@ -515,6 +661,27 @@ function onOutput(result) {
     run.misses[kind]++;
     run.faceMisses[faceKey] = (run.faceMisses[faceKey] ?? 0) + 1;
     run.perfectStreak = 0;
+
+    // レッスン：飛ばさず、その場で «押したもの と 正しい打ち方» を出す。
+    // 導入は «3 回続けて» なので、その字の 1 回目からやり直す
+    if (run.learn) {
+      // 打つ場所の «正しい面» の外しとして数える（記録の弱いかなに出るのは、外した字のほう）
+      const wantFace = how ? `${how.code}:${how.thumb ?? 'none'}` : null;
+      if (wantFace && wantFace !== faceKey) run.faceMisses[wantFace] = (run.faceMisses[wantFace] ?? 0) + 1;
+      if (!run.missedAt.has(run.index)) {
+        run.missedAt.add(run.index);
+        run.missedKana[want] = (run.missedKana[want] ?? 0) + 1;
+      }
+      if (run.lesson.phase === 'intro') run.index -= run.index % 3;
+      paintLearnError(result, want, how);
+      if (kind === 'shiftMisfire') showJudgement(el.meter, { offsetMs: null, tier: 'misfire' });
+      sound.miss();
+      flashMiss();
+      paintPhrase();
+      paintCue();
+      updateStats();
+      return;
+    }
 
     // 同じ字で続けて外していると、そこで完全に止まる。読み方が分からない字や、
     // 親指の向きを取り違えている場合は、何度打ってもひとりでには直らない。
@@ -614,6 +781,15 @@ function flashMiss() {
 
 function updateStats() {
   if (!run) return;
+  if (run.learn) {
+    // レッスンは時間を測らない。出すのは «あと何字» と «まちがい» だけ
+    if (el.phraseCount) el.phraseCount.textContent = `あと ${run.chars.length - run.index} 字`;
+    if (el.learnMiss) {
+      el.learnMiss.textContent = `まちがい ${run.missedAt.size}`;
+      el.learnMiss.classList.toggle('is-on', run.missedAt.size > 0);
+    }
+    return;
+  }
   const sec = run.startedAt == null ? 0 : (performance.now() - run.startedAt) / 1000;
   el.statTime.textContent = sec.toFixed(1);
   // cpmOf / accuracyOf は丸めずに返す。表示のときに丸めるのはこちらの仕事
@@ -621,7 +797,75 @@ function updateStats() {
   el.statAcc.textContent = String(Math.round(accuracyOf(run)));
 }
 
+/**
+ * レッスンの段階を打ち終えた。
+ * 導入・組み合わせ・語は、そのまま次の段階へ進む（合否は確認の段だけで見る）。
+ * おさらいは、終えたら確認をもう一度。確認は合否の札を出す
+ */
+function finishLesson() {
+  const l = run.lesson;
+  const missed = Object.entries(run.missedKana).sort((a, b) => b[1] - a[1]);
+  const passed = l.phase === 'check' ? run.missedAt.size <= PASS_MAX_MISSES : l.phase !== 'review';
+  recordLessonRun({ lessonId: l.id, passed, faceHits: run.faceHits, faceMisses: run.faceMisses });
+  const total = run.chars.length;
+  const missCount = run.missedAt.size;
+  run = null;
+  engine = null;
+  mode = null;
+  stopLoop();
+  paintNav(loadStats());
+
+  if (l.phase !== 'check') {
+    const next = l.phase === 'review' ? findPhase(phaseId(l.lessonId, 'check')) : nextPhase(l.id);
+    sound.finish({ best: false });
+    toast(`「${PHASES[next.phaseIndex].name}」へ`);
+    location.hash = `#/play/${next.id}`;
+    return;
+  }
+
+  el.lcardEyebrow.textContent = `レッスン ${l.lessonNo}　${l.lessonTitle}　確認`;
+  el.lcardTitle.textContent = passed ? '合格' : 'もう少し';
+  el.learnCard.classList.toggle('is-pass', passed);
+  el.learnCard.classList.toggle('is-fail', !passed);
+  el.lcardMiss.textContent = String(missCount);
+  el.lcardOf.textContent = ` / ${total} 字まちがい`;
+  el.lcardLine.textContent = `（合格は ${PASS_MAX_MISSES} 字まで）`;
+  el.lcardWeakLabel.hidden = !missed.length;
+  el.lcardWeak.hidden = !missed.length;
+  el.lcardWeak.replaceChildren(...missed.slice(0, 3).map(([kana, n]) => {
+    const how = howToType(kana);
+    const li = document.createElement('li');
+    const b = document.createElement('b');
+    b.textContent = kana;
+    const sp = document.createElement('span');
+    const thumb = how?.thumb ? ` ＋ ${how.thumb === 'left' ? '左親指' : '右親指'}` : '';
+    sp.textContent = how ? `${keyLegend(how.code)}${thumb}　${fingerOf(how.code)}` : '';
+    const sm = document.createElement('small');
+    sm.textContent = `${n} 回`;
+    li.append(b, sp, sm);
+    return li;
+  }));
+  const next = nextPhase(l.id);
+  if (passed) {
+    el.lcardNote.textContent = missed.length
+      ? 'まちがえたかなは、次のレッスンの組み合わせと確認に多めに混ぜます。'
+      : (next ? 'まちがいなし。' : '全レッスンを終えました。レッスンの一覧から配列表の画像を保存できます。');
+    el.btnLearnNextText.textContent = next ? `次のレッスンへ（${CURRICULUM.find((x) => x.id === next.lessonId).title}）` : 'レッスンの一覧へ';
+    el.btnLearnNext.onclick = () => { location.hash = next ? `#/play/${next.id}` : '#/learn'; };
+  } else {
+    const kana = missed.map(([k]) => k);
+    el.lcardNote.textContent = 'まちがえたかなだけの組み合わせを 16 字打ってから、確認をもう一度。';
+    el.btnLearnNextText.textContent = `おさらいする（${kana.slice(0, 3).join('・')}）`;
+    el.btnLearnNext.onclick = () => playMade(reviewPhase(l.lessonId, kana), null);
+  }
+  el.btnLearnAgain.hidden = !passed;
+  el.learnFinish.hidden = false;
+  sound.finish({ best: false });
+  el.btnLearnNext.focus();
+}
+
 function finishRun() {
+  if (run.learn) return finishLesson();
   const seconds = (performance.now() - run.startedAt) / 1000;
   const payload = {
     lessonId: run.lesson.id,
@@ -804,7 +1048,7 @@ window.addEventListener('keydown', e => {
     return;
   }
 
-  if (e.key === 'Escape') { e.preventDefault(); location.hash = '#/'; return; }
+  if (e.key === 'Escape') { e.preventDefault(); location.hash = run?.learn ? '#/learn' : '#/'; return; }
 
   if (screen === 'play' && run?.input === 'romaji') {
     const ch = romajiKeyOf(e.key);
@@ -1007,6 +1251,23 @@ function paintGateInst(stats) {
     p.textContent = '1 本打つと、ここに親指のズレが出ます';
     el.gateScope.replaceChildren(p);
   }
+}
+
+/**
+ * これまで外したかな（多い順に 4 つまで）。キー×面の外しの記録から引く。
+ * レッスンの組み合わせと確認に多めに混ぜるのに使う（curriculum.js の findPhase がまだ習っていない字は落とす）
+ */
+function weakKana(stats) {
+  return Object.entries(stats.faceMisses ?? {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([face]) => {
+      const [code, thumb] = face.split(':');
+      return layout.keys[code]?.[thumb];
+    })
+    .filter(Boolean)
+    .filter((c, i, a) => a.indexOf(c) === i)
+    .slice(0, 4);
 }
 
 /** そのレッスンを始められるか。最初のレッスンか、一つ前を終えていれば開く */
@@ -1672,7 +1933,7 @@ let area = 'gate';
 
 function setArea(name, arg) {
   if (AREA_OF[name]) area = AREA_OF[name];
-  else if (name === 'play') area = findLesson(arg)?.courseId === 'learn' ? 'learn' : 'train';
+  else if (name === 'play') area = (pending ?? findLesson(arg))?.courseId === 'learn' ? 'learn' : 'train';
   document.body.dataset.area = area;
   document.title = AREA_TITLE[area];
 }
@@ -1712,7 +1973,9 @@ function route() {
   else if (name === 'layout') {
     renderKeyboard(el.layoutBoard, layout, { lookup, thumbs: thumbKeysOf(settings) });
   } else if (name === 'play') {
-    const lesson = pending ?? findLesson(arg);
+    let lesson = pending ?? findLesson(arg);
+    // レッスンの組み合わせと確認には、これまで外したかなを多めに混ぜる（記録から引き直す）
+    if (!pending && lesson?.courseId === 'learn') lesson = findPhase(arg, { weak: weakKana(loadStats()) });
     pending = null;
     if (!lesson) { location.replace('#/'); return; }
 
@@ -1795,7 +2058,9 @@ for (const b of document.querySelectorAll('[data-tone-set]')) {
   });
 }
 
-el.btnBack?.addEventListener('click', () => { location.hash = '#/'; });
+el.btnBack?.addEventListener('click', () => { location.hash = area === 'learn' ? '#/learn' : '#/'; });
+el.btnLearnAgain?.addEventListener('click', () => route());
+el.btnLearnList?.addEventListener('click', () => { location.hash = '#/learn'; });
 el.btnHome?.addEventListener('click', () => { location.hash = '#/'; });
 // 「やり直す」は最初から。途中の続きを拾ってしまうと、やり直したことにならない
 el.btnRetry?.addEventListener('click', () => { clearResume(); route(); });

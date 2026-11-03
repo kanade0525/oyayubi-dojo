@@ -39,6 +39,7 @@
 //   export function renderKeyboard(container, layout)
 //   export function highlight(container, { charCode, thumb })
 //   export function setThumbLamp(container, { left, right })
+//   export function setFaceStates(container, { known, fresh } | null)
 
 /* ---------------------------------------------------------------- 物理配列 */
 
@@ -286,6 +287,23 @@ export function setThumbLamp(container, { left = false, right = false } = {}) {
   const r = container.querySelector('.thumb[data-thumb="right"]');
   if (l) l.classList.toggle('is-on', !!left);
   if (r) r.classList.toggle('is-on', !!right);
+}
+
+/**
+ * 覚えるのレッスンで、面を «覚えた / 今回 / まだ» に描き分ける。
+ * known・fresh は 'KeyD:left' の形の面の並び。どちらにも無い面は «まだ» で、CSS が薄くする。
+ * まだ習っていない字が全部同じ濃さで並んでいると、どこを見ればよいかが分からない。
+ * null を渡すと描き分けをやめる（鍛える・自由入力では全部の面が «打てる字»）。
+ */
+export function setFaceStates(container, states) {
+  if (!container) return;
+  container.toggleAttribute('data-learn', !!states);
+  const known = new Set(states?.known ?? []);
+  const fresh = new Set(states?.fresh ?? []);
+  for (const f of container.querySelectorAll('[data-face]')) {
+    if (!states) { delete f.dataset.learn; continue; }
+    f.dataset.learn = fresh.has(f.dataset.face) ? 'new' : known.has(f.dataset.face) ? 'known' : 'off';
+  }
 }
 
 /** 配列表の画面などで «この図が扱うキー» を知りたいとき用 */

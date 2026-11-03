@@ -166,6 +166,7 @@ JSON を `fetch` で読むと CSP の `connect-src` に `'self'` を足すこと
 export const STORAGE_KEYS          // 保存先をマイページに出して隠さないため
 export function loadStats()
 export function recordRun(run)     // → { stats, gained, earned }
+export function recordLessonRun({ lessonId, passed, faceHits, faceMisses })  // 覚えるのレッスン。進み具合と面の当たり外れだけ（段位・自己ベスト・履歴には入れない）
 export function loadSettings()     // 親指キー割り当て・閾値・配色
 export function saveSettings(s)
 export function exportAll()        // → JSON文字列
@@ -177,7 +178,7 @@ export function clearAll()
 
 ```js
 {
-  lessonId: 'l-solo-1~mix',   // 課題の id（覚えるの段階・実文の題材・その場で組んだ出題）
+  lessonId: 'text-12',        // 課題の id（実文の題材・その場で組んだ出題）。覚えるの段階（'l-home-1~pairs'）は recordLessonRun へ
   kana: 120,          // 確定した文字数（同時打鍵は1と数える）→ CPM の分子
   keystrokes: 189,    // 物理キー数 → KCPM の分子
   seconds: 52.3,
@@ -206,6 +207,7 @@ export function dayKey(date)         // ローカル時刻で 'YYYY-MM-DD'。toI
 export function renderKeyboard(container, layout)
 export function highlight(container, { charCode, thumb })  // 次に押すキーと親指を強調
 export function setThumbLamp(container, { left, right })   // 押下中の親指を光らせる
+export function setFaceStates(container, { known, fresh } | null)  // 覚えるで面を «覚えた / 今回 / まだ» に描き分ける
 ```
 
 ### `assets/js/meter.js` — タイミングメーター（デザイン担当）
@@ -358,7 +360,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 | ルート | 画面 | 中身 |
 | --- | --- | --- |
 | `#/` | 門 | 左に名前、右に計器（親指のズレ・ぴったり率・速さと分布）、下に三つの場所への扉の行。親指シフトの説明は置かない（2026-11-02、このサイトにしか無い数字を最初に見せると決めた） |
-| `#/learn` | **覚える** | レッスンの一覧（curriculum.js）。18 レッスン、各 4 段階（見る・それだけ・混ぜる・語）を順に開く。全部終えると配列表の画像（layout-sheet.js）を保存できる |
+| `#/learn` | **覚える** | レッスンの一覧（curriculum.js）。18 レッスン、各 4 段階（導入・組み合わせ・語・確認）。確認に合格（まちがい 2 字まで）すると次のレッスンが開く。レッスンは時間・速さを測らず、記録は進み具合とキー×面の当たり外れだけ（storage.js の recordLessonRun）。全部終えると配列表の画像（layout-sheet.js）を保存できる |
 | `#/train` | **鍛える** | 適応出題（弱点集中・総ざらい・速度）・実文 83 本・自由入力 |
 | `#/record` | 記録 | 段位（決まりの一行とはしご）・伸び・ズレ分布・得意と苦手の 3D 柱・カレンダー・実績・データ持ち帰り |
 | `#/play/:id` | プレイ | 打つ画面 |

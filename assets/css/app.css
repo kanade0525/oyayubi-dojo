@@ -4209,3 +4209,117 @@ body[data-area="train"] .btn--primary {
 @media (max-width: 760px) {
   .lsteps { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------------------------------------------------------------- 覚えるのレッスンを打つ画面
+   打つ画面は鍛えると同じものを使い、.screen--play に app.js が付ける印で切り替える。
+     .is-learn   … レッスン。時間・cpm・正確率を出さず、«あと何字» と «まちがい» だけ
+     .is-intro   … 導入。打つ字の列の代わりに、一字ずつの説明（.lintro）を出す
+     .is-check   … 確認。配列図と打ち方の案内を外して打つ
+     .is-nothumb … 親指を使わないレッスン。ズレの帯は何も言うことが無いので出さない */
+
+.stat--miss { display: none; font-size: 11.5px; color: var(--fg-mid); white-space: nowrap; }
+.is-learn .stat--miss { display: inline; }
+.is-learn .stat--miss.is-on { color: var(--misfire); }
+.is-learn .stats > .stat:not(.stat--count):not(.stat--miss) { display: none; }
+
+.is-intro .script,
+.is-intro .cue,
+.is-check .cue,
+.is-check .board,
+.is-nothumb .meter { display: none; }
+
+/* 段階の並び。済んだ段は番号を塗り、いまの段は場所の色の地 */
+.lphases {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.lphases li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; }
+.lphases b {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.lphases .is-done { color: var(--fg-mid); }
+.lphases .is-done b { background: var(--area); border-color: var(--area); color: var(--area-ink); }
+.lphases .is-now { color: var(--fg); background: color-mix(in srgb, var(--area) 16%, transparent); }
+.lphases .is-now b { border-color: var(--area); }
+
+/* 語・組の切れ目。打つ字に空白は入れられない（空白は親指キー）ので、間は見た目だけで空ける */
+.phrase__c--gap { margin-right: 0.55em; }
+.phrase__c.is-missed.is-done { color: var(--misfire); }
+
+/* 導入のカード */
+.lintro { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.lintro__eyebrow { margin: 0; font-size: 12px; letter-spacing: 0.08em; color: var(--fg-dim); }
+.lintro__kana { margin: 0; font-size: 84px; line-height: 1; font-weight: 600; color: var(--fg); }
+.lintro__how { margin: 4px 0 0; display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--fg-mid); }
+.lintro__how .cue__key { font-size: 16px; }
+.lintro__plus { color: var(--fg-dim); }
+.lintro__thumb {
+  padding: 3px 10px;
+  border: 1px solid var(--area);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--area) 20%, transparent);
+}
+.lintro__nothumb { font-size: 12.5px; color: var(--fg-dim); }
+.lintro__rules { display: grid; gap: 4px; max-width: 40em; }
+.lintro__rules p { margin: 0; font-size: 13.5px; line-height: 1.7; color: var(--fg-mid); }
+.lintro__try { margin: 6px 0 0; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--fg); }
+.lintro__dots { display: inline-flex; gap: 6px; }
+.lintro__dots i { width: 10px; height: 10px; border: 1px solid var(--area); border-radius: 50%; }
+.lintro__dots i.on { background: var(--area); }
+
+/* 打ち間違えたときの一行 */
+.lerr {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  padding: 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--misfire) 45%, transparent);
+  border-radius: var(--r-s);
+  background: color-mix(in srgb, var(--misfire) 12%, transparent);
+  font-size: 13.5px;
+  color: var(--fg);
+}
+.lerr__got { color: var(--fg-mid); }
+.lerr__sep { color: var(--fg-dim); }
+.lerr b { font-size: 18px; }
+
+/* 配列図：まだ習っていない面を薄く、今回の面に下線 */
+.board[data-learn] [data-learn="off"] { opacity: 0.16; }
+.board[data-learn] .key.is-next [data-learn="off"] { opacity: 0.16; }
+.board[data-learn] .key__solo[data-learn="new"] { text-decoration: underline 2px var(--area); text-underline-offset: 4px; }
+
+/* 確認の結果。合否は上の線の色と見出しで言う（色だけに頼らない） */
+.lcard { width: min(520px, 100%); text-align: left; }
+.lcard__title { margin: 6px 0 0; padding-left: 12px; font-size: 26px; box-shadow: inset 4px 0 var(--off); }
+.lcard.is-pass .lcard__title { box-shadow: inset 4px 0 var(--perfect); }
+.lcard .finish__buttons { justify-content: flex-start; }
+.lcard__score { margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; color: var(--fg-mid); }
+.lcard__score b { font-size: 34px; color: var(--fg); }
+.lcard__score span { font-size: 12.5px; color: var(--fg-dim); }
+.lcard__label { margin: 14px 0 6px; font-size: 12px; color: var(--fg-dim); }
+.lcard__weak { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.lcard__weak li { display: flex; align-items: baseline; gap: 14px; padding: 8px 12px; border-radius: var(--r-s); background: var(--panel-2); }
+.lcard__weak b { min-width: 1.2em; font-size: 22px; }
+.lcard__weak span { font-size: 13px; color: var(--fg-mid); }
+.lcard__weak small { margin-left: auto; font-size: 12px; color: var(--fg-dim); }
+.lcard__note { margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: var(--fg-mid); }

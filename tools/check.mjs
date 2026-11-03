@@ -1009,7 +1009,8 @@ async function browserChecks(chromeBin) {
       ['#/learn', '#learnUnits .lstep', 'レッスンの一覧'],
       ['#/train', '#drillTextList .material', '実文の一覧'],
       ['#/layout', '.board > *', '配列表'],
-      ['#/play/l-solo-1~see', '.meter > *', 'タイミングメーター'],
+      ['#/play/l-home-1~intro', '#introKana:not(:empty)', 'レッスンの導入'],
+      ['#/play/l-home-1~pairs', '.meter > *', 'タイミングメーター'],
     ];
     for (const [hash, sel, label] of DRAWN) {
       await evaluate(`location.hash = ${JSON.stringify(hash)}`).catch(() => {});

@@ -93,10 +93,10 @@ describe('面の表', () => {
     assert.match(describeFace(ba), /交差シフト/);
   });
 
-  test('教程順に並んでいる（単独 → 同側 → 交差）', () => {
-    const kinds = DRILL_FACES.map((f) => (f.thumb === 'none' ? 0 : f.shiftKind === 'same' ? 1 : 2));
-    assert.deepEqual(kinds, [...kinds].sort((a, b) => a - b));
-    assert.equal(DRILL_FACES[0].kana, 'う'); // 左手ホームポジションの先頭
+  test('覚えるのレッスン順に並んでいる', async () => {
+    const { CURRICULUM } = await load('assets/js/curriculum.js');
+    const taught = CURRICULUM.flatMap((l) => l.newKeys.map((k) => k.kana));
+    assert.deepEqual(DRILL_FACES.slice(0, taught.length).map((f) => f.kana), taught);
   });
 });
 
@@ -147,16 +147,70 @@ describe('実文の題材とレッスン', () => {
     const last = CURRICULUM.at(-1);
     assert.equal(nextLesson(phaseId(last.id, PHASES.at(-1).id)), null, '最後の段階の次は null');
   });
+
+  // 前は 4 段階を全レッスンに当てはめ、中身が無い段階をでたらめな列で埋めていた
+  // （レッスン 1 の 4 段階が全部 «うしてけせ» の並べ替えになっていた）。同じことが起きないように見る
+  test('覚えるの全 86 字を一度ずつ教え、どのレッスンにも覚えた字だけで書ける語が 6 つ以上ある', async () => {
+    const { CURRICULUM } = await load('assets/js/curriculum.js');
+    const seen = [];
+    for (const l of CURRICULUM) {
+      const fresh = l.newKeys.map((k) => k.kana);
+      for (const c of fresh) assert.ok(!seen.includes(c), `«${c}» を二度教えている: ${l.id}`);
+      seen.push(...fresh);
+      const can = new Set(seen);
+      assert.ok(l.words.length >= 6, `語が 6 つに届かない: ${l.id}`);
+      for (const w of l.words) {
+        assert.ok([...w].every((c) => can.has(c)), `まだ教えていない字を使う語: ${l.id} «${w}»`);
+        assert.ok([...w].some((c) => fresh.includes(c)), `新しいかなを含まない語: ${l.id} «${w}»`);
+      }
+      // 導入の説明は配列表から作る。キーと親指が配列表どおりか
+      for (const k of l.newKeys) assert.equal(NICOLA.keys[k.code][k.thumb ?? 'none'], k.kana, `${l.id} «${k.kana}» の打ち方が配列表と違う`);
+    }
+    assert.deepEqual([...seen].sort(), [...TYPABLE].sort(), '教えていない字がある');
+  });
+
+  test('覚えるの 4 段階は、どのレッスンでも中身が互いに違い、まだ教えていない字を出さない', async () => {
+    const { CURRICULUM, PHASES, phaseId, findPhase } = await load('assets/js/curriculum.js');
+    for (const l of CURRICULUM) {
+      const can = new Set([...l.known, ...l.newKeys.map((k) => k.kana)]);
+      const texts = PHASES.map((p) => findPhase(phaseId(l.id, p.id)).text);
+      assert.equal(new Set(texts).size, PHASES.length, `段階の中身が重なる: ${l.id}`);
+      for (const t of texts) assert.deepEqual([...t].filter((c) => !can.has(c)), [], `まだ教えていない字: ${l.id}`);
+      const check = findPhase(phaseId(l.id, 'check'));
+      assert.ok(check.text.length >= 30, `確認が短すぎる: ${l.id} ${check.text.length} 字`);
+      assert.equal(check.groups.reduce((a, b) => a + b, 0), [...check.text].length, `区切りと字数が合わない: ${l.id}`);
+    }
+  });
+
+  test('弱いかなを渡すと組み合わせに多く出る。まだ教えていない弱いかなは出さない', async () => {
+    const { findPhase } = await load('assets/js/curriculum.js');
+    const count = (t, c) => [...t].filter((x) => x === c).length;
+    const plain = findPhase('l-home-2~pairs').text;
+    const weak = findPhase('l-home-2~pairs', { weak: ['き', 'ぽ'] }).text;
+    assert.ok(count(weak, 'き') > count(plain, 'き'), 'き が増えていない');
+    assert.equal(count(weak, 'ぽ'), 0, 'まだ教えていない ぽ が出た');
+  });
+
+  test('おさらいは、まちがえたかなだけの組で、打てる字だけ', async () => {
+    const { reviewPhase } = await load('assets/js/curriculum.js');
+    const r = reviewPhase('l-home-1', ['き']);
+    assert.equal(r.courseId, 'learn');
+    assert.ok([...r.text].every((c) => 'けとてきしい'.includes(c)));
+    assert.ok(r.text.length === 16 && [...r.text].filter((c) => c === 'き').length >= 8);
+    assert.equal(reviewPhase('l-home-1', []), null);
+  });
 });
 
 // ---------------------------------------------------------------- 弱点の読み方
 
 describe('weakFaces', () => {
-  test('統計が空なら全面が未踏破で、教程順の先頭から並ぶ', () => {
+  test('統計が空なら全面が未踏破で、教程順の先頭から並ぶ', async () => {
     const list = weakFaces({});
     assert.equal(list.length, ALL_FACES.length);
     assert.ok(list.every((f) => f.unseen));
-    assert.equal(list[0].kana, 'う');
+    // 同点は覚えるのレッスン順。先頭は最初のレッスンの最初のかな
+    const { CURRICULUM } = await load('assets/js/curriculum.js');
+    assert.equal(list[0].kana, CURRICULUM[0].newKeys[0].kana);
     assert.equal(list[0].reason, 'まだ一度も打っていない');
   });
 

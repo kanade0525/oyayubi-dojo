@@ -305,7 +305,7 @@
       <li><a class="door" data-area="learn" href="#/learn">
         <span class="door__no">01</span>
         <span class="door__main"><b class="door__name">覚える</b><span class="door__site">親指シフト入門</span></span>
-        <span class="door__note">18 レッスン。キーを 5 つずつ、見て・打って・混ぜて覚える</span>
+        <span class="door__note">18 レッスン。キーを 4〜6 字ずつ、教わって・組で打って・語で打って・確かめる</span>
         <em class="door__state" id="doorLearnState"></em>
         <span class="door__go" data-icon="forward"></span>
       </a></li>
@@ -374,12 +374,12 @@
     </section>
 
     <!-- レッスンの一覧。app.js が curriculum.js の UNITS から作る。
-         一つのレッスンは 4 段階（見る・それだけ・混ぜる・語）。行を押すと、まだ終えていない段階から始まる。
+         一つのレッスンは 4 段階（導入・組み合わせ・語・確認）。確認に合格すると次のレッスンが開く。行を押すと、まだ終えていない段階から始まる。
          前のレッスンを終えるまで次は押せない（覚える順番に意味があるので）。
-           <section class="unit"><h2 class="unit__head"><span>単元 1</span>単独打鍵</h2><p class="unit__note">…</p>
+           <section class="unit"><h2 class="unit__head"><span>単元 1</span>ホームの段</h2><p class="unit__note">…</p>
              <ol class="lsteps"><li><a class="lstep [is-done|is-now|is-locked]">
                <span class="lstep__no">1</span>
-               <span class="lstep__main"><b>左手のホーム</b><small>新しいかな：う し て け せ</small></span>
+               <span class="lstep__main"><b>ホーム 人差し指・中指・薬指</b><small>新しいかな：け と て き し い</small></span>
                <span class="lstep__state">済み / 2/4 段階 / つづきから</span></a></li></ol></section> -->
     <div class="units" id="learnUnits"></div>
 
@@ -408,6 +408,9 @@
       <span class="play__badge" id="playBadge" hidden>鍛える</span>
       <span class="play__lesson" id="playLesson"></span>
 
+      <!-- 覚えるのレッスンだけ：いまどの段階か（導入・組み合わせ・語・確認）。app.js が中身を入れる -->
+      <ol class="lphases" id="learnPhases" hidden></ol>
+
       <!-- 課題の狙い（lesson.note）。空の受け皿で、app.js が入れる。
            これが読めないと、単独打鍵だけのレッスンで «メーターが黙る» のがただの故障に見える。
            打鍵中に読ませるものではないので小さく静かに置く。中身が無いときは CSS 側の :empty で行ごと消える。
@@ -427,6 +430,8 @@
              目のよりどころの隣に出すと、打っている最中にそれを読んでしまうから。
              ほかの数値（時間・cpm・正確さ）と同じ小ささ・同じ無彩色にしてある -->
         <span class="stat stat--count" id="phraseCount">3 / 18行　72/460字</span>
+        <!-- 覚えるのレッスンだけ：まちがえた字の数。時間・cpm・正確率の代わりに出す（CSS の .is-learn） -->
+        <span class="stat stat--miss" id="learnMiss">まちがい 0</span>
         <span class="stat"><b id="statTime">0.0</b><small>s</small></span>
         <span class="stat"><b id="statCpm">0</b><small>cpm</small></span>
         <span class="stat"><b id="statAcc">100</b><small>%</small></span>
@@ -502,6 +507,20 @@
         <span class="cue__kind cue__kind--cross" id="cueKind">交差 · 濁音</span>
       </p>
 
+      <!-- 覚えるのレッスンの導入：新しいかなを一字ずつ。打つ字の列（#script）の代わりに出す。
+           キー・指・親指と、前に覚えたかなとの関係を見せてから、同じ字を 3 回続けて打たせる。
+           中身は app.js が curriculum.js の newKeys から入れる -->
+      <section class="lintro" id="learnIntro" hidden>
+        <p class="lintro__eyebrow" id="introEyebrow"></p>
+        <p class="lintro__kana" id="introKana"></p>
+        <p class="lintro__how" id="introHow"></p>
+        <div class="lintro__rules" id="introRules"></div>
+        <p class="lintro__try" id="introTry"></p>
+      </section>
+
+      <!-- 覚えるのレッスンで打ち間違えたとき：押したキーと、正しい打ち方を並べる -->
+      <p class="lerr" id="learnErr" hidden></p>
+
       <!-- ここが主役。中身は meter.js が組む -->
       <div class="meter" id="meter"></div>
 
@@ -541,6 +560,23 @@
           <button type="button" class="btn btn--primary" id="btnNext" data-icon="forward">次の課題へ</button>
           <button type="button" class="btn" id="btnAgain" data-icon="retry">もう一度</button>
           <button type="button" class="btn btn--quiet" id="btnHome" data-icon="close">やめる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 覚えるのレッスンの確認の結果。速さ・段位は出さず、合否とまちがえたかなだけ -->
+    <div class="finish" id="learnFinish" hidden>
+      <div class="finish__card lcard" id="learnCard">
+        <p class="finish__eyebrow" id="lcardEyebrow"></p>
+        <h2 class="lcard__title" id="lcardTitle"></h2>
+        <p class="lcard__score"><b id="lcardMiss">0</b><small id="lcardOf"></small><span id="lcardLine"></span></p>
+        <p class="lcard__label" id="lcardWeakLabel">まちがえたかな</p>
+        <ul class="lcard__weak" id="lcardWeak"></ul>
+        <p class="lcard__note" id="lcardNote"></p>
+        <div class="finish__buttons">
+          <button type="button" class="btn btn--primary" id="btnLearnNext" data-icon="forward"><span id="btnLearnNextText"></span></button>
+          <button type="button" class="btn" id="btnLearnAgain" data-icon="retry">もう一度</button>
+          <button type="button" class="btn btn--quiet" id="btnLearnList" data-icon="lessons">レッスンの一覧へ</button>
         </div>
       </div>
     </div>

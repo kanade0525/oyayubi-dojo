@@ -497,6 +497,40 @@ export function recordRun(run) {
   return { stats: s, gained, earned, summary: r, records };
 }
 
+/**
+ * 覚えるのレッスンの一本を記録する。
+ *
+ * レッスンは速さを測らない場所なので、速さ・正確率・ズレの自己ベスト、段位、積み上げ、
+ * 履歴、通算の字数と秒には入れない。前は recordRun に通していて、ゆっくり正確に打った一本が
+ * «鍛える» の記録と段位の計算に混ざっていた。
+ *
+ * 残すのは三つだけ。
+ *   cleared  … どの段階を終えたか（レッスンの進み具合）。確認の段は passed のときだけ
+ *   faceHits / faceMisses … キー×面の当たり外れ。次のレッスンで弱いかなを多めに出すのに使い、
+ *               «鍛える» の弱点集中にもそのまま効く（同じ指の記録なので分ける理由が無い）
+ *   打った日 … 練習した日として数える（連続日数は «毎日開く» の動機で、入門の人にこそ要る）
+ */
+export function recordLessonRun({ lessonId, passed = true, faceHits = {}, faceMisses = {} }) {
+  const s = loadStats();
+  const today = dayKey();
+  if (passed) s.cleared[lessonId] = (num(s.cleared[lessonId]) || 0) + 1;
+  for (const [k, n] of Object.entries(obj(faceHits))) {
+    if (num(n) > 0) s.faceHits[k] = num(s.faceHits[k]) + num(n);
+  }
+  for (const [k, n] of Object.entries(obj(faceMisses))) {
+    if (num(n) > 0) s.faceMisses[k] = num(s.faceMisses[k]) + num(n);
+  }
+  s.coverage = faceCoverage(s.faceHits);
+  if (!s.since) s.since = today;
+  s.lastDay = today;
+  if (!s.days.includes(today)) s.days.push(today);
+  s.days = s.days.slice(-DAYS_LIMIT);
+  s.streak = streakOf(s.days);
+  s.bestStreak = Math.max(s.bestStreak, s.streak);
+  writeStats(s);
+  return { stats: s };
+}
+
 function round(v, digits) {
   if (typeof v !== 'number' || !Number.isFinite(v)) return 0;
   const p = 10 ** digits;

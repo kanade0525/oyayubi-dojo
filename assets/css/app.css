@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Yuji Syuku";
+  src: url("../fonts/YujiSyuku-subset.woff2") format("woff2");
+  font-display: swap;
+}
+
 /* 親指シフトマスター — 意匠のすべて
    ================================================================
    このファイルは何か
@@ -70,7 +76,8 @@
      «寄せ集め» に見えるので全部やめた。太さと大きさだけで役を分ける。
      数字の桁の揺れは tabular-nums（数字だけ同じ幅）で止める。
      Windows は BIZ UD を先に当てる。Yu Gothic の Regular は画面で細く薄く出る */
-  --ui: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
+  /* 試し：全体を筆字（Yuji Syuku, OFL）。サイトで使う字だけに絞った版を自前で置く（CSP の font-src 'self'） */
+  --ui: "Yuji Syuku", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
     "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
 
   /* 角は小さく。大きな角丸の札が均等に並ぶと、どの画面も同じ «カードの束» に見える。

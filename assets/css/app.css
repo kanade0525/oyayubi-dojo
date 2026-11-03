@@ -4689,3 +4689,43 @@ body[data-area="train"] .btn--primary {
   0%, 100% { translate: 0 0; }
   50% { translate: 6px 0; }
 }
+
+/* 門の下の «このサイトについて»。扉より目立たせない。左に見出し、右に本文の二段 */
+.about {
+  display: grid;
+  grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+  gap: 12px 48px;
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.about__head {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--fg-mid);
+}
+
+.about__body p,
+.about__list {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.95;
+  color: var(--fg-dim);
+  word-break: auto-phrase;
+}
+
+.about__list > div {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 12px;
+}
+
+.about__list dt { color: var(--fg-mid); }
+.about__list dd { margin: 0; }
+
+@media (max-width: 900px) {
+  .about { grid-template-columns: minmax(0, 1fr); }
+}

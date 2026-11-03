@@ -912,28 +912,36 @@ body[data-area="game"],
 :root[data-tone="light"] body[data-area="game"],
 :root[data-tone="light"] .door[data-area="game"],
 :root[data-tone="light"] .rec-group[data-area="game"] { --area: #0b6266; --area-ink: #fff; }
-/* 覚えるは山吹で通す。主色（--tone：リンク・主ボタン・打つ位置の下線・次のキーの枠・入力欄の印）まで
-   山吹に置き換え、青を出さない。キーの面の色（同側・交差）や、合否の緑・赤は意味の色なので替えない */
-body[data-area="learn"] { --tone: #f0c35a; --tone-ink: #14110a; }
-:root[data-tone="light"] body[data-area="learn"] { --tone: #7a5600; --tone-ink: #fff; }
-/* 面と線は :root で «:root の主色» から作られて引き継がれるので、主色を替えただけでは青みが残る。
-   同じ式をここでもう一度書き、山吹から作り直す（式は上の «主色から導く面と線» と同じ） */
-body[data-area="learn"] {
+/* 覚える・鍛える・腕試しは、その場所の色で通す（2026-11-03）。
+   主色（--tone：リンク・主ボタン・打つ位置の下線・次のキーの枠・連続日数・入力欄の印）を場所の色に置き換え、青を出さない。
+   面と線（パネル・罫線・溝・光）は :root で «:root の主色» から作られて引き継がれるので、主色を替えただけでは青みが残る。
+   同じ式をここでもう一度書き、場所の色から作り直す（式は上の «主色から導く面と線» と同じ）。
+   一か所だけ直して «ほかの場所は青のまま» にならないよう、三つの場所に同じ決まりで掛ける。
+   キーの面の色（--same / --cross）と合否の緑・赤は意味の色なので替えない（--same は :root で決まって引き継がれる） */
+body[data-area="learn"],
+body[data-area="train"],
+body[data-area="game"] {
+  --tone: var(--area);
+  --tone-ink: var(--area-ink);
   --panel: color-mix(in srgb, var(--tone) 7%, var(--bg));
   --panel-2: color-mix(in srgb, var(--tone) 3%, var(--bg));
   --line: color-mix(in srgb, var(--tone) 26%, var(--bg));
   --line-soft: color-mix(in srgb, var(--tone) 14%, var(--bg));
   --glow: color-mix(in srgb, var(--tone) 40%, transparent);
+  /* 地にも場所の色を薄く敷く。いちばん薄い字（--fg-dim）が 7:1 を割らない濃さ。
+     ダーク 5% で 7.7〜7.9:1、ライト 2% で 7.0:1（4 色とも計算した）。ゲームのダークだけ 10%（7.1:1）にして、入力方式の切り替えを地の色でも見せる */
+  background: color-mix(in srgb, var(--area) 5%, var(--bg));
 }
-/* 地にも山吹を薄く敷く。いちばん薄い字（--fg-dim）が 7:1 を割らない濃さ（ダーク 5% で 7.73:1、ライト 2% で 7.06:1） */
-body[data-area="learn"] { background: color-mix(in srgb, var(--area) 5%, var(--bg)); }
-:root[data-tone="light"] body[data-area="learn"] { background: color-mix(in srgb, var(--area) 2%, var(--bg)); }
-:root[data-tone="light"] body[data-area="learn"] {
+body[data-area="game"] { background: color-mix(in srgb, var(--area) 10%, var(--bg)); }
+:root[data-tone="light"] body[data-area="learn"],
+:root[data-tone="light"] body[data-area="train"],
+:root[data-tone="light"] body[data-area="game"] {
   --panel: color-mix(in srgb, var(--tone) 2%, #fff);
   --panel-2: color-mix(in srgb, var(--tone) 2%, color-mix(in srgb, #fff 50%, var(--bg)));
   --line: color-mix(in srgb, var(--tone) 22%, var(--bg));
   --line-soft: color-mix(in srgb, var(--tone) 11%, var(--bg));
   --glow: color-mix(in srgb, var(--tone) 25%, transparent);
+  background: color-mix(in srgb, var(--area) 2%, var(--bg));
 }
 
 /* タイピングゲームは入力方式で色を替える。親指シフトは浅葱、ローマ字は藤。

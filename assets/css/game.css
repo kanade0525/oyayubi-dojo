@@ -12,8 +12,7 @@
        説明文の字の濃さは app.css と同じ基準（--fg-mid / --fg-dim）に揃える */
 
 .g-body {
-  /* 地にも入力方式の色（--area）を薄く敷く。切り替えたときに画面全体の色合いが変わる */
-  background: color-mix(in srgb, var(--area) 10%, var(--bg));
+  /* 地の色（場所の色を薄く敷く）は app.css の body[data-area] が持つ */
   display: flex;
   flex-direction: column;
   min-height: 100%;

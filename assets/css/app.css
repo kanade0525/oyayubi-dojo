@@ -971,6 +971,28 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
 
 .nav__others + .nav__streak { margin-left: 0; }
 
+/* 開発の応援。右端に一つだけ。場所の色は使わず、ナビのリンクと同じ静かさで */
+.nav__support {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  font-size: 11.5px;
+  color: var(--fg-mid);
+  white-space: nowrap;
+}
+
+.nav__support:hover {
+  color: var(--fg);
+  border-color: var(--fg-dim);
+}
+
+/* 右端に寄せる役は、前にある «ほかの入口» と連続日数が持つ。門には両方ないので自分で寄せる */
+body[data-area="gate"] .nav__support { margin-left: auto; }
+
 /* 場所の頭。看板の名前を小さく上に置き、見出しの下に場所の色の短い線 */
 .area-head__site {
   margin: 0 0 6px;
@@ -3701,6 +3723,13 @@ body[data-area="train"] .btn--primary {
 
   .nav__streak {
     white-space: nowrap;
+  }
+
+  /* 応援は狭いところではアイコンだけ。字を残すと «ほかの入口» の行からあふれて一行を取っていた。
+     名前は title と、隠した span（読み上げには残る）が持つ */
+  .nav__support { flex: none; padding: 5px 7px; }
+  .nav__support span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
 
   /* 課題の狙いが長いと、この幅からバーが二段になる。

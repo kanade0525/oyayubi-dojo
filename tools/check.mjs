@@ -458,6 +458,7 @@ const sources = [
  *
  * 外部参照の線引き（CONTRACT.md の CSP の節）:
  *   - `<a href="https://...">` は許す。通信ではなく遷移で、Buy Me a Coffee の支援リンクに要る
+ *   - `<link rel="canonical">` も許す。正規の URL を宣言するだけで、何も読み込まない
  *   - それ以外のタグの src= / href=（<script src> / <img src> / <link href> など）は禁止。
  *     読み込んだ時点でブラウザが外へ取りに行く
  *   - JS の import（静的・動的・from）で外部 URL を指すのは禁止
@@ -482,6 +483,8 @@ function styleFindings(rel, src) {
       const name = tag[1].toLowerCase();
       for (const m of tag[0].matchAll(new RegExp(String.raw`\s(src|href)\s*=\s*["']?${EXT}`, 'gi'))) {
         if (name === 'a' && m[1].toLowerCase() === 'href') continue;
+        // 正規の URL の宣言。何も読み込まない（検索エンジンに «このページの URL はこれ» と伝えるだけ）
+        if (name === 'link' && /\brel\s*=\s*["']?canonical\b/i.test(tag[0])) continue;
         out.push(`<${name} ${m[1]}> で外部ホスト ${m[2]} を参照している（依存パッケージゼロ・CDN 無しの約束）`);
       }
     }
@@ -522,6 +525,8 @@ function styleFindings(rel, src) {
     ['<script src> の外部', 'x.html', '<script src="https://cdn.example.com/x.js"></script>', true],
     ['<link href> の外部', 'x.html', '<link rel="stylesheet" href="https://fonts.example.com/x.css">', true],
     ['<img src> のスキーム無し外部', 'x.html', '<img alt="" src="//cdn.example.com/x.png">', true],
+    ['<link rel=canonical> の正規 URL', 'x.html', '<link rel="canonical" href="https://example.github.io/x/">', false],
+    ['canonical の隣の stylesheet', 'x.html', '<link rel="canonical" href="https://ok.example.com/"><link rel="stylesheet" href="https://ng.example.com/x.css">', true],
     ['<a> の隣の <link>', 'x.html', '<a href="https://ok.example.com/">ok</a><link href="https://ng.example.com/x.css" rel="stylesheet">', true],
     ['JS の import from 外部', 'x.js', js("import { x } from 'https://cdn.example.com/x.js';"), true],
     ['JS の動的 import 外部', 'x.js', js("await import('https://cdn.example.com/x.js');"), true],

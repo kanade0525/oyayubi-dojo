@@ -132,8 +132,9 @@ README にそう書くだけでは宣言に留まりますが、これを置く�
 index.html            画面の骨格（7つの section を hidden で切り替え）
 keycheck.html         キー実測ページ（単体で動く）
 game.html             タイピングゲーム
+sitemap.xml           検索エンジンに渡すページの一覧（Search Console に登録して使う）
 assets/
-  img/                アイコン（弓道の霞的。輪の比率は実寸どおり）
+  img/                アイコン（弓道の霞的。輪の比率は実寸どおり）と、共有したときに出る画像（og.png）
   fonts/              筆字（Yuji Syuku をサイトで使う字に絞ったもの）と、その字の一覧・ライセンス
   data/nicola.js      NICOLA配列表
   js/

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 検索エンジンに渡すページの一覧。Search Console に登録して使う
+     （robots.txt はホストの一番上 kanade0525.github.io/robots.txt にしか効かないので、このリポジトリには置かない） -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://kanade0525.github.io/oyayubi-dojo/</loc></url>
+  <url><loc>https://kanade0525.github.io/oyayubi-dojo/game.html</loc></url>
+  <url><loc>https://kanade0525.github.io/oyayubi-dojo/keycheck.html</loc></url>
+</urlset>

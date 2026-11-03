@@ -363,7 +363,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 ランキングは外への通信なので、`connect-src` は **`'none'` か、`RANKING_API_URL` のオリジンちょうど一つ**のどちらかに限る。
 `RANKING_API_URL` が空なら `'none'` のまま。検査はこの対応を突き合わせる。
-外部リンク（`<a href="https://...">`、Buy Me a Coffee）は通信ではなく遷移なので許す。`src=` の外部参照は引き続き禁止。
+外部リンク（`<a href="https://...">`、Buy Me a Coffee）は通信ではなく遷移なので許す。`<link rel="canonical">`（正規の URL の宣言）も何も読み込まないので許す。検索と共有のための og:* / twitter:* は `<meta content>` に書くので読み込みにならない。JSON-LD（`<script type="application/ld+json">`）は実行されないデータなので script-src のハッシュは要らない。`src=` の外部参照は引き続き禁止。
 
 ## 画面
 

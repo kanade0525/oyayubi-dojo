@@ -1,3 +1,9 @@
+@font-face {
+  font-family: "Yuji Syuku";
+  src: url("../fonts/YujiSyuku-subset.woff2") format("woff2");
+  font-display: swap;
+}
+
 /* キー実測（keycheck.html）の見た目。
    CSP が style-src 'self' なので、HTML の中の <style> は配信先で読まれない。だから外のファイルにしてある。
    本体と同じ考え方：箱を積まず、罫で区切る。書体は本体の --ui と同じ一つだけ（等幅は使わない）
@@ -42,8 +48,8 @@ body {
   padding: 40px 24px 72px;
   background: var(--bg);
   color: var(--fg);
-  /* 本体（assets/css/app.css の --ui）と同じ並び */
-  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
+  /* 本体（assets/css/app.css の --ui）と同じ並び。書体は筆字一つ（@font-face はこのファイルの冒頭） */
+  font-family: "Yuji Syuku", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
     "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
   font-variant-numeric: tabular-nums;
   line-break: strict;

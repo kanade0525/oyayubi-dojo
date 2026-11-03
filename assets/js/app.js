@@ -848,15 +848,16 @@ function finishLesson() {
   }));
   const next = nextPhase(l.id);
   if (passed) {
+    const nextTitle = next ? `次は «${CURRICULUM.find((x) => x.id === next.lessonId).title}»。` : '';
     el.lcardNote.textContent = missed.length
-      ? 'まちがえたかなは、次のレッスンの組み合わせと確認に多めに混ぜます。'
-      : (next ? 'まちがいなし。' : '全レッスンを終えました。レッスンの一覧から配列表の画像を保存できます。');
-    el.btnLearnNextText.textContent = next ? `次のレッスンへ（${CURRICULUM.find((x) => x.id === next.lessonId).title}）` : 'レッスンの一覧へ';
+      ? `まちがえたかなは、次のレッスンの組み合わせと確認に多めに混ぜます。${nextTitle}`
+      : (next ? `まちがいなし。${nextTitle}` : '全レッスンを終えました。レッスンの一覧から配列表の画像を保存できます。');
+    el.btnLearnNextText.textContent = next ? '次のレッスンへ（Enter）' : 'レッスンの一覧へ（Enter）';
     el.btnLearnNext.onclick = () => { location.hash = next ? `#/play/${next.id}` : '#/learn'; };
   } else {
     const kana = missed.map(([k]) => k);
     el.lcardNote.textContent = 'まちがえたかなだけの組み合わせを 16 字打ってから、確認をもう一度。';
-    el.btnLearnNextText.textContent = `おさらいする（${kana.slice(0, 3).join('・')}）`;
+    el.btnLearnNextText.textContent = 'おさらいする（Enter）';
     el.btnLearnNext.onclick = () => playMade(reviewPhase(l.lessonId, kana), null);
   }
   el.btnLearnAgain.hidden = !passed;
@@ -1050,6 +1051,19 @@ window.addEventListener('keydown', e => {
   }
 
   if (e.key === 'Escape') { e.preventDefault(); location.hash = run?.learn ? '#/learn' : '#/'; return; }
+
+  // 終わりの札が出ていれば、Enter で «次へ»（主のボタン）。
+  // 札の中のほかのボタンにフォーカスがあるときは、そのボタンを押させる
+  if (e.key === 'Enter' && !run) {
+    const card = !el.learnFinish.hidden ? el.learnFinish : !el.finish.hidden ? el.finish : null;
+    if (card && !(document.activeElement instanceof HTMLButtonElement && card.contains(document.activeElement)
+      && document.activeElement !== (card === el.finish ? el.btnNext : el.btnLearnNext))) {
+      e.preventDefault();
+      (card === el.finish ? el.btnNext : el.btnLearnNext).click();
+      return;
+    }
+    if (card) return;
+  }
 
   if (screen === 'play' && run?.input === 'romaji') {
     const ch = romajiKeyOf(e.key);

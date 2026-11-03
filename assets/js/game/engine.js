@@ -14,8 +14,9 @@
 //   - ラインに出る作業品は一度に一つ。打ち切るか出口を越えると、次がすぐ入口から出る（寿司打の皿と同じ。
 //     courses.js の注記に測った値）。作業品は入口から出口まで laneMs かけて流れる
 //   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。連打メーターが 0 に戻る
-//   - 作業品の値段は語の字数で決まる（courses.js の prices）。語は字数の順（lengthCycle）に、
-//     一つの字数で SAME_LEN_RUN 枚ずつ出る。数値と算出方法は寿司打と同じ（courses.js の注記）
+//   - 作業品の値段は語の字数で決まる（courses.js の prices）。語は字数の順（lengthRamp）に、
+//     一つの字数で SAME_LEN_RUN 枚ずつ出て、最大の字数まで来たらそのまま続く。
+//     数値と算出方法は寿司打と同じ。出る順だけ、寿司打の «また下がる» をやめた（courses.js の注記）
 //   - 作業品が出口まで流れたら検品漏れ。点は入らないがミスにも数えず、メーターも切らない
 //   - 連打メーター：ミスなしで続けて正しく打ったキーの数が METER_STEPS に届くたびに時間が延びる。
 //     最後の段で一周。ミスで 0 に戻る。キーは result.keys（親指シフトは一字 1、ローマ字は綴りのキー数）
@@ -23,10 +24,7 @@
 
 import { tierOf } from '../meter.js';
 import { loadLayout } from '../layout.js';
-import { itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } from './courses.js';
-
-/** 同じ単語が続けて出ないように覚えておく数 */
-const RECENT = 12;
+import { itemValue, lengthRamp, lengthAt, METER_STEPS } from './courses.js';
 
 const lenOf = (s) => [...s].length;
 
@@ -60,14 +58,14 @@ export function createGame({ course, words, rng, laneMs }) {
   if (typeof rng !== 'function') throw new Error('createGame: rng が関数でない');
 
   // 字数ごとに語を分けておく。出る順の字数に一語も無いのはデータの誤りなので黙って続けない
-  const cycle = lengthCycle(course);
+  const ramp = lengthRamp(course);
   const byLen = new Map();
   for (const w of words ?? []) {
     const n = lenOf(w.kana);
     if (!byLen.has(n)) byLen.set(n, []);
     byLen.get(n).push(w);
   }
-  for (const n of cycle) {
+  for (const n of ramp) {
     if (!byLen.get(n)?.length) throw new Error(`createGame: ${course.id} で出す ${n} 字の語が無い`);
   }
   let seq = 0;            // 何枚目の作業品か（0 から）。字数の順を決める
@@ -81,7 +79,7 @@ export function createGame({ course, words, rng, laneMs }) {
   let nextId = 1;
   /** @type {Array<{id:number, word:object, value:number, typed:number, spawnAt:number, perfect:number}>} */
   let items = [];
-  const recent = [];
+  const used = new Set(); // この回で出した語（kana）。一回の中では同じ語を二度出さない
 
   let score = 0;
   let correctKeys = 0;    // 正しく打ったキーの数（結果画面の «正しく打ったキーの数»）
@@ -99,20 +97,26 @@ export function createGame({ course, words, rng, laneMs }) {
   let shifted = 0;
   let timeBonusMs = 0;
 
+  /**
+   * 次の作業品の語。字数は lengthAt の順。この回で出した語は二度出さない。
+   * その字数の語を使い切ったら、一つ短い字数のまだ出ていない語へ下りる（words.js は
+   * 名人の速さでもここまで下りない量を持つ。tools/game.test.mjs が確かめる）。
+   * 範囲の語をすべて一度ずつ出し切ったときだけ、出した語の覚えを空にして二巡目に入る
+   */
   function pickWord() {
-    const pool = byLen.get(cycle[Math.floor(seq / SAME_LEN_RUN) % cycle.length]);
+    const want = lengthAt(course, seq);
     seq++;
-    // 直近に出た語を避ける。プールが小さくて避けきれないときは避けるのをやめる
-    // （止まるより重なるほうがまし）
-    for (let i = 0; i < 20; i++) {
-      const w = pool[Math.floor(rng() * pool.length) % pool.length];
-      if (!recent.includes(w.kana) || pool.length <= RECENT) {
-        recent.push(w.kana);
-        if (recent.length > RECENT) recent.shift();
+    for (let round = 0; round < 2; round++) {
+      for (let n = want; n >= course.minLen; n--) {
+        const left = (byLen.get(n) ?? []).filter((w) => !used.has(w.kana));
+        if (!left.length) continue;
+        const w = left[Math.floor(rng() * left.length) % left.length];
+        used.add(w.kana);
         return w;
       }
+      used.clear();
     }
-    return pool[Math.floor(rng() * pool.length) % pool.length];
+    throw new Error(`createGame: ${course.id} で出せる語が無い`);
   }
 
   function spawn(t) {

@@ -50,9 +50,15 @@ import {
 const APP = 'oyayubi-dojo';
 const STATS_KEY = 'oyayubi-dojo:stats:v1';
 const SETTINGS_KEY = 'oyayubi-dojo:settings:v1';
+// タイピングゲーム。自己ベストの鍵は game/main.js にあった頃のまま（作り直すと前の記録が消える）
+const GAME_BEST_KEY = 'oyayubi-dojo:gamebest:v3';
+const GAME_HISTORY_KEY = 'oyayubi-dojo:gamehistory:v1';
 
-/** 記録の置き場所。マイページに出して隠さない */
-export const STORAGE_KEYS = [STATS_KEY, SETTINGS_KEY];
+/** 記録の置き場所。記録の画面に出して隠さない。«全部消す» はこの全部を消す */
+export const STORAGE_KEYS = [STATS_KEY, SETTINGS_KEY, GAME_BEST_KEY, GAME_HISTORY_KEY];
+
+/** ゲームの回の履歴の上限。記録の画面で直近を振り返るだけなので 200 回で足りる */
+const GAME_HISTORY_LIMIT = 200;
 
 /** 打った日を残す上限。カレンダーは1年ちょっと見えれば足りる */
 const DAYS_LIMIT = 400;
@@ -537,6 +543,57 @@ function round(v, digits) {
   return Math.round(v * p) / p;
 }
 
+// ---------------------------------------------------------------- タイピングゲーム
+//
+// 自己ベストは 入力方式×ノルマ ごとに一つ: { nicola: { p3000: { score, kpm, at } }, romaji: { … } }。
+// 自己ベストに入れるのは «普通» の速さだけ（練習の記録と混ぜると、普通で越えられない数字が残る）。
+// 回の履歴は速さを問わず全部残す（練習も «練習» と書いて並べる）。新しい順。
+
+const INPUTS = ['nicola', 'romaji'];
+
+/** ゲームの自己ベスト。{ nicola: {...}, romaji: {...} } */
+export function loadGameBest() {
+  const v = obj(readJson(GAME_BEST_KEY));
+  return { nicola: obj(v.nicola), romaji: obj(v.romaji) };
+}
+
+/** ゲームの回の履歴（新しい順） */
+export function loadGameHistory() {
+  return arr(readJson(GAME_HISTORY_KEY)).filter((r) => r && typeof r === 'object' && typeof r.course === 'string');
+}
+
+/**
+ * ゲームの一回を残す。summary は engine.js の summary() に input と speed を足したもの。
+ * @returns {{ isBest: boolean, prev: object|null }} 自己ベストを越えたか（練習は常に false）
+ */
+export function recordGameRun(summary, at = Date.now()) {
+  if (!INPUTS.includes(summary?.input)) throw new Error(`recordGameRun: 入力方式が分からない（${summary?.input}）`);
+  if (summary.speed !== 'normal' && summary.speed !== 'practice') throw new Error(`recordGameRun: 速さが分からない（${summary.speed}）`);
+  const row = {
+    at,
+    course: summary.course,
+    input: summary.input,
+    speed: summary.speed,
+    score: num(summary.score),
+    balance: num(summary.balance),
+    keysPerSec: num(summary.keysPerSec),
+    misses: num(summary.misses),
+    cleared: num(summary.cleared),
+  };
+  writeJson(GAME_HISTORY_KEY, [row, ...loadGameHistory()].slice(0, GAME_HISTORY_LIMIT));
+
+  if (summary.speed !== 'normal') return { isBest: false, prev: null };
+  const all = loadGameBest();
+  const mine = all[summary.input];
+  const prev = Number.isFinite(mine[summary.course]?.score) ? mine[summary.course] : null;
+  const isBest = !prev || row.score > prev.score;
+  if (isBest) {
+    mine[summary.course] = { score: row.score, kpm: Math.round(num(summary.kpm)), at };
+    writeJson(GAME_BEST_KEY, all);
+  }
+  return { isBest, prev };
+}
+
 // ---------------------------------------------------------------- ローマ字時代の記録
 
 /**
@@ -746,6 +803,7 @@ export function exportAll() {
       exportedAt: new Date().toISOString(),
       stats: loadStats(),
       settings: loadSettings(),
+      game: { best: loadGameBest(), history: loadGameHistory() },
     },
     null,
     2
@@ -783,6 +841,11 @@ export function importAll(text) {
   if (!v.ok) return false;
   const okStats = writeJson(STATS_KEY, v.data.stats);
   if (v.data.settings) writeJson(SETTINGS_KEY, v.data.settings);
+  // ゲームの記録を持たない古い書き出しファイルなら、手元のゲームの記録はそのまま
+  if (v.data.game && typeof v.data.game === 'object') {
+    writeJson(GAME_BEST_KEY, obj(v.data.game.best));
+    writeJson(GAME_HISTORY_KEY, arr(v.data.game.history).slice(0, GAME_HISTORY_LIMIT));
+  }
   return okStats;
 }
 

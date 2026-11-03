@@ -250,17 +250,14 @@ kbd {
   white-space: nowrap;
 }
 
-.nav__brand span {
-  color: var(--fg-mid);
-  font-weight: 400;
-  margin-left: 0.35em;
-}
-
 .nav__links {
   display: flex;
   align-items: center;
   gap: 2px;
 }
+
+/* 右の連続日数・応援を押しやるのはナビの右の余白。どの場所でも同じ位置に揃う */
+.nav__links { margin-right: auto; }
 
 .nav__links a {
   padding: 6px 11px;
@@ -310,7 +307,6 @@ kbd {
 }
 
 .nav__streak {
-  margin-left: auto;
   display: inline-flex;
   align-items: baseline;
   gap: 5px;
@@ -899,17 +895,28 @@ kbd {
    ライトの値は素地 #f4f5f8 の上で 6〜7:1、主ボタンの白い字とも 6.6:1 以上（--area-ink）。 */
 body { --area: var(--tone); --area-ink: var(--tone-ink); }
 body[data-area="learn"],
-.door[data-area="learn"] { --area: #f0c35a; --area-ink: #14110a; }
+.door[data-area="learn"],
+.rec-group[data-area="learn"] { --area: #f0c35a; --area-ink: #14110a; }
 body[data-area="train"],
-.door[data-area="train"] { --area: #ff8a70; --area-ink: #14110a; }
+.door[data-area="train"],
+.rec-group[data-area="train"] { --area: #ff8a70; --area-ink: #14110a; }
 body[data-area="game"],
-.door[data-area="game"] { --area: #5fd0d0; --area-ink: #14110a; }
+.door[data-area="game"],
+.rec-group[data-area="game"] { --area: #5fd0d0; --area-ink: #14110a; }
 :root[data-tone="light"] body[data-area="learn"],
-:root[data-tone="light"] .door[data-area="learn"] { --area: #7a5600; --area-ink: #fff; }
+:root[data-tone="light"] .door[data-area="learn"],
+:root[data-tone="light"] .rec-group[data-area="learn"] { --area: #7a5600; --area-ink: #fff; }
 :root[data-tone="light"] body[data-area="train"],
-:root[data-tone="light"] .door[data-area="train"] { --area: #9a2e16; --area-ink: #fff; }
+:root[data-tone="light"] .door[data-area="train"],
+:root[data-tone="light"] .rec-group[data-area="train"] { --area: #9a2e16; --area-ink: #fff; }
 :root[data-tone="light"] body[data-area="game"],
-:root[data-tone="light"] .door[data-area="game"] { --area: #0b6266; --area-ink: #fff; }
+:root[data-tone="light"] .door[data-area="game"],
+:root[data-tone="light"] .rec-group[data-area="game"] { --area: #0b6266; --area-ink: #fff; }
+/* タイピングゲームは入力方式で色を替える。親指シフトは浅葱、ローマ字は藤。
+   どちらで打っているかが、見出し・帯・メーター・地の色合いでひと目で分かるように（main.js が body[data-input] を付ける）。
+   藤は暗い地で 9.0:1、ライトの素地で 7.4:1 */
+body[data-area="game"][data-input="romaji"] { --area: #c4a3ff; --area-ink: #14110a; }
+:root[data-tone="light"] body[data-area="game"][data-input="romaji"] { --area: #5b3aa8; --area-ink: #fff; }
 
 /* ヘッダーの上端に場所の色の帯。看板（銘）もその色 */
 .nav {
@@ -919,18 +926,8 @@ body[data-area="game"],
 
 .nav__brand { color: var(--area); }
 
-/* 場所に合わない看板・ナビは出さない */
-.nav__site,
+/* 連続日数は鍛えるの場所だけ */
 [data-for] { display: none; }
-body[data-area="gate"] [data-site="gate"],
-body[data-area="learn"] [data-site="learn"],
-body[data-area="train"] [data-site="train"] { display: inline; }
-body[data-area="gate"] .nav__links[data-for="gate"],
-body[data-area="learn"] .nav__links[data-for="learn"],
-body[data-area="train"] .nav__links[data-for="train"] { display: flex; }
-body[data-area="learn"] .nav__others[data-for="learn"],
-body[data-area="train"] .nav__others[data-for="train"],
-body[data-area="game"] .nav__others[data-for="game"] { display: flex; }
 body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
 
 .nav__links a[aria-current="page"] {
@@ -938,18 +935,6 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
   background: color-mix(in srgb, var(--area) 16%, transparent);
   box-shadow: inset 0 -2px 0 var(--area);
 }
-
-/* ほかの場所への出口。ここに来た人の用事ではないので小さく、右の端に */
-.nav__others {
-  align-items: center;
-  gap: 2px;
-  margin: 0 0 0 auto;
-  font-size: 11.5px;
-  color: var(--fg-dim);
-  white-space: nowrap;
-}
-
-.nav__others span { margin-right: 6px; }
 
 /* ナビの中のボタン（タイピングゲームのランキング）。見た目はナビのリンクと同じ */
 .nav__btn {
@@ -967,19 +952,6 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
   color: var(--fg);
   background: color-mix(in srgb, var(--area) 12%, transparent);
 }
-
-.nav__others a {
-  padding: 4px 8px;
-  border-radius: var(--r-s);
-  color: var(--fg-mid);
-}
-
-.nav__others a:hover {
-  color: var(--fg);
-  background: color-mix(in srgb, var(--fg) 8%, transparent);
-}
-
-.nav__others + .nav__streak { margin-left: 0; }
 
 /* 開発の応援。右端に一つだけ。場所の色は使わず、ナビのリンクと同じ静かさで */
 .nav__support {
@@ -999,9 +971,6 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
   color: var(--fg);
   border-color: var(--fg-dim);
 }
-
-/* 右端に寄せる役は、前にある «ほかの入口» と連続日数が持つ。門には両方ないので自分で寄せる */
-body[data-area="gate"] .nav__support { margin-left: auto; }
 
 /* 場所の頭。看板の名前を小さく上に置き、見出しの下に場所の色の短い線 */
 .area-head__site {
@@ -3693,10 +3662,6 @@ body[data-area="train"] .btn--primary {
     padding: 0 14px;
   }
 
-  .nav__brand span {
-    display: none;
-  }
-
   .tones__opt span {
     display: none;
   }
@@ -4099,7 +4064,6 @@ body[data-area="train"] .btn--primary {
 
 .nav__links a .icon { width: 18px; height: 18px; opacity: .85; }
 .nav__links a.is-tool .icon { width: 16px; height: 16px; }
-.nav__others span[data-icon] .icon { width: 15px; height: 15px; }
 .card__head .icon { width: 18px; height: 18px; color: var(--area); }
 .kbnote__head .icon { width: 18px; height: 18px; }
 .btn .icon { width: 18px; height: 18px; }
@@ -4110,6 +4074,9 @@ body[data-area="train"] .btn--primary {
 /* 狭い画面のナビは字だけにする。アイコンを足すと二段目が溢れる */
 @media (max-width: 640px) {
   .nav__links a .icon { display: none; }
+  /* ゲームのランキングは、狭い画面ではナビから外す（八つ目が三段目に落ちる）。
+     タイトルと結果の画面に «ランキング» のボタンがあるので、行き先は残る */
+  .nav__links .nav__btn { display: none; }
 }
 .btn:not([data-icon]) > .icon { margin-right: 0.4em; }
 
@@ -4333,3 +4300,39 @@ body[data-area="train"] .btn--primary {
 .lcard__weak span { font-size: 13px; color: var(--fg-mid); }
 .lcard__weak small { margin-left: auto; font-size: 12px; color: var(--fg-dim); }
 .lcard__note { margin: 12px 0 0; font-size: 13px; line-height: 1.7; color: var(--fg-mid); }
+
+/* ---------------------------------------------------------------- 記録（覚える・鍛える・腕試し・共通）
+   一つの画面に三つの場所の記録を並べる。まとまりの頭に、その場所の色の線と名前 */
+.rec-group {
+  --area: var(--fg-mid);
+  margin: 28px 0 -4px;
+  padding-bottom: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--area);
+  border-bottom: 2px solid var(--area);
+  font-feature-settings: "palt";
+}
+
+.rec-units {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px 18px;
+}
+
+.rec-units li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--fg-mid);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.rec-units b { flex: none; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rec-units .is-done b { color: var(--perfect); }

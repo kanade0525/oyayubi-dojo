@@ -12,6 +12,8 @@
        説明文の字の濃さは app.css と同じ基準（--fg-mid / --fg-dim）に揃える */
 
 .g-body {
+  /* 地にも入力方式の色（--area）を薄く敷く。切り替えたときに画面全体の色合いが変わる */
+  background: color-mix(in srgb, var(--area) 10%, var(--bg));
   display: flex;
   flex-direction: column;
   min-height: 100%;
@@ -140,7 +142,7 @@
 .g-course__best { font-size: 12px; color: var(--fg-dim); }
 .g-course kbd { margin-left: auto; }
 
-/* ---------------------------------------------------------------- 検品中 */
+/* ---------------------------------------------------------------- プレイ中 */
 
 .g-hud {
   display: flex;
@@ -161,15 +163,59 @@
 
 .g-hud span {
   margin-right: auto;
+  white-space: nowrap;
   font-size: 11px;
   letter-spacing: 0.1em;
   color: var(--fg-dim);
 }
 
 .g-hud b { font-size: 26px; }
-.g-hud small { font-size: 12px; color: var(--fg-dim); }
+.g-hud small { font-size: 12px; color: var(--fg-dim); white-space: nowrap; }
 
-/* ライン。ベルトの上を作業品が左から右へ流れ、右端の «検品» の線が出口。
+/* いまの入力方式。プレイ中にどちらで打っているかを、その色で大きく出す */
+.g-hud__mode b { color: var(--area); font-size: 20px; }
+
+/* 連打メーター。一周 130 キーを一本のバーにして、延長の段に刻みを打つ。
+   数字だけだと «あとどれだけで延びるか» が読めなかった */
+.g-hud > .g-hud__meter {
+  flex: 1.4;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+.g-hud__meter span:first-child { margin: 0; }
+/* .g-hud span の margin-right: auto がバーにも効くと、グリッドの中で幅 0 に縮む */
+.g-hud .g-meterbar { margin: 0; width: 100%; }
+.g-hud__meter small { grid-column: 2; }
+.g-meterbar {
+  position: relative;
+  height: 12px;
+  margin: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  overflow: hidden;
+}
+.g-meterbar__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--fill, 0) * 100%);
+  background: var(--area);
+  border-radius: inherit;
+}
+/* 延長の段の刻み。段に届くと、その刻みより左が埋まる */
+.g-meterbar__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--at) * 100%);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--bg);
+}
+
+/* ライン。ベルトの上を作業品が左から右へ流れ、右端の線が出口（字は置かない）。
    作業品の位置は main.js が --x（0..1）で渡す。left を割合で決め、作業品の幅ぶんは translate で引く */
 .g-line {
   position: relative;
@@ -198,16 +244,6 @@
   right: 6%;
   width: 2px;
   background: var(--area);
-}
-
-.g-line__gate span {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-  color: var(--area);
 }
 
 .g-line__items {

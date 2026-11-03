@@ -18,7 +18,8 @@ import {
   loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS, resolveTone,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
 } from './storage.js';
-import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun, recordLessonRun } from './storage.js';
+import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun, recordLessonRun, loadGameBest, loadGameHistory } from './storage.js';
+import { COURSES as GAME_COURSES, SPEEDS as GAME_SPEEDS } from './game/courses.js';
 import { createRomaji, romajiKeyOf } from './romaji.js';
 import {
   RANKS, rankOf, nextRankGap, TROPHIES, TIERS, progressOf, trophiesByCategory, dayKey,
@@ -1420,6 +1421,8 @@ function paintMypage() {
   renderCalendar(el.calBox, stats.daily ?? {}, new Date());
   paintTrophies(stats);
   paintRecords(stats);
+  paintLearnRecord(stats);
+  paintGameRecord();
   paintRomajiCard(stats);
   // 入力欄は #romajiCard とは別の札にある。記録が無い間は #romajiCard が隠れるので、
   // 中に入れると「記録が無い人だけが欄に辿り着けない」形になる
@@ -1553,6 +1556,71 @@ function trophyCard(t, when, stats) {
   }
   d.append(medal(t, { got: !!when }), body);
   return d;
+}
+
+/** 記録の «覚える»：レッスンの進み具合と、単元ごとの済み数 */
+function paintLearnRecord(stats) {
+  const done = CURRICULUM.filter((l) => lessonDone(stats, l.id)).length;
+  $('recLearnCount').textContent = `${done} / ${CURRICULUM.length} レッスン`;
+  $('recLearnFill').style.width = `${(done / CURRICULUM.length) * 100}%`;
+  $('recLearnUnits').replaceChildren(...UNITS.map((u, i) => {
+    const n = u.lessons.filter((l) => lessonDone(stats, l.id)).length;
+    const li = document.createElement('li');
+    if (n === u.lessons.length) li.className = 'is-done';
+    const b = document.createElement('b');
+    b.textContent = `${n} / ${u.lessons.length}`;
+    li.append(`単元 ${i + 1} ${u.name}`, b);
+    return li;
+  }));
+  const cur = CURRICULUM.find((l) => !lessonDone(stats, l.id));
+  const next = $('recLearnNext');
+  const a = document.createElement('a');
+  a.className = 'link';
+  a.href = '#/learn';
+  if (cur) {
+    a.textContent = `レッスン ${CURRICULUM.indexOf(cur) + 1} ${cur.title}`;
+    next.replaceChildren('つぎは ', a);
+  } else {
+    a.textContent = 'レッスンの一覧';
+    next.replaceChildren('全部終えました（', a, '）');
+  }
+}
+
+const GAME_INPUT_NAME = { nicola: '親指シフト', romaji: 'ローマ字' };
+
+/** 記録の «腕試し»：ノルマ×入力方式の自己ベストと、これまでの回（新しい順に 20 回） */
+function paintGameRecord() {
+  const best = loadGameBest();
+  const yen = (n) => `${Math.round(n).toLocaleString('ja-JP')} pt`;
+  const cell = (tr, v) => { const td = document.createElement('td'); td.textContent = v; tr.append(td); };
+  $('recGameBest').replaceChildren(...GAME_COURSES.map((c) => {
+    const tr = document.createElement('tr');
+    cell(tr, c.name);
+    for (const input of ['nicola', 'romaji']) {
+      const b = best[input][c.id];
+      cell(tr, b ? `${yen(b.score)}（${b.score >= c.target ? 'お得' : '損'}）` : '—');
+    }
+    return tr;
+  }));
+
+  const runs = loadGameHistory();
+  $('recGameCount').textContent = runs.length ? `${runs.length} 回` : '';
+  $('recGameWrap').hidden = runs.length === 0;
+  $('recGameEmpty').hidden = runs.length > 0;
+  $('recGameRows').replaceChildren(...runs.slice(0, 20).map((r) => {
+    const tr = document.createElement('tr');
+    const d = new Date(r.at);
+    const pad = (n) => String(n).padStart(2, '0');
+    cell(tr, Number.isFinite(d.getTime()) ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : '—');
+    cell(tr, GAME_COURSES.find((c) => c.id === r.course)?.name ?? r.course);
+    cell(tr, GAME_INPUT_NAME[r.input] ?? r.input);
+    cell(tr, GAME_SPEEDS.find((s) => s.id === r.speed)?.name ?? r.speed);
+    cell(tr, yen(r.score));
+    cell(tr, r.balance >= 0 ? `${yen(r.balance)} お得` : `${yen(-r.balance)} 損`);
+    cell(tr, `${Number(r.keysPerSec).toFixed(1)} 回/秒`);
+    cell(tr, `${r.misses} 回`);
+    return tr;
+  }));
 }
 
 function paintRecords(stats) {
@@ -1927,7 +1995,8 @@ function updateFreeText() {
  * 配列表と設定は場所を持たない道具なので、開いても直前の場所のまま（入門から開いた配列表は入門の顔）。
  * 課題の画面は、覚えるのレッスンの段階なら覚える、それ以外（実文の題材・その場で組んだ出題・自由入力）なら鍛える
  */
-const AREA_OF = { home: 'gate', learn: 'learn', train: 'train', record: 'train' };
+// 記録・配列表・設定は場所を持たない（開いても帯の色は前の場所のまま）
+const AREA_OF = { home: 'gate', learn: 'learn', train: 'train' };
 const AREA_TITLE = { gate: '親指シフトマスター ～0から覚えてトレーニングまで～', learn: '親指シフト入門｜親指シフトマスター', train: '親指シフト トレーニング｜親指シフトマスター' };
 let area = 'gate';
 
@@ -1961,8 +2030,10 @@ function route() {
   for (const [k, node] of Object.entries(el.screens)) {
     if (node) node.hidden = k !== name;
   }
+  // 一本打っている間（#/play/…）は、その一本の場所（覚える・鍛える）に印を付ける
+  const here = name === 'play' ? `/${area}` : `/${head}`;
   for (const a of document.querySelectorAll('[data-nav]')) {
-    a.setAttribute('aria-current', a.dataset.nav === `/${head}` ? 'page' : 'false');
+    a.setAttribute('aria-current', a.dataset.nav === here ? 'page' : 'false');
   }
 
   if (name === 'home') paintHome();

@@ -4,7 +4,7 @@
 //   キー入力 → nicola.js（同時打鍵の判定）→ engine.js（ゲームの決まり）→ 画面と音
 //   をつなぎ、タイトル・カウントダウン・検品中・結果・ランキング・参加の同意の画面を切り替える。
 //   判断は持たない。ゲームの決まりは engine.js、送受信は ranking.js にある。
-//   採点（値段・出る順・連打メーター・結果の項目）は寿司打と同じ数値と算出方法。courses.js の注記を見よ
+//   採点（値段・連打メーター・結果の項目）は寿司打と同じ数値と算出方法。出る順だけ «下がらない» に変えた。courses.js の注記を見よ
 //
 // なぜ app.js と同じやり方で入力を取るのか
 //   同時打鍵の判定は「押した時刻」と「離した時刻」の両方が要る。練習画面と同じ設定
@@ -24,12 +24,12 @@
 import { createNicola } from '../nicola.js';
 import { createRomaji, romajiKeyOf } from '../romaji.js';
 import { loadLayout, thumbSideOf } from '../layout.js';
-import { loadSettings, resolveTone, TONES } from '../storage.js';
+import { loadSettings, resolveTone, TONES, loadGameBest, recordGameRun } from '../storage.js';
 import { createSound } from '../sound.js';
 import { offsetBinOf, OFFSET_BINS } from '../trophies.js';
 import { renderScope } from '../charts.js';
 import { createSfx, loadSfxOn, saveSfxOn } from './sfx.js';
-import { COURSES, SPEEDS } from './courses.js';
+import { COURSES, SPEEDS, METER_STEPS } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
 import { icon, fillIcons } from '../icons.js';
@@ -138,7 +138,8 @@ const el = {
   hudTime: $('hudTime'),
   hudScore: $('hudScore'),
   hudTarget: $('hudTarget'),
-  hudMeter: $('hudMeter'),
+  hudMeterBar: $('hudMeterBar'),
+  hudMeterFill: $('hudMeterFill'),
   hudMeterNext: $('hudMeterNext'),
   hudKps: $('hudKps'),
   line: $('line'),
@@ -158,6 +159,8 @@ const el = {
   resultScopeNote: $('resultScopeNote'),
   submitBox: $('submitBox'),
   btnAgain: $('btnAgain'),
+  btnOtherInput: $('btnOtherInput'),
+  hudInput: $('hudInput'),
   btnShare: $('btnShare'),
   btnTitle: $('btnTitle'),
   btnRankingFromTitle: $('btnRankingFromTitle'),
@@ -201,39 +204,10 @@ function showNicolaParts(root, on) {
   for (const n of root.querySelectorAll('[data-nicola]')) n.hidden = !on;
 }
 
-// ---------------------------------------------------------------- 自己ベスト（この端末だけ）
+// ---------------------------------------------------------------- 自己ベストと回の履歴（この端末だけ）
 //
 // ランキングに参加しなくても «前の自分» と比べられるようにする。送らない。
-// 保存できない環境でも遊べることが先なので、読めなければ «記録なし»、書けなければ何もしない。
-// 入力方式×コースごとに一つ: { nicola: { p3000: { score, kpm, at } }, romaji: { … } }
-
-const BEST_KEY = 'oyayubi-dojo:gamebest:v3';
-
-function loadBest() {
-  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
-  try {
-    const v = obj(JSON.parse(localStorage.getItem(BEST_KEY) ?? '{}'));
-    return { nicola: obj(v.nicola), romaji: obj(v.romaji) };
-  } catch {
-    return { nicola: {}, romaji: {} };
-  }
-}
-
-function saveBest(summary) {
-  const all = loadBest();
-  const mine = all[summary.input];
-  const prev = Number.isFinite(mine[summary.course]?.score) ? mine[summary.course] : null;
-  const isBest = !prev || summary.score > prev.score;
-  if (isBest) {
-    mine[summary.course] = { score: summary.score, kpm: Math.round(summary.kpm), at: Date.now() };
-    try {
-      localStorage.setItem(BEST_KEY, JSON.stringify(all));
-    } catch {
-      /* 書けなくても結果画面は出す */
-    }
-  }
-  return { isBest, prev };
-}
+// 保存は storage.js（記録の画面と «全部消す»・書き出しが同じところを見るように）
 
 // ---------------------------------------------------------------- 画面の切り替え
 
@@ -257,8 +231,15 @@ const KEY_NAME = { Lang2: '英数', Lang1: 'かな', KanaMode: 'かな', NonConv
 const nameOfCodes = (codes) => KEY_NAME[codes[0]] ?? codes[0];
 const KEY_OF = ['1', '2', '3'];
 
+/** 入力方式の色（app.css の body[data-input]）と、プレイ中の表示 */
+function applyInput(v) {
+  document.body.dataset.input = v;
+  el.hudInput.textContent = INPUT_NAME[v];
+}
+
 function paintTitle() {
   const nicolaMode = inputMode === 'nicola';
+  applyInput(inputMode);
   for (const b of el.inputPick.querySelectorAll('[data-input]')) {
     b.setAttribute('aria-pressed', String(b.dataset.input === inputMode));
   }
@@ -273,7 +254,7 @@ function paintTitle() {
   el.thumbNote.hidden = !nicolaMode;
   el.thumbNames.textContent = `左 ${nameOfCodes(thumbKeys.left)} ／ 右 ${nameOfCodes(thumbKeys.right)}`;
 
-  const best = loadBest()[inputMode];
+  const best = loadGameBest()[inputMode];
   el.courseList.replaceChildren(
     ...COURSES.map((c, i) => {
       const b = best[c.id];
@@ -386,6 +367,7 @@ function startCountdown(c) {
   playSpeed = speedMode;
   game = createGame({ course: c, words: WORDS, rng: Math.random, laneMs: speedOf(playSpeed).laneMs });
   playInput = inputMode;
+  applyInput(playInput);
   nicola = playInput === 'nicola' ? buildNicola() : null;
   romaji = playInput === 'romaji' ? createRomaji() : null;
   romajiItem = null;
@@ -494,8 +476,8 @@ function romajiView() {
 
 function finishGame(t) {
   summary = { ...game.summary(), input: playInput, speed: playSpeed };
-  // 自己ベストは普通の速さだけ（練習の記録と混ぜると、普通で越えられない数字が残る）
-  bestInfo = playSpeed === 'normal' ? saveBest(summary) : { isBest: false, prev: null };
+  // 回の履歴は全部、自己ベストは普通の速さだけ（storage.js）
+  bestInfo = recordGameRun(summary);
   // 前の回の「送りました」やエラーを持ち越さない。持ち越すと次の結果が送れなくなる
   submitState = { busy: false, msg: '', kind: '' };
   nicola?.reset();
@@ -618,13 +600,28 @@ function paintLine(st, t) {
     if (f && t - f.at < FLASH_MS) {
       n.root.classList.add(f.kind === 'clear' ? 'is-clear' : 'is-lost');
       n.root.classList.remove('is-head');
-      n.value.textContent = f.kind === 'clear' ? `+${num(f.value)}` : '検品漏れ';
+      n.value.textContent = f.kind === 'clear' ? `+${num(f.value)}` : '取り逃し';
       continue;
     }
     n.root.remove();
     nodes.delete(id);
     flash.delete(id);
   }
+}
+
+// 連打メーターのバー。一周（最後の段のキー数）を 1 として、延長の段に刻みを打つ
+const METER_LOOP = METER_STEPS[METER_STEPS.length - 1].keys;
+el.hudMeterBar.append(...METER_STEPS.slice(0, -1).map((s) => {
+  const tick = h('i', { class: 'g-meterbar__tick' });
+  tick.style.setProperty('--at', String(s.keys / METER_LOOP));
+  return tick;
+}));
+
+function paintMeter(keys, next) {
+  el.hudMeterFill.style.setProperty('--fill', String(Math.min(1, keys / METER_LOOP)));
+  const step = METER_STEPS.find((s) => s.keys === next);
+  if (!step) throw new Error(`連打メーター: 次の段 ${next} キーが METER_STEPS に無い`);
+  el.hudMeterNext.textContent = `あと ${next - keys} キーで +${step.ms / 1000} 秒`;
 }
 
 function paintPlay(t) {
@@ -634,8 +631,7 @@ function paintPlay(t) {
     el.cueCount.textContent = String(Math.max(1, Math.ceil((countdownEnd - t) / 1000)));
     el.hudTime.textContent = (course.timeMs / 1000).toFixed(1);
     el.hudScore.textContent = '0';
-    el.hudMeter.textContent = '0';
-    el.hudMeterNext.textContent = '';
+    paintMeter(0, METER_STEPS[0].keys);
     el.hudKps.textContent = '0.0';
     el.cueWord.replaceChildren();
     el.cueRomaji.hidden = true;
@@ -646,8 +642,7 @@ function paintPlay(t) {
   el.hudTime.textContent = (st.remainingMs / 1000).toFixed(1);
   el.hudScore.textContent = num(st.score);
   el.hudScore.classList.toggle('g-ok', st.score >= course.target);
-  el.hudMeter.textContent = String(st.meterKeys);
-  el.hudMeterNext.textContent = `/ ${st.meterNext}`;
+  paintMeter(st.meterKeys, st.meterNext);
   el.hudKps.textContent = st.elapsedMs > 1000 ? (Math.floor((st.correctKeys / (st.elapsedMs / 1000)) * 10) / 10).toFixed(1) : '0.0';
   paintLine(st, t);
   // 語と返しは変わったときだけ組み直す（毎フレーム DOM を作り直さない）
@@ -679,6 +674,10 @@ function paintResult() {
   showNicolaParts(el.scResult, nicolaMode);
   el.resultMode.textContent = `ノルマ ${num(course.target)} pt・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}・${speedOf(s.speed).name}`;
   el.resultScore.textContent = num(s.score);
+  const other = INPUTS.find((v) => v !== s.input);
+  el.btnAgain.lastChild.textContent = `${INPUT_NAME[s.input]}でもう一度（Enter）`;
+  el.btnOtherInput.lastChild.textContent = `${INPUT_NAME[other]}でも試す`;
+  el.btnOtherInput.dataset.input = other;
 
   const done = s.balance >= 0;
   const avg = s.cleared ? s.score / s.cleared : 0;
@@ -1066,6 +1065,12 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => { nicola?.reset(); });
 
 el.btnAgain.addEventListener('click', () => begin(course));
+// もう一方の入力方式で、同じノルマをすぐ始める。選んだ方式はタイトルの選択にも残す
+el.btnOtherInput.addEventListener('click', () => {
+  inputMode = el.btnOtherInput.dataset.input;
+  saveInput(inputMode);
+  begin(course);
+});
 el.btnTitle.addEventListener('click', abortToTitle);
 el.btnRankingFromTitle.addEventListener('click', () => openRanking('title'));
 // ヘッダーのランキング。遊んでいる最中は押しても何もしない（一回をうっかり捨てさせない）
@@ -1159,6 +1164,7 @@ function runDemo(kind) {
   playInput = input;
   inputMode = input;
   course = COURSES.find((c) => c.id === params.get('course')) ?? COURSES[0];
+  applyInput(input);
 
   if (kind === 'play') {
     game = createGame({ course, words: WORDS, rng: seeded(7), laneMs: SPEEDS[0].laneMs });

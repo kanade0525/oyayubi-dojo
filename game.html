@@ -41,14 +41,19 @@
 <body class="g-body" data-area="game">
 
 <header class="nav">
-  <!-- ゲームは «別の部屋»。看板・帯の色・ナビを部屋のものにする（app.css の body[data-area]）。
-       練習の場所（覚える・鍛える）へは右の «ほかの入口» から -->
-  <a class="nav__brand" href="game.html">タイピングゲーム</a>
-  <nav class="nav__links" aria-label="タイピングゲーム">
-    <a href="game.html" aria-current="page" data-icon="play">ノルマを選ぶ</a>
+  <!-- 看板とナビは index.html と同じ（どこからでも同じ並びで行き来できるように）。
+       ゲームだけのもの（ランキング）は «腕試し» のすぐ後ろに置く -->
+  <a class="nav__brand" href="index.html#/">親指シフトマスター</a>
+  <nav class="nav__links" aria-label="サイト">
+    <a href="index.html#/learn" data-icon="learn">覚える</a>
+    <a href="index.html#/train" data-icon="train">鍛える</a>
+    <a href="game.html" aria-current="page" data-icon="trial">腕試し</a>
     <button type="button" class="nav__btn" id="navRanking" data-icon="ranking">ランキング</button>
+    <a href="index.html#/record" data-icon="record">記録</a>
+    <i class="nav__sep" aria-hidden="true"></i>
+    <a class="is-tool" href="index.html#/layout" data-icon="keyboard">配列表</a>
+    <a class="is-tool" href="index.html#/setup" data-icon="settings">設定</a>
   </nav>
-  <p class="nav__others" data-for="game"><span data-icon="others">ほかの入口</span><a href="index.html#/learn">覚える</a><a href="index.html#/train">鍛える</a></p>
   <!-- 開発の応援（Buy Me a Coffee）。どの場所でも同じ右端に置く。外のサイトなので新しいタブで -->
   <a class="nav__support" href="https://buymeacoffee.com/kanade0525" target="_blank" rel="noopener noreferrer" data-icon="coffee" title="開発を応援する（Buy Me a Coffee）"><span>応援する</span></a>
 
@@ -72,7 +77,7 @@
     <div class="g-hero">
       <div>
         <h1 class="g-title__head" id="titleHead">タイピングゲーム</h1>
-        <p class="g-lead">ラインを流れてくる作業品の語を打つと、検品を通してその作業品の値段（pt）が入る。<br>時間内に通した合計がノルマを越えれば «お得»、届かなければ «損»。</p>
+        <p class="g-lead">ラインを流れてくる語を打ち切ると、その語の値段（pt）が入る。<br>時間内に通した合計がノルマを越えれば «お得»、届かなければ «損»。</p>
       </div>
       <dl class="g-rule">
         <div><dt>作業品の値段（字数で決まる）</dt><dd>100〜500</dd></div>
@@ -110,19 +115,26 @@
     <p class="g-support" data-support hidden></p>
   </section>
 
-  <!-- ============================================================ 検品中 -->
-  <section class="g-screen g-play" id="scPlay" aria-label="検品中" hidden>
+  <!-- ============================================================ プレイ中 -->
+  <section class="g-screen g-play" id="scPlay" aria-label="プレイ中" hidden>
     <div class="g-hud">
+      <div class="g-hud__mode"><span>入力</span><b id="hudInput">親指シフト</b></div>
       <div><span>残り</span><b id="hudTime">60.0</b><small>秒</small></div>
       <div><span>獲得</span><b id="hudScore">0</b><small id="hudTarget">/ 3,000 pt</small></div>
-      <div><span>連打メーター</span><b id="hudMeter">0</b><small id="hudMeterNext">/ 28</small></div>
+      <!-- 連打メーターは一周（130 キー）を一本のバーにする。刻みは延長の段（28 / 59 / 92 / 130）。
+           刻みと «+n 秒» は main.js が METER_STEPS から置く -->
+      <div class="g-hud__meter">
+        <span>連打メーター</span>
+        <span class="g-meterbar" id="hudMeterBar"><i class="g-meterbar__fill" id="hudMeterFill"></i></span>
+        <small id="hudMeterNext">あと 28 キーで +1 秒</small>
+      </div>
       <div><span>平均キータイプ数</span><b id="hudKps">0.0</b><small>回/秒</small></div>
     </div>
     <p class="g-ime" id="imeWarn" role="alert" hidden>日本語入力がオンです。<kbd>英数</kbd>で切り替えてください</p>
-    <!-- ライン。作業品は main.js が左から右へ流す（位置は engine.js の x）。右端が検品の出口 -->
+    <!-- ライン。作業品は main.js が左から右へ流す（位置は engine.js の x）。右端の線が出口 -->
     <div class="g-line" id="line" aria-hidden="true">
       <div class="g-line__belt"></div>
-      <div class="g-line__gate"><span>検品</span></div>
+      <div class="g-line__gate"></div>
       <div class="g-line__items" id="lineItems"></div>
       <p class="g-line__count" id="cueCount" hidden></p>
     </div>
@@ -151,7 +163,9 @@
       </figure>
     </div>
     <div class="g-row g-res__acts">
+      <!-- 同じ入力方式でもう一度と、もう一方の入力方式で試す。文言は main.js が入れる -->
       <button type="button" class="btn btn--primary" id="btnAgain" data-icon="retry">もう一度（Enter）</button>
+      <button type="button" class="btn" id="btnOtherInput" data-icon="retry">ローマ字でも試す</button>
       <button type="button" class="btn" id="btnRankingFromResult" data-icon="ranking">ランキング</button>
       <a class="btn" id="btnShare" target="_blank" rel="noopener noreferrer" href="https://x.com/intent/tweet">X で共有</a>
       <button type="button" class="btn btn--quiet" id="btnTitle">ノルマを選ぶ</button>

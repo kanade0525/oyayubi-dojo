@@ -43,41 +43,22 @@
 <body data-area="gate">
 
 <header class="nav">
-  <!-- 場所ごとに «別のサイト» に見せる。
-       覚える・鍛える・腕試しは来る人がまるで違う。共通のナビに三つを並べると、
-       どこに居ても «全部入りの一つのサイト» に見え、上級者は入門の看板を見て帰ってしまう。
-       body[data-area] を app.js が付け替え、看板（銘）・帯の色・ナビの中身を CSS で場所ごとに切り替える。
-       ナビにはその場所で使うものだけを出し、ほかの場所へは右の «ほかの入口» から控えめに移る。
-       配列表と設定は場所を持たない共通の道具なので、どの場所からも開ける（開いても場所は変えない） -->
-  <a class="nav__brand" href="#/">
-    <span class="nav__site" data-site="gate">親指シフトマスター</span>
-    <span class="nav__site" data-site="learn">親指シフト入門</span>
-    <span class="nav__site" data-site="train">親指シフト トレーニング</span>
-  </a>
+  <!-- 左端の看板はどこでも «親指シフトマスター»（トップへ戻る）。ナビもどこでも同じ並びにする。
+       場所ごとに看板とナビを替えていた頃は、いまどのサイトの何処に居て、ほかへはどう行くのかが分かりにくかった。
+       場所の違いは帯の色（body[data-area]）と、各ページの上の場所の名前で出す。
+       いま居る場所は aria-current（app.js の route）。レッスン・稽古の一本の間も、その場所に印が付く。
+       記録・配列表・設定は場所を持たない共通の画面なので、開いても場所（帯の色）は変えない -->
+  <a class="nav__brand" href="#/">親指シフトマスター</a>
 
-  <nav class="nav__links" data-for="gate" aria-label="入口">
-    <a href="#/learn" data-icon="learn">覚える</a>
-    <a href="#/train" data-icon="train">鍛える</a>
+  <nav class="nav__links" aria-label="サイト">
+    <a href="#/learn" data-nav="/learn" data-icon="learn">覚える</a>
+    <a href="#/train" data-nav="/train" data-icon="train">鍛える</a>
     <a href="game.html" data-icon="trial">腕試し</a>
+    <a href="#/record" data-nav="/record" data-icon="record">記録</a>
     <i class="nav__sep" aria-hidden="true"></i>
     <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
     <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
   </nav>
-  <nav class="nav__links" data-for="learn" aria-label="親指シフト入門">
-    <a href="#/learn" data-nav="/learn" data-icon="lessons">レッスン</a>
-    <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
-    <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
-  </nav>
-  <nav class="nav__links" data-for="train" aria-label="親指シフト トレーニング">
-    <a href="#/train" data-nav="/train" data-icon="train">稽古</a>
-    <a href="#/record" data-nav="/record" data-icon="record">記録</a>
-    <a class="is-tool" href="#/layout" data-nav="/layout" data-icon="keyboard">配列表</a>
-    <a class="is-tool" href="#/setup" data-nav="/setup" data-icon="settings">設定</a>
-  </nav>
-
-  <!-- ほかの場所へ。目立たせない（ここに来た人の用事ではないので） -->
-  <p class="nav__others" data-for="learn"><span data-icon="others">ほかの入口</span><a href="#/train">鍛える</a><a href="game.html">腕試し</a></p>
-  <p class="nav__others" data-for="train"><span data-icon="others">ほかの入口</span><a href="#/learn">覚える</a><a href="game.html">腕試し</a></p>
 
   <!-- 連続日数。毎日開く動機はここ一点に集める -->
   <a class="nav__streak" data-for="train" href="#/record" title="連続で練習した日数">
@@ -673,15 +654,25 @@
 
 
 <!-- ================================================================ #/record
-     記録。打った結果が貯まるところ。«記録» と名乗るのは、打てば増えることが名前だけで分かるから。
-     ここへは鍛えるのナビと、見出しの数字（弱い面の数）・ヘッダーの連続日数から入る。 -->
+     記録。覚える・鍛える・腕試しの記録を一つの画面にまとめる（どの場所のナビからも «記録» で入る）。
+     場所を持たない画面なので、開いても帯の色は前の場所のまま。並びは 覚える → 鍛える → 腕試し → 共通 -->
 <section class="screen screen--record" id="screenRecord" hidden>
   <div class="page page--narrowish">
-    <p class="area-head__site">親指シフト トレーニング</p>
     <h1 class="page__title">記録</h1>
 
+    <h2 class="rec-group" data-area="learn">覚える</h2>
+    <div class="card">
+      <h3 class="card__head">レッスン<span class="card__count" id="recLearnCount"></span></h3>
+      <div class="learn-prog__bar"><i id="recLearnFill"></i></div>
+      <!-- 単元ごとの済み数。app.js が curriculum.js の UNITS から組む -->
+      <ul class="rec-units" id="recLearnUnits"></ul>
+      <p class="note" id="recLearnNext"></p>
+    </div>
+
+    <h2 class="rec-group" data-area="train">鍛える</h2>
+
     <div class="card card--rank">
-      <h2 class="card__head">段位</h2>
+      <h3 class="card__head">段位</h3>
       <div class="rank">
         <b class="rank__name" id="rankName">素振り</b>
         <span class="rank__score" id="rankScore">稽古量 0</span>
@@ -698,7 +689,7 @@
     <!-- 伸び。速さ・ぴったり率・平均ズレを縦に三枚、横軸（何本目）を揃えて並べる（charts.js）。
          単位の違う三つを一枚に重ねない（縦軸が二つになる） -->
     <div class="card">
-      <h2 class="card__head">伸び</h2>
+      <h3 class="card__head">伸び</h3>
       <div id="trendBox"></div>
     </div>
 
@@ -709,7 +700,7 @@
          daysToPass / passedAt は出せないときに null で返る。null のときは行ごと隠す
          （«予測できません» と書くくらいなら、何も書かないほうが静かで正しい） -->
     <div class="card" id="romajiCard">
-      <h2 class="card__head">ローマ字と親指シフト<span class="card__count" id="romajiRatio"></span></h2>
+      <h3 class="card__head">ローマ字と親指シフト<span class="card__count" id="romajiRatio"></span></h3>
 
       <div class="romaji">
         <div class="romaji__row">
@@ -736,7 +727,7 @@
 
     <!-- 記録が無いあいだ #romajiCard は隠れるので、入れる欄は別の札にして常に出す -->
     <div class="card">
-      <h2 class="card__head">ローマ字の速さ<span class="card__count" id="checkRomajiState">未記録</span></h2>
+      <h3 class="card__head">ローマ字の速さ<span class="card__count" id="checkRomajiState">未記録</span></h3>
       <p class="note"><a class="link" href="#/train">鍛える</a>の実文をローマ字で打つと測れます。手で入れることもできます。</p>
       <div class="romaji__set">
         <label class="field__label" for="romajiCpmInput">ローマ字の速さ</label>
@@ -750,7 +741,7 @@
 
     <!-- 平均のズレ。ここが本アプリで一番見てほしい数字 -->
     <div class="card">
-      <h2 class="card__head">同時打鍵のクセ</h2>
+      <h3 class="card__head">同時打鍵のクセ</h3>
       <!-- 説明の一文は図（charts.js）が自分で出す。ここにも書くと二重になる -->
       <div id="offsetHist"></div>
     </div>
@@ -758,13 +749,13 @@
     <!-- 得意・苦手。配列の上に柱を立てる（iso.js）。高さと色＝平均と比べたミス率。
          ミスの «回数» をそのまま濃さにすると、一度でも外したキーが全部最大の濃さになる -->
     <div class="card">
-      <h2 class="card__head">得意・苦手</h2>
+      <h3 class="card__head">得意・苦手</h3>
       <div class="iso" id="isoBoard"></div>
     </div>
 
     <!-- いま何が弱いか。自分の記録を読む場所はここ。«鍛える» には見出しの数字（弱い面の数）だけ置く -->
     <div class="card" id="drillWeakCard">
-      <h2 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h2>
+      <h3 class="card__head">いまの弱点<span class="card__count" id="drillWeakCount"></span></h3>
 
       <p class="skew__ends">
         <span class="skew__end--early">親指が先行</span>
@@ -789,21 +780,10 @@
       <p class="empty" id="drillWeakEmpty" hidden>まだ記録が足りません。</p>
     </div>
 
-    <div class="card">
-      <h2 class="card__head">練習した日</h2>
-      <!-- 直近 52 週（charts.js）。狭い画面では横に流れ、右端（今日）が最初に見える -->
-      <div id="calBox"></div>
-    </div>
-
-    <div class="card">
-      <h2 class="card__head">実績<span class="card__count" id="trophyCount"></span></h2>
-      <div class="trophies" id="trophies"></div>
-    </div>
-
     <!-- 画面の名前が «記録» になったので、この札の見出しも «記録» のままだと
          «記録の中の記録» になる。中身は課題ごとの直近なので、そのまま名乗らせる -->
     <div class="card">
-      <h2 class="card__head">課題ごとの成績</h2>
+      <h3 class="card__head">課題ごとの成績</h3>
       <!-- 7 列あるので、狭い画面では表だけを横に流す（ページごとはみ出させない） -->
       <div class="rec-scroll">
         <table class="rec" id="recTable"><thead><tr><th>課題</th><th>回数</th><th>速さの推移</th><th>直近 cpm</th><th>最高 cpm</th><th>直近のズレ</th><th>最後に</th></tr></thead>
@@ -812,8 +792,40 @@
       <p class="note" id="recEmpty" hidden>まだ記録がありません。</p>
     </div>
 
+    <h2 class="rec-group" data-area="game">腕試し</h2>
     <div class="card">
-      <h2 class="card__head">データ</h2>
+      <h3 class="card__head">自己ベスト</h3>
+      <div class="rec-scroll">
+        <table class="rec"><thead><tr><th>ノルマ</th><th>親指シフト</th><th>ローマ字</th></tr></thead>
+          <tbody id="recGameBest"></tbody></table>
+      </div>
+      <p class="note">自己ベストは «普通» の速さの回だけです。</p>
+    </div>
+
+    <div class="card">
+      <h3 class="card__head">これまでの回<span class="card__count" id="recGameCount"></span></h3>
+      <!-- 新しい順に直近 20 回。8 列あるので、狭い画面では表だけを横に流す -->
+      <div class="rec-scroll" id="recGameWrap">
+        <table class="rec"><thead><tr><th>日時</th><th>ノルマ</th><th>入力</th><th>速さ</th><th>点</th><th>お得 / 損</th><th>平均キータイプ数</th><th>ミス</th></tr></thead>
+          <tbody id="recGameRows"></tbody></table>
+      </div>
+      <p class="note" id="recGameEmpty" hidden>まだ遊んでいません。<a class="link" href="game.html">腕試し</a>で遊ぶと、ここに並びます。</p>
+    </div>
+
+    <h2 class="rec-group">共通</h2>
+    <div class="card">
+      <h3 class="card__head">練習した日</h3>
+      <!-- 直近 52 週（charts.js）。狭い画面では横に流れ、右端（今日）が最初に見える -->
+      <div id="calBox"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card__head">実績<span class="card__count" id="trophyCount"></span></h3>
+      <div class="trophies" id="trophies"></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card__head">データ</h3>
       <p class="note">この端末の <code>localStorage</code> にだけあります。</p>
       <ul class="data__keys" id="dataKeys"></ul>
       <p class="data__row">

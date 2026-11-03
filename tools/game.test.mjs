@@ -21,10 +21,11 @@ import { pathToFileURL } from 'node:url';
 const ROOT = resolve(import.meta.dirname, '..');
 const imp = (p) => import(pathToFileURL(join(ROOT, p)).href);
 
-const { COURSES, SPEEDS, itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } = await imp('assets/js/game/courses.js');
+const { COURSES, SPEEDS, itemValue, lengthRamp, lengthAt, SAME_LEN_RUN, METER_STEPS } = await imp('assets/js/game/courses.js');
 const { createGame, keyFor } = await imp('assets/js/game/engine.js');
 const { WORDS } = await imp('assets/js/game/words.js');
 const { THRESHOLDS } = await imp('assets/js/meter.js');
+const { RANKS } = await imp('assets/js/trophies.js');
 
 // ---------------------------------------------------------------- 道具
 
@@ -85,11 +86,16 @@ describe('コースの数値は寿司打と同じ', () => {
     assert.throws(() => v('p3000', 8), '帯の外の字数で値段が付いた');
   });
 
-  test('字数の順は最小から最大まで上がって下がる。一つの字数で 3 枚', () => {
-    assert.deepEqual(lengthCycle(course('p3000')), [2, 3, 4, 5, 6, 7, 6, 5, 4, 3]);
-    assert.deepEqual(lengthCycle(course('p5000')), [5, 6, 7, 8, 9, 10, 9, 8, 7, 6]);
-    assert.deepEqual(lengthCycle(course('p10000')), [9, 10, 11, 12, 13, 14, 13, 12, 11, 10]);
+  test('字数の順は最小から最大まで上がり、下がらない。一つの字数で 3 枚', () => {
+    assert.deepEqual(lengthRamp(course('p3000')), [2, 3, 4, 5, 6, 7]);
+    assert.deepEqual(lengthRamp(course('p5000')), [5, 6, 7, 8, 9, 10]);
+    assert.deepEqual(lengthRamp(course('p10000')), [9, 10, 11, 12, 13, 14]);
     assert.equal(SAME_LEN_RUN, 3);
+    // 何枚目でも、前の枚より短くならない
+    for (const c of COURSES) {
+      for (let i = 1; i < 300; i++) assert.ok(lengthAt(c, i) >= lengthAt(c, i - 1), `${c.id} の ${i} 枚目で短くなった`);
+      assert.equal(lengthAt(c, 299), c.maxLen);
+    }
   });
 
   test('連打メーターは 28 / 59 / 92 / 130 キーで +1 / +1 / +2 / +3 秒', () => {
@@ -109,8 +115,8 @@ describe('始まりと出る順', () => {
     assert.equal(g.state.items.length, 1);
   });
 
-  test('作業品は字数の順に 3 枚ずつ出て、値段は itemValue', () => {
-    const g = play('p3000');
+  test('作業品は字数の順に 3 枚ずつ出て、最大の字数まで来たらそのまま続く。値段は itemValue', () => {
+    const g = play('p3000', WORDS);
     const lens = [];
     const values = [];
     for (let i = 0; i < 30; i++) {
@@ -120,14 +126,88 @@ describe('始まりと出る順', () => {
       assert.equal(head.value, itemValue(course('p3000'), head.word));
       finishHead(g, T0 + 1);
     }
-    assert.deepEqual(lens, [2, 3, 4, 5, 6, 7, 6, 5, 4, 3].flatMap((n) => [n, n, n]));
-    // touch-typing.net の表: 1〜9 枚目 100、10〜15 枚目 180、16〜18 枚目 240、19〜24 枚目 180、25〜30 枚目 100
-    assert.deepEqual(values, [...Array(9).fill(100), ...Array(6).fill(180), ...Array(3).fill(240), ...Array(6).fill(180), ...Array(6).fill(100)]);
+    // 寿司打はここから下がる（7,6,5,4,3）が、途中から簡単になるので下げない
+    assert.deepEqual(lens, [...[2, 3, 4, 5, 6, 7].flatMap((n) => [n, n, n]), ...Array(12).fill(7)]);
+    assert.deepEqual(values, [...Array(9).fill(100), ...Array(6).fill(180), ...Array(15).fill(240)]);
   });
 
   test('出る順の字数に語が無ければ throw（黙って別の字数を出さない）', () => {
     const words = SAMPLE.filter((w) => [...w.kana].length !== 4);
     assert.throws(() => createGame({ course: course('p3000'), words, rng: () => 0, laneMs: LANE }));
+  });
+});
+
+// ---------------------------------------------------------------- 同じ語を出さない
+
+/** 決まった乱数（mulberry32）。Math.random だと落ちたときに同じ回を再現できない */
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * 一字を msPerKana かけて、まちがえずに打ち続ける。連打メーターの延長も全部取る。
+ * 時間切れまでに出た作業品の語（kana）を出た順に返す
+ */
+function playThrough(c, { kanaPerMin, seed }) {
+  const g = createGame({ course: c, words: WORDS, rng: seeded(seed), laneMs: LANE });
+  const step = 60000 / kanaPerMin;
+  let t = T0;
+  g.start(t);
+  const seen = [];
+  let lastId = null;
+  while (g.state.phase === 'playing') {
+    const head = g.state.items[0];
+    if (head.id !== lastId) { seen.push(head.word.kana); lastId = head.id; }
+    t += step;
+    g.tick(t);
+    if (g.state.phase !== 'playing') break;
+    g.input(result([...head.word.kana][head.typed]), t);
+  }
+  return seen;
+}
+
+describe('一回のゲームで同じ語は出さない', () => {
+  const top = RANKS[RANKS.length - 1];          // 名人（毎分 360 字）
+  const shodan = RANKS.find((r) => r.name === '初段'); // 毎分 180 字
+
+  test(`${top.name}の速さ（毎分 ${top.cpm} 字・延長を全部取る）で最後まで打っても、同じ語が二度出ない`, () => {
+    for (const c of COURSES) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const seen = playThrough(c, { kanaPerMin: top.cpm, seed });
+        const twice = seen.filter((k, i) => seen.indexOf(k) !== i);
+        assert.deepEqual(twice, [], `${c.id}（seed ${seed}）で ${seen.length} 個中に重なり`);
+      }
+    }
+  });
+
+  test(`${shodan.name}の速さ（毎分 ${shodan.cpm} 字）なら、最大の字数まで来たあとは最後まで最大の字数（短い語へ下りない）`, () => {
+    for (const c of COURSES) {
+      for (let seed = 1; seed <= 20; seed++) {
+        const lens = playThrough(c, { kanaPerMin: shodan.cpm, seed }).map((k) => [...k].length);
+        const plateau = lens.slice(lengthRamp(c).length * SAME_LEN_RUN);
+        assert.ok(plateau.length > 0, `${c.id} が最大の字数まで届いていない`);
+        assert.ok(plateau.every((n) => n === c.maxLen), `${c.id}（seed ${seed}）で短い語へ下りた: ${plateau.join(',')}`);
+      }
+    }
+  });
+
+  test('その字数を使い切ったら一つ短い字数へ下り、範囲を出し切ったときだけ二巡目に入る', () => {
+    // 見本の表は字数ごとに 3 語。2〜7 字の上りで 18 語を出し切る
+    const g = play('p3000');
+    const seen = [];
+    for (let i = 0; i < 21; i++) {
+      seen.push(g.state.items[0].word.kana);
+      finishHead(g, T0 + 1);
+    }
+    assert.equal(new Set(seen.slice(0, 18)).size, 18, '一巡目で重なった');
+    assert.equal(seen.slice(18).every((k) => [...k].length === 7), true, '二巡目も最大の字数から');
   });
 });
 
@@ -323,7 +403,7 @@ describe('時間切れと summary', () => {
 describe('出す語', () => {
   test('どのコースの、どの字数にも 10 語以上ある', () => {
     for (const c of COURSES) {
-      for (const n of new Set(lengthCycle(c))) {
+      for (const n of lengthRamp(c)) {
         const k = WORDS.filter((w) => [...w.kana].length === n).length;
         assert.ok(k >= 10, `${c.id} の ${n} 字の語が ${k} 語しか無い`);
       }

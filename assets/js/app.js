@@ -52,6 +52,7 @@ const el = {
   // 入口の計器
   gateOffset: $('gateOffset'), gatePerfect: $('gatePerfect'), gateCpm: $('gateCpm'),
   gateSample: $('gateSample'), gateScope: $('gateScope'),
+  gateRings: $('gateRings'), gateTitle: $('gateTitle'),
   gateTally: $('gateTally'), gateTallyHead: $('gateTallyHead'), gateTallyRow: $('gateTallyRow'),
   // 鍛えるの見出しの数字
   trainRank: $('trainRank'), trainCpm: $('trainCpm'), trainPerfect: $('trainPerfect'),
@@ -1203,9 +1204,11 @@ function startTrial(meter = el.setupMeter, board = el.setupBoard) {
       sound.hit();
     } else if (result.thumb) {
       showJudgement(meter, { offsetMs: result.offsetMs, tier: tierOf(result.offsetMs) });
+      gateRipple(tierOf(result.offsetMs));
       sound.shifted({ tier: tierOf(result.offsetMs), offsetMs: result.offsetMs });
     } else if (trialWantedThumb) {
       showJudgement(meter, { offsetMs: null, tier: 'misfire' });
+      gateRipple('misfire');
       sound.misfire();
     } else {
       sound.hit();
@@ -1225,6 +1228,7 @@ function paintNav(stats = loadStats()) {
 function paintHome() {
   const stats = loadStats();
   paintNav(stats);
+  splitTitle();
   paintGateInst(stats);
   paintTally(stats);
   const next = CURRICULUM.find((l) => !lessonDone(stats, l.id));
@@ -1267,6 +1271,9 @@ function paintGateInst(stats) {
   el.gateOffset.closest('.inst').classList.toggle('is-empty', !n);
   if (n) {
     renderScope(el.gateScope, stats.offset);
+    // 棒は真ん中（ぴったり）から外へ順に伸ばす。遅れの段は CSS の --d で持つ
+    const bars = [...el.gateScope.querySelectorAll('.bar')];
+    bars.forEach((b, i) => b.style.setProperty('--d', String(Math.abs(i - (bars.length - 1) / 2))));
   } else {
     // まだ測っていない人には、ここで一打試させる。«何を測るサイトか» は読ませるより押させたほうが早い。
     // 記録は残さない（設定画面の試し打ちと同じ）
@@ -1376,6 +1383,44 @@ function paintTally(stats) {
     return div;
   }));
 }
+
+/** 門の看板を一字ずつに割る（一字ずつ墨が落ちるように出すため）。読み上げは h1 の aria-label */
+function splitTitle() {
+  const h = el.gateTitle;
+  if (!h || h.dataset.split) return;
+  h.dataset.split = '1';
+  let i = 0;
+  for (const node of [...h.childNodes]) {
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+    const frag = document.createDocumentFragment();
+    for (const ch of node.textContent) {
+      const sp = document.createElement('span');
+      sp.className = 'gate__ch';
+      sp.setAttribute('aria-hidden', 'true');
+      sp.style.setProperty('--i', String(i++));
+      sp.textContent = ch;
+      frag.append(sp);
+    }
+    node.replaceWith(frag);
+  }
+}
+
+/** 試し打ちの一打で、背景の的から波紋を立てる。色は判定の色 */
+function gateRipple(tier) {
+  const r = el.gateRings;
+  if (!r || screen !== 'home') return;
+  r.dataset.tier = tier;
+  r.classList.remove('is-hit');
+  void r.offsetWidth;   // 同じクラスを付け直してもアニメーションは頭から走らない。一度描かせてから付ける
+  r.classList.add('is-hit');
+}
+
+// 背景の的をマウスに少しだけ付いてこさせる。門にいる間だけ
+window.addEventListener('pointermove', (e) => {
+  if (screen !== 'home' || !el.gateRings) return;
+  el.gateRings.style.setProperty('--px', ((e.clientX / innerWidth) - 0.5).toFixed(3));
+  el.gateRings.style.setProperty('--py', ((e.clientY / innerHeight) - 0.5).toFixed(3));
+});
 
 /** 前回の数から今の数まで数え上げる。動きを減らす設定の人には最後の数だけ出す */
 function countUp(node, from, to) {

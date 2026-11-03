@@ -1191,9 +1191,6 @@ body[data-area="train"] .btn--primary {
   opacity: 0;
 }
 
-.door:hover,
-.door:focus-visible { background: color-mix(in srgb, var(--area) 6%, transparent); }
-
 .door:hover::before,
 .door:focus-visible::before { opacity: 1; }
 
@@ -4455,4 +4452,240 @@ body[data-area="train"] .btn--primary {
   margin: 4px 0 0;
   font-size: 13px;
   color: var(--perfect);
+}
+
+/* ---------------------------------------------------------------- 門の動き
+   動かすのは門だけ。ほかの画面は打つ場所なので、目を取る動きを入れない。
+   画面が出るたび（hidden が外れるたび）頭から走る。動きを減らす設定の人には、上の
+   prefers-reduced-motion の決まりで最後の形だけが出る。 */
+
+.screen--home { overflow-x: clip; }
+
+.gate__hero { position: relative; isolation: isolate; }
+
+/* 背景の霞的。計器の真ん中（ぴったり）あたりを中心にして、輪を薄く重ねる */
+.gate__rings {
+  --px: 0;
+  --py: 0;
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 74%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  translate: calc(var(--px) * -36px) calc(var(--py) * -24px);
+  transition: translate 0.6s ease-out;
+}
+
+.gate__rings > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+
+.gate__rings i {
+  border: 1px solid color-mix(in srgb, var(--tone) 22%, transparent);
+  animation: gate-ring-in 1.4s cubic-bezier(.2, .8, .2, 1) both, gate-spin 60s linear infinite;
+}
+
+.gate__rings i:nth-child(1) { width: 140px; height: 140px; border-width: 2px; animation-delay: 0.2s, 0s; }
+.gate__rings i:nth-child(2) { width: 300px; height: 300px; border-style: dashed; animation-delay: 0.32s, 0s; animation-direction: normal, reverse; }
+.gate__rings i:nth-child(3) { width: 480px; height: 480px; animation-delay: 0.44s, 0s; }
+.gate__rings i:nth-child(4) { width: 680px; height: 680px; border-style: dotted; animation-delay: 0.56s, 0s; animation-direction: normal, reverse; }
+
+/* «ぴったり» の波紋。中心から広がって消えるのを、間を置いて繰り返す */
+.gate__rings b {
+  width: 140px;
+  height: 140px;
+  border: 1px solid color-mix(in srgb, var(--perfect) 30%, transparent);
+  opacity: 0;
+  animation: gate-ripple 4.8s cubic-bezier(.1, .6, .3, 1) 1.6s infinite;
+}
+
+.gate__rings b + b { animation-delay: 4s; }
+
+/* 試し打ちの一打で立つ波紋 */
+.gate__rings em {
+  width: 140px;
+  height: 140px;
+  border: 2px solid var(--ripple, var(--perfect));
+  opacity: 0;
+}
+
+.gate__rings[data-tier="good"] { --ripple: var(--good); }
+.gate__rings[data-tier="off"] { --ripple: var(--off); }
+.gate__rings[data-tier="misfire"] { --ripple: var(--misfire); }
+.gate__rings.is-hit em { animation: gate-hit 0.9s cubic-bezier(.1, .7, .3, 1) both; }
+
+@keyframes gate-ring-in {
+  from { opacity: 0; scale: 0.4; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes gate-spin {
+  to { rotate: 360deg; }
+}
+
+@keyframes gate-ripple {
+  0% { opacity: 0; scale: 0.6; }
+  12% { opacity: 1; }
+  70%, 100% { opacity: 0; scale: 5; }
+}
+
+@keyframes gate-hit {
+  0% { opacity: 1; scale: 0.4; }
+  100% { opacity: 0; scale: 4.2; }
+}
+
+/* 看板。一字ずつ、墨が落ちてにじみが引くように出す。最後に筆の払いのような線を引く */
+.gate__ch {
+  display: inline-block;
+  animation: gate-ink 0.9s cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i) * 70ms + 0.1s);
+}
+
+@keyframes gate-ink {
+  0% { opacity: 0; filter: blur(10px); scale: 1.35; translate: 0 -10px; }
+  60% { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; filter: blur(0); scale: 1; translate: 0 0; }
+}
+
+.gate__title::after {
+  content: "";
+  display: block;
+  width: 3.4em;
+  height: 4px;
+  margin-top: 14px;
+  border-radius: 2px 6px 6px 2px;
+  background: linear-gradient(90deg, var(--tone), color-mix(in srgb, var(--tone) 10%, transparent));
+  transform-origin: left center;
+  animation: gate-sweep 0.8s cubic-bezier(.6, 0, .2, 1) 0.95s both;
+}
+
+@keyframes gate-sweep {
+  from { scale: 0 1; }
+  to { scale: 1 1; }
+}
+
+.gate__sub { animation: gate-rise 0.7s ease-out 1.15s both; }
+
+@keyframes gate-rise {
+  from { opacity: 0; translate: 0 14px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+/* 計器。四隅の鉤が外から寄ってきて、中身が出て、棒が真ん中から外へ伸び、針が上から落ちる */
+.screen--home .inst::before { animation: gate-corner-a 0.7s cubic-bezier(.2, .8, .2, 1) 0.25s both; }
+.screen--home .inst::after { animation: gate-corner-b 0.7s cubic-bezier(.2, .8, .2, 1) 0.25s both; }
+
+@keyframes gate-corner-a {
+  from { opacity: 0; translate: -28px -28px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes gate-corner-b {
+  from { opacity: 0; translate: 28px 28px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.screen--home .inst > * { animation: gate-rise 0.6s ease-out 0.45s both; }
+
+.screen--home .inst .bar {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: gate-bar 0.7s cubic-bezier(.3, 1.4, .5, 1) both;
+  animation-delay: calc(0.7s + var(--d, 0) * 45ms);
+}
+
+@keyframes gate-bar {
+  from { scale: 1 0; }
+  to { scale: 1 1; }
+}
+
+.screen--home .inst .needle {
+  transform-box: fill-box;
+  transform-origin: center top;
+  animation: gate-needle 0.6s cubic-bezier(.3, 1.6, .5, 1) 1.5s both;
+}
+
+@keyframes gate-needle {
+  from { scale: 1 0; opacity: 0; }
+  to { scale: 1 1; opacity: 1; }
+}
+
+/* 試し打ちを待つ間、ぴったりの帯をゆっくり明滅させて «ここを狙う» を見せる */
+.inst__meter .meter__zone--perfect { animation: gate-glow 2.4s ease-in-out infinite; }
+.inst__try { animation: gate-rise 0.6s ease-out 0.5s both; }
+
+@keyframes gate-glow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.8); }
+}
+
+/* 戦績。一つずつ下から出し、数え上げが終わる頃に増えた分を弾ませる */
+.gtally__head { animation: gate-rise 0.6s ease-out 1.1s both; }
+.gtally__row > div { animation: gate-rise 0.6s ease-out both; }
+.gtally__row > div:nth-child(1) { animation-delay: 1.2s; }
+.gtally__row > div:nth-child(2) { animation-delay: 1.28s; }
+.gtally__row > div:nth-child(3) { animation-delay: 1.36s; }
+.gtally__row > div:nth-child(4) { animation-delay: 1.44s; }
+.gtally__row > div:nth-child(5) { animation-delay: 1.52s; }
+.gtally__row > div:nth-child(6) { animation-delay: 1.6s; }
+
+.gtally__plus { animation: gate-pop 0.5s cubic-bezier(.3, 1.8, .5, 1) 2.4s both; transform-origin: left center; }
+
+@keyframes gate-pop {
+  from { opacity: 0; scale: 0.4; }
+  to { opacity: 1; scale: 1; }
+}
+
+.gtally__plus > :not(:first-child) { animation: gate-medal 0.7s cubic-bezier(.3, 1.6, .5, 1) both; }
+.gtally__plus > :nth-child(2) { animation-delay: 2.6s; }
+.gtally__plus > :nth-child(3) { animation-delay: 2.75s; }
+.gtally__plus > :nth-child(4) { animation-delay: 2.9s; }
+
+@keyframes gate-medal {
+  from { opacity: 0; scale: 0; rotate: -200deg; }
+  to { opacity: 1; scale: 1; rotate: 0deg; }
+}
+
+/* 扉。右から順に滑り込む。指を乗せると、場所の色が左から差し込み、矢印が前へ誘う */
+.doors { animation: gate-line 0.9s cubic-bezier(.6, 0, .2, 1) 1.3s both; transform-origin: left top; }
+
+@keyframes gate-line {
+  from { border-top-color: transparent; }
+  to { border-top-color: var(--line); }
+}
+
+.doors li { animation: gate-door 0.7s cubic-bezier(.2, .8, .2, 1) both; }
+.doors li:nth-child(1) { animation-delay: 1.4s; }
+.doors li:nth-child(2) { animation-delay: 1.52s; }
+.doors li:nth-child(3) { animation-delay: 1.64s; }
+
+@keyframes gate-door {
+  from { opacity: 0; translate: 48px 0; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+.door {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--area) 14%, transparent), transparent) no-repeat 0 0 / 0% 100%;
+  transition: background-size 0.45s cubic-bezier(.2, .8, .2, 1);
+}
+
+.door:hover,
+.door:focus-visible { background-color: transparent; background-size: 100% 100%; }
+
+.door__name { transition: letter-spacing 0.35s ease, color 0.35s ease; }
+.door:hover .door__name,
+.door:focus-visible .door__name { letter-spacing: 0.08em; color: var(--area); }
+
+.door:hover .door__go,
+.door:focus-visible .door__go { animation: gate-nudge 0.9s ease-in-out infinite; }
+
+@keyframes gate-nudge {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 6px 0; }
 }

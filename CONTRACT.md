@@ -241,7 +241,8 @@ export function showJudgement(container, { offsetMs, tier })
 
 ### 遊び方の骨格（寿司打と同じ）
 
-- 作業品には**かなの語**が付いている。先頭（出口に一番近い）の作業品の語を打ち切ると、その値段（pt）が入る
+- 作業品には**かなの語**が付いている。ラインに出る作業品は一度に一つで、その語を打ち切ると値段（pt）が入る。打ち切るか出口を越えると、次がすぐ入口から出る
+- 流れる速さは寿司打と同じ «普通» 6 秒・«練習» 11 秒（courses.js の SPEEDS。寿司打を開いて測った）。ランキングに送れるのは普通だけ
 - 作業品の値段は語の字数で決まる。語は字数の順（最小 → 最大 → 最小の一つ上）に、一つの字数で 3 枚ずつ出る
 - 打ち切る前に出口まで流れたら検品漏れ（点は入らない、ミスにも数えない）
 - **制限時間が尽きたら終わり**。通した値段の合計 − ノルマ を «お得 / 損» として出す
@@ -253,11 +254,12 @@ export function showJudgement(container, { offsetMs, tier })
 
 ```js
 export const COURSES = [
-  { id: 'p3000', name: '3,000 pt', target: 3000, timeMs: 60000, laneMs: 8000, minLen: 2, maxLen: 7,
+  { id: 'p3000', name: '3,000 pt', target: 3000, timeMs: 60000, minLen: 2, maxLen: 7,
     prices: [{ minLen: 2, maxLen: 4, price: 100 }, { minLen: 5, maxLen: 6, price: 180 }, { minLen: 7, maxLen: 7, price: 240 }] },
   { id: 'p5000', ..., timeMs: 90000, minLen: 5, maxLen: 10, prices: 5〜6 字 180 / 7〜9 字 240 / 10 字 380 },
   { id: 'p10000', ..., timeMs: 120000, minLen: 9, maxLen: 14, prices: 9 字 240 / 10〜12 字 380 / 13〜14 字 500 },
 ];   // id はランキングの鍵なので変えない
+export const SPEEDS = [{ id: 'normal', name: '普通', laneMs: 6000 }, { id: 'practice', name: '練習', laneMs: 11000 }];
 export function itemValue(course, word)   // 作業品一つの値段
 export function lengthCycle(course)       // 字数の順（一周ぶん）
 export const SAME_LEN_RUN = 3
@@ -281,7 +283,7 @@ export const WORDS = [ { kana: 'かいぎ', label: '会議' }, ... ]   // 手で
 
 ```js
 export function keyFor(kana)                 // { code, thumb, hand } | null
-export function createGame({ course, words, rng })
+export function createGame({ course, words, rng, laneMs })   // laneMs は SPEEDS の速さ
 {
   start(t), input(result, t), tick(t),       // input / tick の返り値は events の配列
   get state(),   // { phase, remainingMs, items: [{ id, word, value, typed, perfect, x /* 0..1 */ }], score,

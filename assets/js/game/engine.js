@@ -11,7 +11,8 @@
 //   （画面のデモ表示もこれを使って毎回同じ絵を出している）。
 //
 // ゲームの決まり（CONTRACT.md「タイピングゲーム」の節が正）
-//   - 打てるのは先頭の作業品（いちばん出口に近いもの）だけ
+//   - ラインに出る作業品は一度に一つ。打ち切るか出口を越えると、次がすぐ入口から出る（寿司打の皿と同じ。
+//     courses.js の注記に測った値）。作業品は入口から出口まで laneMs かけて流れる
 //   - 一字ずつ進む。違う字・シフト不発はミスで、その字は進まない。連打メーターが 0 に戻る
 //   - 作業品の値段は語の字数で決まる（courses.js の prices）。語は字数の順（lengthCycle）に、
 //     一つの字数で SAME_LEN_RUN 枚ずつ出る。数値と算出方法は寿司打と同じ（courses.js の注記）
@@ -23,18 +24,6 @@
 import { tierOf } from '../meter.js';
 import { loadLayout } from '../layout.js';
 import { itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } from './courses.js';
-
-/** 作業品どうしの間隔（ライン長に対する割合）。前の作業品がここまで進んだら次を流す。
-    0.22 だとラインにおよそ 4〜5 枚。多すぎると先頭がどれか分からなくなり、
-    少なすぎると次の単語を先読みできない */
-const SPACING = 0.22;
-
-/** ラインが空になって補充するとき、作業品をどこから出すか。0 だと作業品の中心が画面の右外にあり、
-    打つべき作業品が見えないまま札だけが替わる。少し内側に置いて、出てきた瞬間から見えるようにする */
-const ENTRY = 0.1;
-
-/** ラインに同時に載せる上限 */
-const MAX_ITEMS = 5;
 
 /** 同じ単語が続けて出ないように覚えておく数 */
 const RECENT = 12;
@@ -60,12 +49,14 @@ export function keyFor(kana) {
 }
 
 /**
- * @param {{ course: object, words: Array<{kana:string}>, rng: () => number }} p
+ * @param {{ course: object, words: Array<{kana:string}>, rng: () => number, laneMs: number }} p
+ *   laneMs … 作業品が入口から出口まで流れる時間（courses.js の SPEEDS）
  */
-export function createGame({ course, words, rng }) {
-  if (!course || typeof course.timeMs !== 'number' || typeof course.laneMs !== 'number') {
-    throw new Error('createGame: course の形が契約と違う（timeMs / laneMs が無い）');
+export function createGame({ course, words, rng, laneMs }) {
+  if (!course || typeof course.timeMs !== 'number') {
+    throw new Error('createGame: course の形が契約と違う（timeMs が無い）');
   }
+  if (!(laneMs > 0)) throw new Error('createGame: laneMs（流れる速さ）が無い');
   if (typeof rng !== 'function') throw new Error('createGame: rng が関数でない');
 
   // 字数ごとに語を分けておく。出る順の字数に一語も無いのはデータの誤りなので黙って続けない
@@ -124,13 +115,12 @@ export function createGame({ course, words, rng }) {
     return pool[Math.floor(rng() * pool.length) % pool.length];
   }
 
-  function spawn(t, at = 0) {
+  function spawn(t) {
     const word = pickWord();
-    t -= at * course.laneMs;
     items.push({ id: nextId++, word, value: itemValue(course, word), typed: 0, spawnAt: t, perfect: 0 });
   }
 
-  const xOf = (p, t) => (t - p.spawnAt) / course.laneMs;
+  const xOf = (p, t) => (t - p.spawnAt) / laneMs;
 
   /** 時間を t まで進める。作業品の検品漏れ・補充・時間切れはここでだけ起きる */
   function advance(t, events) {
@@ -138,21 +128,14 @@ export function createGame({ course, words, rng }) {
     if (t < now) t = now; // 時計は戻さない（rAF とイベントの timeStamp が前後することがある）
     now = t;
 
-    // 検品漏れ。先頭から順に出口を越えたものを落とす
+    // 検品漏れ。出口を越えたら落とし、越えたその時刻に次を入口から出す
+    // （tick の間隔に引きずられて、次の作業品の持ち時間が削られないように）
     while (items.length && xOf(items[0], t) >= 1) {
       const p = items.shift();
       lost++;
       missStreak = 0;
       events.push({ type: 'lost', itemId: p.id });
-    }
-
-    // 補充。ラインが空なら待たずに出す（速く打てる人を待たせない）。
-    // それ以外は最後尾が SPACING だけ進んだら次を出す
-    if (!items.length) spawn(t, ENTRY);
-    while (items.length < MAX_ITEMS && xOf(items[items.length - 1], t) >= SPACING) {
-      // 最後尾がちょうど SPACING 進んだ時刻に出たことにする。
-      // tick の間隔に引きずられて作業品の間が不揃いになるのを防ぐ
-      spawn(items[items.length - 1].spawnAt + SPACING * course.laneMs);
+      spawn(p.spawnAt + laneMs);
     }
 
     if (t >= endAt) {
@@ -236,7 +219,7 @@ export function createGame({ course, words, rng }) {
           score += head.value;
           cleared++;
           events.push({ type: 'clear', itemId: head.id, value: head.value });
-          if (!items.length) spawn(t, ENTRY);
+          spawn(t);
         }
       } else {
         // 外れ。不発（親指が要る字を、正しい文字キーで単独に打った）かどうかも返す。

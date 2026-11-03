@@ -29,7 +29,7 @@ import { createSound } from '../sound.js';
 import { offsetBinOf, OFFSET_BINS } from '../trophies.js';
 import { renderScope } from '../charts.js';
 import { createSfx, loadSfxOn, saveSfxOn } from './sfx.js';
-import { COURSES } from './courses.js';
+import { COURSES, SPEEDS } from './courses.js';
 import { WORDS } from './words.js';
 import { createGame, keyFor } from './engine.js';
 import { icon, fillIcons } from '../icons.js';
@@ -99,6 +99,26 @@ function saveInput(v) {
 
 let inputMode = loadInput();
 
+// 流れる速さ。寿司打の «普通» と «練習» と同じ（courses.js の SPEEDS）。選んだ速さはこの端末に覚える
+const SPEED_KEY = 'oyayubi-dojo:gamespeed:v1';
+const speedOf = (id) => SPEEDS.find((s) => s.id === id) ?? SPEEDS[0];
+function loadSpeed() {
+  try {
+    return speedOf(localStorage.getItem(SPEED_KEY)).id;
+  } catch {
+    return SPEEDS[0].id;
+  }
+}
+function saveSpeed(v) {
+  try {
+    localStorage.setItem(SPEED_KEY, v);
+  } catch {
+    /* 覚えられなくても、この回はその速さで遊べる */
+  }
+}
+let speedMode = loadSpeed();
+let playSpeed = speedMode;   // 始めた回の速さ（結果・送信はこちらを見る）
+
 const el = {
   scTitle: $('scTitle'),
   scPlay: $('scPlay'),
@@ -106,6 +126,8 @@ const el = {
   scRanking: $('scRanking'),
   scConsent: $('scConsent'),
   inputPick: $('inputPick'),
+  speedPick: $('speedPick'),
+  speedNote: $('speedNote'),
   romajiNote: $('romajiNote'),
   courseList: $('courseList'),
   thumbNote: $('thumbNote'),
@@ -240,6 +262,13 @@ function paintTitle() {
   for (const b of el.inputPick.querySelectorAll('[data-input]')) {
     b.setAttribute('aria-pressed', String(b.dataset.input === inputMode));
   }
+  for (const b of el.speedPick.querySelectorAll('[data-speed]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.speed === speedMode));
+  }
+  const sp = speedOf(speedMode);
+  el.speedNote.textContent = speedMode === 'normal'
+    ? `作業品は一つずつ、${sp.laneMs / 1000} 秒で出口へ流れる（寿司打の «普通» と同じ）`
+    : `作業品が ${sp.laneMs / 1000} 秒かけてゆっくり流れる（寿司打の «練習» と同じ）。ランキングには送らない`;
   showNicolaParts(el.scTitle, nicolaMode);
   el.thumbNote.hidden = !nicolaMode;
   el.thumbNames.textContent = `左 ${nameOfCodes(thumbKeys.left)} ／ 右 ${nameOfCodes(thumbKeys.right)}`;
@@ -289,6 +318,14 @@ el.inputPick.addEventListener('click', (e) => {
   if (!b || !INPUTS.includes(b.dataset.input)) return;
   inputMode = b.dataset.input;
   saveInput(inputMode);
+  paintTitle();
+});
+
+el.speedPick.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-speed]');
+  if (!b) return;
+  speedMode = speedOf(b.dataset.speed).id;
+  saveSpeed(speedMode);
   paintTitle();
 });
 
@@ -346,7 +383,8 @@ function begin(c) {
 
 function startCountdown(c) {
   course = c;
-  game = createGame({ course: c, words: WORDS, rng: Math.random });
+  playSpeed = speedMode;
+  game = createGame({ course: c, words: WORDS, rng: Math.random, laneMs: speedOf(playSpeed).laneMs });
   playInput = inputMode;
   nicola = playInput === 'nicola' ? buildNicola() : null;
   romaji = playInput === 'romaji' ? createRomaji() : null;
@@ -455,8 +493,9 @@ function romajiView() {
 }
 
 function finishGame(t) {
-  summary = { ...game.summary(), input: playInput };
-  bestInfo = saveBest(summary);
+  summary = { ...game.summary(), input: playInput, speed: playSpeed };
+  // 自己ベストは普通の速さだけ（練習の記録と混ぜると、普通で越えられない数字が残る）
+  bestInfo = playSpeed === 'normal' ? saveBest(summary) : { isBest: false, prev: null };
   // 前の回の「送りました」やエラーを持ち越さない。持ち越すと次の結果が送れなくなる
   submitState = { busy: false, msg: '', kind: '' };
   nicola?.reset();
@@ -638,7 +677,7 @@ function paintResult() {
   const s = summary;
   const nicolaMode = s.input === 'nicola';
   showNicolaParts(el.scResult, nicolaMode);
-  el.resultMode.textContent = `ノルマ ${num(course.target)} pt・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}`;
+  el.resultMode.textContent = `ノルマ ${num(course.target)} pt・${course.timeMs / 1000} 秒・${INPUT_NAME[s.input]}・${speedOf(s.speed).name}`;
   el.resultScore.textContent = num(s.score);
 
   const done = s.balance >= 0;
@@ -676,7 +715,7 @@ function paintResult() {
 /** X の投稿画面を開く URL。投稿するかは本人が決める。こちらからは何も送らない */
 function shareUrl(s) {
     const res = s.balance >= 0 ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`;
-  const text = `親指シフトマスターのタイピングゲーム（ノルマ ${num(course.target)} pt・${INPUT_NAME[s.input]}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
+  const text = `親指シフトマスターのタイピングゲーム（ノルマ ${num(course.target)} pt・${INPUT_NAME[s.input]}・${speedOf(s.speed).name}）で ${res}。平均キータイプ数 ${s.keysPerSec.toFixed(1)} 回/秒・ミスタイプ ${s.misses} 回`;
   const q = new URLSearchParams({ text, url: SHARE_URL, hashtags: '親指シフト' });
   return `https://x.com/intent/tweet?${q}`;
 }
@@ -687,6 +726,10 @@ function paintSubmit() {
   const box = el.submitBox;
   if (!rankingEnabled()) {
     box.replaceChildren(soonNote());
+    return;
+  }
+  if (summary?.speed !== 'normal') {
+    box.replaceChildren(h('p', {}, '練習（ゆっくり）の記録はランキングに送りません。ランキングは普通の速さで比べます。'));
     return;
   }
   const me = currentPlayer();
@@ -710,7 +753,8 @@ function soonNote() {
 }
 
 async function sendSummary() {
-  if (!summary || submitState.busy) return;
+  // 練習の記録は送らない（参加の画面を経てここへ来る道もあるので、送る口でも止める）
+  if (!summary || submitState.busy || summary.speed !== 'normal') return;
   const sent = summary;
   submitState = { busy: true, msg: '送っています…', kind: '' };
   paintSubmit();
@@ -1117,7 +1161,7 @@ function runDemo(kind) {
   course = COURSES.find((c) => c.id === params.get('course')) ?? COURSES[0];
 
   if (kind === 'play') {
-    game = createGame({ course, words: WORDS, rng: seeded(7) });
+    game = createGame({ course, words: WORDS, rng: seeded(7), laneMs: SPEEDS[0].laneMs });
     game.start(0);
     const t = simulate(game, 0, 24_000);
     romaji = input === 'romaji' ? createRomaji() : null;
@@ -1126,11 +1170,11 @@ function runDemo(kind) {
     paintPlay(t);
     screen = 'demo';
   } else if (kind === 'result') {
-    game = createGame({ course, words: WORDS, rng: seeded(7) });
+    game = createGame({ course, words: WORDS, rng: seeded(7), laneMs: SPEEDS[0].laneMs });
     game.start(0);
     simulate(game, 0, 1e9);
     while (game.state.phase === 'playing') game.tick(game.state.remainingMs + 1e6);
-    summary = { ...game.summary(), input };
+    summary = { ...game.summary(), input, speed: SPEEDS[0].id };
     bestInfo = { isBest: true, prev: { score: Math.round(summary.score * 0.92) } };
     paintResult();
     show('result');

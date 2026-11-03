@@ -86,7 +86,13 @@
         <button type="button" data-input="nicola" aria-pressed="true">親指シフト</button>
         <button type="button" data-input="romaji" aria-pressed="false">ローマ字</button>
       </div>
+      <div class="g-input" role="group" aria-label="流れる速さ" id="speedPick">
+        <button type="button" data-speed="normal" aria-pressed="true">普通</button>
+        <button type="button" data-speed="practice" aria-pressed="false">練習（ゆっくり）</button>
+      </div>
       <span class="g-dim" id="romajiNote">採点はどちらも同じ。ランキングは入力方式ごとに分けて並べる</span>
+      <!-- 速さの説明。main.js が選んだ速さに合わせて入れる -->
+      <span class="g-dim" id="speedNote"></span>
     </div>
 
     <div class="g-courses" id="courseList" role="list"><!-- main.js が courses.js から作る --></div>
@@ -94,7 +100,7 @@
     <ul class="g-notes">
       <li>日本語入力は <b>オフ（英数）</b></li>
       <li id="thumbNote">親指キー：<span id="thumbNames"></span>（<a class="link" href="index.html#/setup">設定</a>）</li>
-      <li>打てるのは出口に一番近い作業品（枠が光っているもの）だけ。<kbd>Esc</kbd> で中断</li>
+      <li>作業品は一つずつ流れてくる。打ち切るか流れきると、次が入口から出る。<kbd>Esc</kbd> で中断</li>
       <li id="soundNote"></li>
     </ul>
     <div class="g-row">

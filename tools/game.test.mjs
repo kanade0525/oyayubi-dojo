@@ -21,7 +21,7 @@ import { pathToFileURL } from 'node:url';
 const ROOT = resolve(import.meta.dirname, '..');
 const imp = (p) => import(pathToFileURL(join(ROOT, p)).href);
 
-const { COURSES, itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } = await imp('assets/js/game/courses.js');
+const { COURSES, SPEEDS, itemValue, lengthCycle, SAME_LEN_RUN, METER_STEPS } = await imp('assets/js/game/courses.js');
 const { createGame, keyFor } = await imp('assets/js/game/engine.js');
 const { WORDS } = await imp('assets/js/game/words.js');
 const { THRESHOLDS } = await imp('assets/js/meter.js');
@@ -30,6 +30,8 @@ const { THRESHOLDS } = await imp('assets/js/meter.js');
 
 const T0 = 10_000; // 開始時刻。0 にしないのは «0 を未設定扱いする» 実装を見逃さないため
 const course = (id) => COURSES.find((c) => c.id === id);
+/** 普通の速さ（寿司打を測った値。courses.js を読まずに書く） */
+const LANE = 6000;
 
 /** onOutput の result の形。親指を使う字だけ offsetMs が意味を持つ */
 function result(kana, { offsetMs = -5, keys } = {}) {
@@ -49,7 +51,7 @@ for (let n = 1; n <= 16; n++) {
 }
 
 function play(id = 'p3000', words = SAMPLE) {
-  const g = createGame({ course: course(id), words, rng: () => 0 });
+  const g = createGame({ course: course(id), words, rng: () => 0, laneMs: LANE });
   g.start(T0);
   return g;
 }
@@ -99,7 +101,7 @@ describe('コースの数値は寿司打と同じ', () => {
 
 describe('始まりと出る順', () => {
   test('start 前は ready、start 後は playing で、残り時間はコースの制限時間', () => {
-    const g = createGame({ course: course('p5000'), words: SAMPLE, rng: () => 0 });
+    const g = createGame({ course: course('p5000'), words: SAMPLE, rng: () => 0, laneMs: LANE });
     assert.equal(g.state.phase, 'ready');
     assert.equal(g.state.remainingMs, 90000);
     g.start(T0);
@@ -125,7 +127,7 @@ describe('始まりと出る順', () => {
 
   test('出る順の字数に語が無ければ throw（黙って別の字数を出さない）', () => {
     const words = SAMPLE.filter((w) => [...w.kana].length !== 4);
-    assert.throws(() => createGame({ course: course('p3000'), words, rng: () => 0 }));
+    assert.throws(() => createGame({ course: course('p3000'), words, rng: () => 0, laneMs: LANE }));
   });
 });
 
@@ -174,11 +176,37 @@ describe('点', () => {
     assert.equal(only(ev, 'miss')[0].misfire, true);
   });
 
+  // 寿司打を開いて 0.5 秒ごとに撮って測った値（courses.js の注記）。courses.js の値を読まずに数字で書く
+  test('流れる速さは寿司打と同じ：普通 6 秒・練習 11 秒', () => {
+    assert.deepEqual(SPEEDS.map((x) => [x.id, x.laneMs]), [['normal', 6000], ['practice', 11000]]);
+  });
+
+  test('作業品は一度に一つ。流れきると、その時刻に次が入口から出る', () => {
+    const g = play();
+    const first = g.state.items[0].id;
+    for (let t = T0; t < T0 + LANE - 100; t += 100) g.tick(t);
+    assert.equal(g.state.items.length, 1);
+    assert.equal(g.state.items[0].id, first, '6 秒たつまでは同じ作業品');
+    const ev = g.tick(T0 + LANE + 30);
+    assert.equal(only(ev, 'lost').length, 1);
+    assert.equal(g.state.items.length, 1);
+    assert.ok(g.state.items[0].x < 0.01, '次の作業品は入口から');
+  });
+
+  test('打ち切ると、次の作業品がすぐ入口から出て、まる 6 秒もらえる', () => {
+    const g = play();
+    g.tick(T0 + 4000);
+    finishHead(g, T0 + 4000);
+    assert.equal(g.state.items.length, 1);
+    assert.equal(g.state.items[0].x, 0);
+    assert.equal(only(g.tick(T0 + 4000 + LANE - 50), 'lost').length, 0);
+  });
+
   test('打たずに放っておくと出口で lost（点もミスも付かない）', () => {
     const g = play();
     const head = g.state.items[0];
     let ev = [];
-    for (let t = T0; t <= T0 + course('p3000').laneMs + 10; t += 50) ev.push(...g.tick(t));
+    for (let t = T0; t <= T0 + LANE + 10; t += 50) ev.push(...g.tick(t));
     assert.ok(only(ev, 'lost').some((e) => e.itemId === head.id));
     assert.equal(g.state.misses, 0);
     assert.equal(g.state.score, 0);
@@ -277,7 +305,7 @@ describe('時間切れと summary', () => {
     performance.now = trap('performance.now()');
     Math.random = trap('Math.random()');
     try {
-      const g = createGame({ course: course('p10000'), words: WORDS, rng: () => 0.3 });
+      const g = createGame({ course: course('p10000'), words: WORDS, rng: () => 0.3, laneMs: LANE });
       g.start(T0);
       for (let i = 0; i < 40; i++) g.input(result([...g.state.items[0].word.kana][g.state.items[0].typed], { offsetMs: 4 }), T0 + i * 50);
       g.tick(T0 + 1e7);

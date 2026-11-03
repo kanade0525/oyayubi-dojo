@@ -12,7 +12,8 @@
 // 印刷するものなので、画面の配色に関わらず白地に黒で描く。
 // 書体は画面と同じゴシック（--ui と同じ並び）。
 
-const FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo, "Noto Sans CJK JP", sans-serif';
+// 画面と同じ筆字（app.css の --ui）。canvas は書体の読み込みを待たないので、描く前に document.fonts.load で待つ
+const FONT = '"Yuji Syuku", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo, "Noto Sans CJK JP", sans-serif';
 const ROWS = [
   ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP'],
   ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon'],
@@ -91,7 +92,8 @@ export function renderLayoutSheet(layout, kind = 'a4') {
 }
 
 /** 描いて PNG として保存させる */
-export function downloadLayoutPng(layout, kind = 'a4') {
+export async function downloadLayoutPng(layout, kind = 'a4') {
+  await document.fonts.load('32px "Yuji Syuku"');
   const c = renderLayoutSheet(layout, kind);
   c.toBlob((blob) => {
     if (!blob) throw new Error('配列表の画像を作れませんでした');

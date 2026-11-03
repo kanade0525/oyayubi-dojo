@@ -132,6 +132,7 @@ keycheck.html         キー実測ページ（単体で動く）
 game.html             タイピングゲーム
 assets/
   img/                アイコン（弓道の霞的。輪の比率は実寸どおり）
+  fonts/              筆字（Yuji Syuku をサイトで使う字に絞ったもの）と、その字の一覧・ライセンス
   data/nicola.js      NICOLA配列表
   js/
     nicola.js         同時打鍵の状態機械（DOMを知らない）★中核
@@ -167,6 +168,8 @@ CONTRACT.md           モジュール間の契約と、言葉の決め方
 - 配列データは [KeyLogicKit](https://github.com/msonrm/KeyLogicKit)（MIT License, Copyright (c) msonrm）から取り込み、
   キー名を `KeyboardEvent.code` に直して左右の領域を足しました。かなの割り当ては変えていません。
   規格そのものは日本語入力コンソーシアムの NICOLA 配列です
+- 書体は [Yuji Syuku](https://github.com/google/fonts/tree/main/ofl/yujisyuku)（Kinuta Font Factory, SIL Open Font License 1.1。`assets/fonts/OFL.txt`）。
+  サイトで使う字だけに絞って同梱しています（`tools/font-chars.mjs`）
 - 鍛えるの実文は書き下ろしです。一部に著作権の消滅した作品（夏目漱石・宮沢賢治・新美南吉・『徒然草』など）を使い、
   各題材に出典を記しています
 - 覚えるのレッスンの教え方は次を調べて決めました。新しいキーは点数を付けない導入で指を示してから打たせる・

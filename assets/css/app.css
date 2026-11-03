@@ -76,7 +76,10 @@
      «寄せ集め» に見えるので全部やめた。太さと大きさだけで役を分ける。
      数字の桁の揺れは tabular-nums（数字だけ同じ幅）で止める。
      Windows は BIZ UD を先に当てる。Yu Gothic の Regular は画面で細く薄く出る */
-  /* 試し：全体を筆字（Yuji Syuku, OFL）。サイトで使う字だけに絞った版を自前で置く（CSP の font-src 'self'） */
+  /* 書体は筆字（Yuji Syuku, SIL OFL 1.1）一つ。道場の看板から計器の数字まで同じ書体にする。
+     8MB あるので、サイトで使う字だけに絞った版を自前で置く（CSP の font-src 'self'。外の配信は使わない）。
+     絞った字の一覧と作り直し方は tools/font-chars.mjs。足りない字は tools/font.test.mjs が落とす。
+     後ろのゴシックは、書体を読み込むまでの間と、一覧に無い字（打つ人が入れた漢字など）だけに出る */
   --ui: "Yuji Syuku", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo,
     "Noto Sans CJK JP", "Noto Sans JP", sans-serif;
 

@@ -157,6 +157,7 @@ assets/
 tools/check.mjs       総合検査
 server/               ランキングの API（Lambda + DynamoDB、AWS SAM）
 CONTRACT.md           モジュール間の契約と、言葉の決め方
+MAKING.md             こだわりと苦労したこと
 ```
 
 `nicola.js` は **NICOLA規格 JIS提案 §5.4「同時打けんの判定」** の状態機械をそのまま実装しています

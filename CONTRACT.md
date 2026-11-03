@@ -170,6 +170,8 @@ export function recordLessonRun({ lessonId, passed, faceHits, faceMisses })  // 
 export function loadGameBest()     // ゲームの自己ベスト { nicola: { p3000: { score, kpm, at } }, romaji: {...} }
 export function loadGameHistory()  // ゲームの回（新しい順、200 回まで）
 export function recordGameRun(summary)  // ゲームの一回を残す。履歴は全部、自己ベストは «普通» の速さだけ → { isBest, prev }
+export function loadSeen()           // 門の «前回から» の控え（前に来たときの打鍵数・段位・実績など）。無ければ null
+export function saveSeen(snap)       // 控えを残す。中身は app.js の progressNow() が作る
 export function loadSettings()     // 親指キー割り当て・閾値・配色
 export function saveSettings(s)
 export function exportAll()        // → JSON文字列
@@ -369,7 +371,7 @@ AWS SAM。HTTP API → Lambda（Node.js、SDK は実行環境同梱のものを�
 
 | ルート | 画面 | 中身 |
 | --- | --- | --- |
-| `#/` | 門 | 左に名前、右に計器（親指のズレ・ぴったり率・速さと分布）、下に三つの場所への扉の行。親指シフトの説明は置かない（2026-11-02、このサイトにしか無い数字を最初に見せると決めた） |
+| `#/` | 門 | 左に名前、右に計器（親指のズレ・ぴったり率・速さと分布）、下に三つの場所への扉の行。親指シフトの説明は置かない（2026-11-02、このサイトにしか無い数字を最初に見せると決めた）。まだ測っていない人には、計器の場所でそのまま一打試させる（記録は残さない）。記録のある人には、計器と扉の間に «前回から» の戦績（段位・打鍵・練習した日・実績・レッスン・腕試しの最高）を出し、前に来たときの控え（`oyayubi-dojo:seen:v1`）より増えた分を下に添える（2026-11-03、«前より頑張った» が分かるように）。比べる相手はそのタブで最初に読んだ控えに固定する（`sessionStorage` の `oyayubi-dojo:seenbase:v1`）。ランキングは門では問い合わせず、«ランキングを見る» で `game.html#ranking` を開いてから問い合わせる |
 | `#/learn` | **覚える** | レッスンの一覧（curriculum.js）。18 レッスン、各 4 段階（導入・組み合わせ・語・確認）。確認に合格（まちがい 2 字まで）すると次のレッスンが開く。レッスンは時間・速さを測らず、記録は進み具合とキー×面の当たり外れだけ（storage.js の recordLessonRun）。全部終えると配列表の画像（layout-sheet.js）を保存できる |
 | `#/train` | **鍛える** | 適応出題（弱点集中・総ざらい・速度）・実文 83 本・自由入力 |
 | `#/record` | 記録 | 覚える・鍛える・腕試しの記録を一つにまとめる。覚える（レッスンの進み具合・単元ごとの済み数）→ 鍛える（段位・伸び・ローマ字との比較・ズレ分布・得意と苦手の 3D 柱・弱点・課題ごとの成績）→ 腕試し（自己ベスト・これまでの回）→ 共通（カレンダー・実績・データ持ち帰り）。場所を持たない画面 |

@@ -20,7 +20,7 @@ globalThis.localStorage = {
 };
 
 const ROOT = resolve(import.meta.dirname, '..');
-const { recordLessonRun, loadStats, recordGameRun, loadGameBest, loadGameHistory, exportAll, clearAll } = await import(pathToFileURL(join(ROOT, 'assets/js/storage.js')).href);
+const { recordLessonRun, loadStats, recordGameRun, loadGameBest, loadGameHistory, exportAll, clearAll, loadSeen, saveSeen } = await import(pathToFileURL(join(ROOT, 'assets/js/storage.js')).href);
 
 describe('recordLessonRun', () => {
   beforeEach(() => mem.clear());
@@ -75,5 +75,26 @@ describe('recordGameRun', () => {
     clearAll();
     assert.equal(loadGameHistory().length, 0);
     assert.deepEqual(loadGameBest(), { nicola: {}, romaji: {} });
+  });
+});
+
+describe('門の «前回から» の控え', () => {
+  beforeEach(() => mem.clear());
+
+  test('一度も来ていなければ null。残した控えをそのまま読み、全部消すで消える', () => {
+    assert.equal(loadSeen(), null);
+    saveSeen({ at: 1, keys: 120, earned: ['m-first'] });
+    assert.deepEqual(loadSeen(), { at: 1, keys: 120, earned: ['m-first'] });
+    clearAll();
+    assert.equal(loadSeen(), null);
+  });
+
+  test('控えが無いのに残そうとしたら落ちる', () => {
+    assert.throws(() => saveSeen(null), /控えが無い/);
+  });
+
+  test('ゲームの回に打ち切ったキーの数を残す（門の打鍵数に足す）', () => {
+    recordGameRun({ course: 'p3000', input: 'nicola', speed: 'normal', score: 3000, balance: 0, keysPerSec: 2, misses: 1, cleared: 20, kpm: 100, correctKeys: 240 }, 1);
+    assert.equal(loadGameHistory()[0].keys, 240);
   });
 });

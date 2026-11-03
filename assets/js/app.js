@@ -18,7 +18,7 @@ import {
   loadStats, recordRun, loadSettings, saveSettings, STORAGE_KEYS, resolveTone,
   exportAll, importAll, validateImport, clearAll, overview, offsetReport,
 } from './storage.js';
-import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun, recordLessonRun, loadGameBest, loadGameHistory } from './storage.js';
+import { saveRomajiBaseline, clearRomajiBaseline, recordRomajiRun, recordLessonRun, loadGameBest, loadGameHistory, loadSeen, saveSeen } from './storage.js';
 import { COURSES as GAME_COURSES, SPEEDS as GAME_SPEEDS } from './game/courses.js';
 import { createRomaji, romajiKeyOf } from './romaji.js';
 import {
@@ -52,6 +52,7 @@ const el = {
   // 入口の計器
   gateOffset: $('gateOffset'), gatePerfect: $('gatePerfect'), gateCpm: $('gateCpm'),
   gateSample: $('gateSample'), gateScope: $('gateScope'),
+  gateTally: $('gateTally'), gateTallyHead: $('gateTallyHead'), gateTallyRow: $('gateTallyRow'),
   // 鍛えるの見出しの数字
   trainRank: $('trainRank'), trainCpm: $('trainCpm'), trainPerfect: $('trainPerfect'),
   trainOffset: $('trainOffset'), trainWeak: $('trainWeak'),
@@ -1039,14 +1040,18 @@ window.addEventListener('keydown', e => {
     return;
   }
 
-  if (screen !== 'play' && screen !== 'setup') return;
+  // 門の試し打ち。文字キーと親指キーだけを拾い、Tab や Enter（扉へ進む）は邪魔しない
+  const gateTry = screen === 'home' && engine;
+  if (gateTry && !layout.keys[e.code] && !thumbSideOf(thumbKeysOf(settings), e.code) && e.keyCode !== 229) return;
+  if (screen !== 'play' && screen !== 'setup' && !gateTry) return;
   if (e.repeat) { e.preventDefault(); return; }   // オートリピートは打鍵ではない
 
   // IME が動いていると素のキーが取れない。黙って壊れるより言う
   if (e.isComposing || e.keyCode === 229 || e.key === 'Process') {
     e.preventDefault();
     el.warnIme?.classList.add('is-on');
-    toast('日本語入力をオフ（英数）にしてください');
+    if (gateTry) { const t = el.gateScope.querySelector('.inst__try'); if (t) t.textContent = '日本語入力をオフ（英数）にしてから押してください'; }
+    else toast('日本語入力をオフ（英数）にしてください');
     return;
   }
 
@@ -1082,7 +1087,8 @@ window.addEventListener('keydown', e => {
 
 window.addEventListener('keyup', e => {
   if (catching || !engine) return;
-  if (screen !== 'play' && screen !== 'setup') return;
+  if (screen !== 'play' && screen !== 'setup' && screen !== 'home') return;
+  if (screen === 'home' && !layout.keys[e.code] && !thumbSideOf(thumbKeysOf(settings), e.code)) return;
   e.preventDefault();
   // keyUp の中で最後の一打が確定すると finishRun() が走り、engine が null になる。
   // 掴み直さずに触ると落ちる（実際に落ちていた）
@@ -1182,9 +1188,9 @@ function paintSoundSettings() {
 }
 
 /** 設定画面の試し打ち。記録は残さない */
-function startTrial() {
-  renderMeter(el.setupMeter);
-  renderKeyboard(el.setupBoard, layout, { lookup, thumbs: thumbKeysOf(settings) });
+function startTrial(meter = el.setupMeter, board = el.setupBoard) {
+  renderMeter(meter);
+  if (board) renderKeyboard(board, layout, { lookup, thumbs: thumbKeysOf(settings) });
   engine = buildEngine(result => {
     if (result.charCode == null) return;
     // 設定画面の目的は「設定が効いているか確かめる」こと。
@@ -1193,13 +1199,13 @@ function startTrial() {
     if (result.thumb && result.offsetMs == null) {
       // 連続シフトで出た一打。ズレは測れていないので、針を動かさず «出た» とだけ返す。
       // ここを tierOf(null) に流すと misfire になり、成功したのに不発と出る
-      showJudgement(el.setupMeter, { offsetMs: null, tier: 'continued' });
+      showJudgement(meter, { offsetMs: null, tier: 'continued' });
       sound.hit();
     } else if (result.thumb) {
-      showJudgement(el.setupMeter, { offsetMs: result.offsetMs, tier: tierOf(result.offsetMs) });
+      showJudgement(meter, { offsetMs: result.offsetMs, tier: tierOf(result.offsetMs) });
       sound.shifted({ tier: tierOf(result.offsetMs), offsetMs: result.offsetMs });
     } else if (trialWantedThumb) {
-      showJudgement(el.setupMeter, { offsetMs: null, tier: 'misfire' });
+      showJudgement(meter, { offsetMs: null, tier: 'misfire' });
       sound.misfire();
     } else {
       sound.hit();
@@ -1220,6 +1226,7 @@ function paintHome() {
   const stats = loadStats();
   paintNav(stats);
   paintGateInst(stats);
+  paintTally(stats);
   const next = CURRICULUM.find((l) => !lessonDone(stats, l.id));
   if (el.doorLearnState) {
     el.doorLearnState.textContent = next
@@ -1261,11 +1268,128 @@ function paintGateInst(stats) {
   if (n) {
     renderScope(el.gateScope, stats.offset);
   } else {
+    // まだ測っていない人には、ここで一打試させる。«何を測るサイトか» は読ませるより押させたほうが早い。
+    // 記録は残さない（設定画面の試し打ちと同じ）
     const p = document.createElement('p');
-    p.className = 'inst__empty';
-    p.textContent = '1 本打つと、ここに親指のズレが出ます';
-    el.gateScope.replaceChildren(p);
+    p.className = 'inst__try';
+    p.textContent = '文字キーと親指キーを同時に押してみてください（日本語入力はオフ）';
+    const m = document.createElement('div');
+    m.className = 'inst__meter';
+    el.gateScope.replaceChildren(p, m);
+    startTrial(m, null);
   }
+}
+
+// -- 前回から ----------------------------------------------------------------
+//
+// 門の «これまで» に、前に来たときから増えた分を添える。控え（storage の seen）は門を描くたびと
+// ページを離れるときに書き、比べる相手はこのタブで最初に読んだ控え（sessionStorage）に固定する。
+// ゲームへ行って戻る（ページの読み直し）たびに相手が新しくなると、増えた分が消えてしまうため
+
+const SEEN_BASE = 'oyayubi-dojo:seenbase:v1';
+
+function progressNow(stats) {
+  const best = loadGameBest();
+  const hist = loadGameHistory();
+  return {
+    at: Date.now(),
+    keys: (stats.keystrokes ?? 0) + hist.reduce((a, r) => a + (Number.isFinite(r.keys) ? r.keys : 0), 0),
+    rank: stats.runs > 0 ? stats.rank : null,
+    days: stats.days?.length ?? 0,
+    streak: stats.streak ?? 0,
+    earned: Object.keys(stats.earned ?? {}),
+    lessons: CURRICULUM.filter((l) => lessonDone(stats, l.id)).length,
+    games: hist.length,
+    best: Object.fromEntries(GAME_COURSES.map((c) => [c.id, Math.max(best.nicola[c.id]?.score ?? 0, best.romaji[c.id]?.score ?? 0)])),
+  };
+}
+
+const seenBase = (() => {
+  try {
+    const kept = sessionStorage.getItem(SEEN_BASE);
+    if (kept) return JSON.parse(kept);
+    const b = loadSeen();
+    sessionStorage.setItem(SEEN_BASE, JSON.stringify(b));
+    return b;
+  } catch {
+    return loadSeen();   // sessionStorage が使えない環境。読み直すたびに相手が新しくなるだけで、数字は正しい
+  }
+})();
+
+window.addEventListener('pagehide', () => saveSeen(progressNow(loadStats())));
+
+function paintTally(stats) {
+  const now = progressNow(stats);
+  const was = seenBase;
+  saveSeen(now);
+  const any = now.keys > 0 || now.lessons > 0 || now.games > 0 || now.earned.length > 0;
+  el.gateTally.hidden = !any;
+  if (!any) return;
+
+  const f = (v) => Math.round(v).toLocaleString('ja-JP');
+  const d = new Date(was?.at ?? 0);
+  el.gateTallyHead.textContent = was && Number.isFinite(d.getTime()) && was.at > 0
+    ? `前回（${d.getMonth() + 1}月${d.getDate()}日）から` : 'これまで';
+
+  const items = [];
+  const item = ({ label, value, unit = '', from = null, plus = '', extra = null }) => items.push({ label, value, unit, from, plus, extra });
+
+  if (now.rank) {
+    item({ label: '段位', value: now.rank, plus: was?.rank && was.rank !== now.rank ? `${was.rank} から昇段` : '' });
+  }
+  const dk = was ? now.keys - (was.keys ?? 0) : 0;
+  item({ label: '打鍵', value: now.keys, unit: '打', from: dk > 0 ? was.keys : null, plus: dk > 0 ? `+${f(dk)}` : '' });
+  const dd = was ? now.days - (was.days ?? 0) : 0;
+  item({ label: '練習した日', value: now.days, unit: '日', plus: [dd > 0 ? `+${dd}` : '', now.streak >= 2 ? `${now.streak} 日連続` : ''].filter(Boolean).join('　') });
+  const fresh = was ? now.earned.filter((id) => !(was.earned ?? []).includes(id)) : [];
+  const medals = fresh.map((id) => TROPHIES.find((t) => t.id === id)).filter((t) => t?.tier).slice(0, 3);
+  item({ label: '実績', value: `${now.earned.length} / ${TROPHIES.length}`, plus: fresh.length ? `+${fresh.length}` : '', extra: medals });
+  if (now.lessons > 0) {
+    const dl = was ? now.lessons - (was.lessons ?? 0) : 0;
+    item({ label: 'レッスン', value: `${now.lessons} / ${CURRICULUM.length}`, plus: dl > 0 ? `+${dl}` : '' });
+  }
+  const played = GAME_COURSES.filter((c) => now.best[c.id] > 0);
+  if (played.length) {
+    const c = played[played.length - 1];
+    const up = GAME_COURSES.filter((x) => was && now.best[x.id] > (was.best?.[x.id] ?? 0));
+    item({ label: `腕試し ${c.name.replace(/\s*pt$/, '')}`, value: now.best[c.id], unit: 'pt', plus: up.length ? '自己ベスト更新' : '' });
+  }
+
+  el.gateTallyRow.replaceChildren(...items.map(({ label, value, unit, from, plus, extra }) => {
+    const div = document.createElement('div');
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    const dd = document.createElement('dd');
+    const b = document.createElement('b');
+    b.textContent = typeof value === 'number' ? f(value) : value;
+    if (typeof value === 'number' && from != null) countUp(b, from, value);
+    dd.append(b);
+    if (unit) { const u = document.createElement('small'); u.textContent = unit; dd.append(u); }
+    div.append(dt, dd);
+    if (plus || extra?.length) {
+      const p = document.createElement('p');
+      p.className = 'gtally__plus';
+      p.textContent = plus;
+      for (const t of extra ?? []) p.append(medal(t, { got: true, size: 's' }));
+      div.append(p);
+    }
+    return div;
+  }));
+}
+
+/** 前回の数から今の数まで数え上げる。動きを減らす設定の人には最後の数だけ出す */
+function countUp(node, from, to) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const t0 = performance.now();
+  const ms = 1100;
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / ms);
+    const e = 1 - (1 - k) ** 3;
+    node.textContent = Math.round(from + (to - from) * e).toLocaleString('ja-JP');
+    if (k < 1 && node.isConnected) requestAnimationFrame(step);
+  };
+  node.textContent = Math.round(from).toLocaleString('ja-JP');
+  requestAnimationFrame(step);
 }
 
 /**

@@ -1218,5 +1218,7 @@ if (DEMO) {
   runDemo(DEMO);
 } else {
   show('title');
+  // 門の «ランキングを見る» から来たとき。問い合わせるのは、ここで開いてから
+  if (location.hash === '#ranking') openRanking('title');
   requestAnimationFrame(frame);
 }

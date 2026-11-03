@@ -282,6 +282,16 @@
       </figure>
     </div>
 
+    <!-- 戦績。前に来たときの控え（storage の seen）と比べて、増えた分を下に添える。
+         «前より進んだ» が一目で分かるのが狙い。一本も打っていない人には出さない（空の戦績は入門の看板に見える） -->
+    <section class="gtally" id="gateTally" hidden aria-labelledby="gateTallyHead">
+      <header class="gtally__head">
+        <h2 id="gateTallyHead">これまで</h2>
+        <a class="gtally__rank" href="game.html#ranking" data-icon="forward">ランキングを見る</a>
+      </header>
+      <dl class="gtally__row" id="gateTallyRow"></dl>
+    </section>
+
     <ol class="doors">
       <li><a class="door" data-area="learn" href="#/learn">
         <span class="door__no">01</span>

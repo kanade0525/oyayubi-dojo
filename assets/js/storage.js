@@ -53,9 +53,11 @@ const SETTINGS_KEY = 'oyayubi-dojo:settings:v1';
 // タイピングゲーム。自己ベストの鍵は game/main.js にあった頃のまま（作り直すと前の記録が消える）
 const GAME_BEST_KEY = 'oyayubi-dojo:gamebest:v3';
 const GAME_HISTORY_KEY = 'oyayubi-dojo:gamehistory:v1';
+// 門の «前回から»。前に来たときの記録の控え（打鍵数・段位・実績など、記録から作れる数字だけ）
+const SEEN_KEY = 'oyayubi-dojo:seen:v1';
 
 /** 記録の置き場所。記録の画面に出して隠さない。«全部消す» はこの全部を消す */
-export const STORAGE_KEYS = [STATS_KEY, SETTINGS_KEY, GAME_BEST_KEY, GAME_HISTORY_KEY];
+export const STORAGE_KEYS = [STATS_KEY, SETTINGS_KEY, GAME_BEST_KEY, GAME_HISTORY_KEY, SEEN_KEY];
 
 /** ゲームの回の履歴の上限。記録の画面で直近を振り返るだけなので 200 回で足りる */
 const GAME_HISTORY_LIMIT = 200;
@@ -579,6 +581,7 @@ export function recordGameRun(summary, at = Date.now()) {
     keysPerSec: num(summary.keysPerSec),
     misses: num(summary.misses),
     cleared: num(summary.cleared),
+    keys: num(summary.correctKeys),
   };
   writeJson(GAME_HISTORY_KEY, [row, ...loadGameHistory()].slice(0, GAME_HISTORY_LIMIT));
 
@@ -592,6 +595,20 @@ export function recordGameRun(summary, at = Date.now()) {
     writeJson(GAME_BEST_KEY, all);
   }
   return { isBest, prev };
+}
+
+// ---------------------------------------------------------------- 前回から
+
+/** 前に来たときの控え。一度も来ていなければ null */
+export function loadSeen() {
+  const v = readJson(SEEN_KEY);
+  return v && typeof v === 'object' ? v : null;
+}
+
+/** いまの控えを残す。中身は app.js の progressNow() が作る */
+export function saveSeen(snap) {
+  if (!snap || typeof snap !== 'object') throw new Error('saveSeen: 控えが無い');
+  writeJson(SEEN_KEY, snap);
 }
 
 // ---------------------------------------------------------------- ローマ字時代の記録

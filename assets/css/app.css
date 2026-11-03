@@ -4374,3 +4374,85 @@ body[data-area="train"] .btn--primary {
 
 .rec-units b { flex: none; color: var(--fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rec-units .is-done b { color: var(--perfect); }
+
+/* 門の試し打ち（まだ測っていない人）。数字と軸はメーターが持つので、計器の側は隠す */
+.inst.is-empty .inst__read,
+.inst.is-empty .inst__axis { display: none; }
+
+.inst__try {
+  margin: 10px 0 4px;
+  font-size: 14px;
+  color: var(--fg-mid);
+}
+
+/* 戦績。札にせず、見出しと数字の一行。増えた分は下に場所の色で添える */
+.gtally {
+  margin: 0 0 40px;
+}
+
+.gtally__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.gtally__head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  color: var(--tone);
+}
+
+.gtally__rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-mid);
+  text-decoration: none;
+}
+
+.gtally__rank:hover { color: var(--fg); }
+
+.gtally__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 18px 24px;
+  margin: 0;
+}
+
+.gtally__row dt {
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+
+.gtally__row dd {
+  margin: 4px 0 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.gtally__row dd b {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.gtally__row dd small {
+  margin-left: 4px;
+  font-size: 13px;
+  color: var(--fg-mid);
+}
+
+.gtally__plus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--perfect);
+}

@@ -248,8 +248,8 @@ function paintTitle() {
   }
   const sp = speedOf(speedMode);
   el.speedNote.textContent = speedMode === 'normal'
-    ? `作業品は一つずつ、${sp.laneMs / 1000} 秒で出口へ流れる（寿司打の «普通» と同じ）`
-    : `作業品が ${sp.laneMs / 1000} 秒かけてゆっくり流れる（寿司打の «練習» と同じ）。ランキングには送らない`;
+    ? `語は一つずつ、${sp.laneMs / 1000} 秒で出口へ流れる（寿司打の «普通» と同じ）`
+    : `語が ${sp.laneMs / 1000} 秒かけてゆっくり流れる（寿司打の «練習» と同じ）。ランキングには送らない`;
   showNicolaParts(el.scTitle, nicolaMode);
   el.thumbNote.hidden = !nicolaMode;
   el.thumbNames.textContent = `左 ${nameOfCodes(thumbKeys.left)} ／ 右 ${nameOfCodes(thumbKeys.right)}`;
@@ -263,7 +263,7 @@ function paintTitle() {
         h('span', { class: 'g-course__main' },
           h('small', { class: 'g-course__label' }, 'ノルマ'),
           h('b', { class: 'g-course__target' }, num(c.target), h('small', {}, 'pt')),
-          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字・作業品 ${c.prices[0].price}〜${c.prices[c.prices.length - 1].price} pt`),
+          h('span', { class: 'g-course__meta' }, `${c.timeMs / 1000} 秒・${c.minLen}〜${c.maxLen} 字・一語 ${c.prices[0].price}〜${c.prices[c.prices.length - 1].price} pt`),
           h('span', { class: 'g-course__best' }, b ? `自己ベスト ${num(Math.abs(b.score - c.target))} pt ${b.score >= c.target ? 'お得' : '損'}` : 'まだ打っていません')),
         h('kbd', {}, KEY_OF[i] ?? ''),
       );
@@ -684,7 +684,7 @@ function paintResult() {
   // replaceChildren は null を «null» という文字にして入れる（h() と違って飛ばさない）
   el.resultBalance.replaceChildren(...[
     h('b', { class: done ? 'g-ok' : 'is-short' }, done ? `${num(s.balance)} pt お得` : `${num(-s.balance)} pt 損`),
-    !done && avg ? h('small', {}, `（あと作業品 ${Math.ceil(-s.balance / avg)} 個ほど）`) : null,
+    !done && avg ? h('small', {}, `（あと ${Math.ceil(-s.balance / avg)} 語ほど）`) : null,
   ].filter(Boolean));
 
   el.resultBest.hidden = !bestInfo?.isBest;
@@ -695,7 +695,7 @@ function paintResult() {
     cell('正しく打ったキーの数', String(s.correctKeys), '回'),
     cell('平均キータイプ数', s.keysPerSec.toFixed(1), '回/秒'),
     cell('ミスタイプ数', String(s.misses), '回'),
-    cell('通した作業品', String(s.cleared), '個'),
+    cell('打ち切った語', String(s.cleared), '語'),
   ].filter(Boolean));
 
   if (nicolaMode) {

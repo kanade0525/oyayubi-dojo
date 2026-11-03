@@ -917,12 +917,14 @@ body[data-area="game"],
    面と線（パネル・罫線・溝・光）は :root で «:root の主色» から作られて引き継がれるので、主色を替えただけでは青みが残る。
    同じ式をここでもう一度書き、場所の色から作り直す（式は上の «主色から導く面と線» と同じ）。
    一か所だけ直して «ほかの場所は青のまま» にならないよう、三つの場所に同じ決まりで掛ける。
-   キーの面の色（--same / --cross）と合否の緑・赤は意味の色なので替えない（--same は :root で決まって引き継がれる） */
+   同側シフトの面（--same）も場所の色にする。判定の色（緑・水色・赤）は意味の色なので替えない */
 body[data-area="learn"],
 body[data-area="train"],
 body[data-area="game"] {
   --tone: var(--area);
   --tone-ink: var(--area-ink);
+  /* 同側シフトの面も場所の色にする（:root では主色の青）。交差シフト（濁音）は桃のまま */
+  --same: var(--tone);
   --panel: color-mix(in srgb, var(--tone) 7%, var(--bg));
   --panel-2: color-mix(in srgb, var(--tone) 3%, var(--bg));
   --line: color-mix(in srgb, var(--tone) 26%, var(--bg));
@@ -933,6 +935,10 @@ body[data-area="game"] {
   background: color-mix(in srgb, var(--area) 5%, var(--bg));
 }
 body[data-area="game"] { background: color-mix(in srgb, var(--area) 10%, var(--bg)); }
+/* 鍛えるだけは、同側（朱）と交差（桃）の色が近くて見分けられないので、交差を藤にする。
+   藤は暗い地で 9.2:1、ライトの素地で 7.4:1 */
+body[data-area="train"] { --cross: #c4a3ff; }
+:root[data-tone="light"] body[data-area="train"] { --cross: #5b3aa8; }
 :root[data-tone="light"] body[data-area="learn"],
 :root[data-tone="light"] body[data-area="train"],
 :root[data-tone="light"] body[data-area="game"] {

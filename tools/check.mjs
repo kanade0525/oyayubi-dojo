@@ -462,7 +462,7 @@ const sources = [
  *   - それ以外のタグの src= / href=（<script src> / <img src> / <link href> など）は禁止。
  *     読み込んだ時点でブラウザが外へ取りに行く
  *   - JS の import（静的・動的・from）で外部 URL を指すのは禁止
- *   - JS 中の文字列の URL（config.js の SUPPORT_URL / RANKING_API_URL）は対象外。
+ *   - JS 中の文字列の URL（config.js の SUPPORT_URL / SPONSORS_URL / RANKING_API_URL）は対象外。
  *     値を入れても `src=` / `import` の形にはならないので、下の正規表現は拾わない。
  *     それを当てにせず、検査の検査で config.js と同じ書き方の入力が素通りすることを確かめている
  *   - `//cdn.example/x.js` のようなスキームの無い書き方も外部参照として拾う
@@ -651,7 +651,7 @@ if (!has(CONFIG_SRC)) {
 } else {
   try {
     const cfg = await import(pathToFileURL(join(ROOT, CONFIG_SRC)).href);
-    for (const name of ['RANKING_API_URL', 'SUPPORT_URL']) {
+    for (const name of ['RANKING_API_URL', 'SUPPORT_URL', 'SPONSORS_URL']) {
       const v = cfg[name];
       if (typeof v !== 'string') {
         ng('設定', `${CONFIG_SRC} が ${name} を文字列で export していない（${typeof v}）`);
@@ -661,7 +661,7 @@ if (!has(CONFIG_SRC)) {
         notes.push(
           name === 'RANKING_API_URL'
             ? `${name} が空。ランキングは「準備中」表示のまま。connect-src は 'none' を要求する`
-            : `${name} が空。支援リンク（Buy Me a Coffee）は画面に出ない`
+            : `${name} が空。その支援リンク（${name === 'SUPPORT_URL' ? 'Buy Me a Coffee' : 'GitHub Sponsors'}）は画面に出ない`
         );
         continue;
       }

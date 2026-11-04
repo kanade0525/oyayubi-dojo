@@ -992,23 +992,63 @@ body[data-area="train"] .nav__streak[data-for="train"] { display: inline-flex; }
 }
 
 /* 開発の応援。右端に一つだけ。場所の色は使わず、ナビのリンクと同じ静かさで */
+/* 応援の窓口。押すと下に二つの窓口が開く（details なので JS 無しで開け閉めできる） */
 .nav__support {
+  position: relative;
+  margin-left: 8px;
+}
+
+.nav__support > summary {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  margin-left: 8px;
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: var(--r-s);
   font-size: 11.5px;
   color: var(--fg-mid);
   white-space: nowrap;
+  list-style: none;
+  cursor: pointer;
 }
 
-.nav__support:hover {
+.nav__support > summary::-webkit-details-marker { display: none; }
+
+.nav__support > summary:hover,
+.nav__support[open] > summary {
   color: var(--fg);
   border-color: var(--fg-dim);
 }
+
+.nav__supportMenu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 320px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--bg);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+
+.nav__supportMenu a {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--r-s);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.nav__supportMenu a:hover,
+.nav__supportMenu a:focus-visible { background: var(--panel); }
+
+.nav__supportMenu b { font-size: 13px; }
+.nav__supportMenu small { font-size: 11.5px; color: var(--fg-dim); }
 
 /* 場所の頭。看板の名前を小さく上に置き、見出しの下に場所の色の短い線 */
 .area-head__site {
@@ -3737,8 +3777,11 @@ body[data-area="train"] .btn--primary {
 
   /* 応援は狭いところではアイコンだけ。字を残すと «ほかの入口» の行からあふれて一行を取っていた。
      名前は title と、隠した span（読み上げには残る）が持つ */
-  .nav__support { flex: none; padding: 5px 7px; }
-  .nav__support span {
+  .nav__support { flex: none; }
+  .nav__support > summary { padding: 5px 7px; }
+  /* ボタンが左寄りに来るので、ボタンの右端に揃えると左へはみ出す。画面の両端に合わせて出す */
+  .nav__supportMenu { position: fixed; top: 64px; left: 16px; right: 16px; min-width: 0; }
+  .nav__support > summary span {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
 

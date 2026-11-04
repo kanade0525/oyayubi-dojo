@@ -83,8 +83,16 @@
     <b id="navStreak">0</b><span>日連続</span>
   </a>
 
-  <!-- 開発の応援（Buy Me a Coffee）。どの場所でも同じ右端に置く。外のサイトなので新しいタブで -->
-  <a class="nav__support" href="https://buymeacoffee.com/kanade0525" target="_blank" rel="noopener noreferrer" data-icon="coffee" title="開発を応援する（Buy Me a Coffee）"><span>応援する</span></a>
+  <!-- 開発の応援。どの場所でも同じ右端に置く。押すと二つの窓口が開く（外のサイトなので新しいタブで）。
+       Buy Me a Coffee はアカウント無しでカードから払える。GitHub Sponsors は手数料が無く全額届くが、GitHub のアカウントが要る。
+       親指シフトを使う人はエンジニアに限らないので、両方を置く -->
+  <details class="nav__support">
+    <summary data-icon="coffee" title="開発を応援する"><span>応援する</span></summary>
+    <div class="nav__supportMenu">
+      <a href="https://buymeacoffee.com/kanade0525" target="_blank" rel="noopener noreferrer"><b>Buy Me a Coffee</b><small>カードで。アカウント不要</small></a>
+      <a href="https://github.com/sponsors/kanade0525" target="_blank" rel="noopener noreferrer"><b>GitHub Sponsors</b><small>手数料なしで全額届く。GitHub のアカウントで</small></a>
+    </div>
+  </details>
 
 </header>
 

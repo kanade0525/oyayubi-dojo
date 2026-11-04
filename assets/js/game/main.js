@@ -36,7 +36,7 @@ import { icon, fillIcons } from '../icons.js';
 import {
   rankingEnabled, currentPlayer, register, submitScore, fetchRanking, forgetMe, CONSENT_VERSION,
 } from './ranking.js';
-import { SUPPORT_URL } from './config.js';
+import { SUPPORT_URL, SPONSORS_URL } from './config.js';
 
 // ---------------------------------------------------------------- 準備
 
@@ -978,21 +978,28 @@ el.btnConsent.addEventListener('click', async () => {
 
 function paintSupport() {
   const slots = document.querySelectorAll('[data-support]');
-  if (!SUPPORT_URL) return; // 空なら出さない（ダミーで他人に投げ銭が飛ぶのを避ける）
-  let url = null;
-  try {
-    url = new URL(SUPPORT_URL);
-  } catch {
-    url = null;
-  }
+  // 空のものは出さない（ダミーで他人に投げ銭が飛ぶのを避ける）
+  const links = [
+    { name: 'SUPPORT_URL', value: SUPPORT_URL, label: 'Buy Me a Coffee' },
+    { name: 'SPONSORS_URL', value: SPONSORS_URL, label: 'GitHub Sponsors' },
+  ].filter((l) => l.value);
+  if (!links.length) return;
+  const bad = links.filter((l) => {
+    try { return new URL(l.value).protocol !== 'https:'; } catch { return true; }
+  });
   for (const slot of slots) {
     slot.hidden = false;
-    if (!url || url.protocol !== 'https:') {
+    if (bad.length) {
       // 設定の誤りは黙って消さずに見せる。直すのは config.js
-      slot.textContent = '支援リンクの設定（config.js の SUPPORT_URL）が https の URL になっていません';
+      slot.textContent = `支援リンクの設定（config.js の ${bad.map((l) => l.name).join('・')}）が https の URL になっていません`;
       continue;
     }
-    slot.replaceChildren(h('a', { href: url.href, target: '_blank', rel: 'noopener noreferrer' }, '開発を応援する（Buy Me a Coffee）'));
+    const parts = ['開発を応援する：'];
+    links.forEach((l, i) => {
+      if (i) parts.push('・');
+      parts.push(h('a', { href: new URL(l.value).href, target: '_blank', rel: 'noopener noreferrer' }, l.label));
+    });
+    slot.replaceChildren(...parts);
   }
 }
 
@@ -1208,6 +1215,13 @@ function runDemo(kind) {
     throw new Error(`知らないデモ: ${kind}`);
   }
 }
+
+// 応援の窓口（ヘッダーの details）は、外を押したら閉じる
+document.addEventListener('click', (e) => {
+  for (const d of document.querySelectorAll('details.nav__support[open]')) {
+    if (!d.contains(e.target)) d.open = false;
+  }
+});
 
 // ---------------------------------------------------------------- 起動
 

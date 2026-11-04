@@ -2452,6 +2452,13 @@ el.btnFreeStart?.addEventListener('click', () => {
 
 window.addEventListener('hashchange', route);
 
+// 応援の窓口（ヘッダーの details）は、外を押したら閉じる
+document.addEventListener('click', (e) => {
+  for (const d of document.querySelectorAll('details.nav__support[open]')) {
+    if (!d.contains(e.target)) d.open = false;
+  }
+});
+
 applyTone(settings.tone);
 fillIcons();
 paintNav();

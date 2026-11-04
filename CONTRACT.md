@@ -322,6 +322,7 @@ export function createGame({ course, words, rng, laneMs })   // laneMs は SPEED
 ```js
 export const RANKING_API_URL = 'https://5u0vzxhs2f.execute-api.ap-northeast-1.amazonaws.com';   // 空ならランキングは「準備中」と画面に出す（隠さない）
 export const SUPPORT_URL = 'https://buymeacoffee.com/kanade0525';   // 空なら支援リンクは出さない
+export const SPONSORS_URL = 'https://github.com/sponsors/kanade0525';   // 同じく空なら出さない。支援の窓口は二つ（アカウント不要の Buy Me a Coffee と、手数料の無い GitHub Sponsors）
 ```
 
 どちらも本番の値が入っている（2026-11-02）。**ダミーの URL は入れない**（投げ銭が他人に飛ぶ・存在しない API を叩く）。

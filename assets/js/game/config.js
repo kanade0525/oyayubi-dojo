@@ -12,3 +12,6 @@ export const RANKING_API_URL = 'https://5u0vzxhs2f.execute-api.ap-northeast-1.am
 
 // 例: 'https://buymeacoffee.com/<ユーザー名>'
 export const SUPPORT_URL = 'https://buymeacoffee.com/kanade0525';
+
+// 例: 'https://github.com/sponsors/<ユーザー名>'。空なら出さない
+export const SPONSORS_URL = 'https://github.com/sponsors/kanade0525';

@@ -1285,6 +1285,7 @@ function paintGateInst(stats) {
     el.gateScope.replaceChildren(p, m);
     startTrial(m, null);
   }
+  placeRings();
 }
 
 // -- 前回から ----------------------------------------------------------------
@@ -1414,6 +1415,19 @@ function gateRipple(tier) {
   void r.offsetWidth;   // 同じクラスを付け直してもアニメーションは頭から走らない。一度描かせてから付ける
   r.classList.add('is-hit');
 }
+
+/** 試し打ちのあいだは、的の中心をメーターの «ぴったり»（レールの真ん中）に合わせる。
+ *  記録の分布より背が低いので、CSS の決め打ちの位置だと輪がレールや目盛りを横切って崩れて見える */
+function placeRings() {
+  const r = el.gateRings;
+  const rail = el.gateScope.querySelector('.inst__meter .meter__rail');
+  if (!rail) { r.style.removeProperty('top'); r.style.removeProperty('left'); return; }
+  const h = r.parentElement.getBoundingClientRect();
+  const b = rail.getBoundingClientRect();
+  r.style.top = `${b.top + b.height / 2 - h.top}px`;
+  r.style.left = `${b.left + b.width / 2 - h.left}px`;
+}
+new ResizeObserver(placeRings).observe(el.gateRings.parentElement);
 
 // 背景の的をマウスに少しだけ付いてこさせる。門にいる間だけ
 window.addEventListener('pointermove', (e) => {
